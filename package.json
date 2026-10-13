@@ -1,0 +1,30 @@
+{
+  "name": "spectrum-booking",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Class scheduling, seat holds and waitlist for Spectrum CPR + First Aid",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "seed": "node --disable-warning=ExperimentalWarning src/seed.js",
+    "test": "node --disable-warning=ExperimentalWarning test/seats.test.js",
+    "test:fe": "node --disable-warning=ExperimentalWarning test/frontend.test.js",
+    "test:all": "npm test && npm run test:slots && npm run test:pricing && npm run test:geo && npm run test:address && npm run test:fe && npm run test:admin",
+    "test:admin": "node --disable-warning=ExperimentalWarning test/admin.test.js",
+    "test:slots": "node --disable-warning=ExperimentalWarning test/slots.test.js",
+    "test:address": "node --disable-warning=ExperimentalWarning test/address.test.js",
+    "test:pricing": "node --disable-warning=ExperimentalWarning test/pricing.test.js",
+    "test:e2e": "bash test/e2e.sh",
+    "test:geo": "node --disable-warning=ExperimentalWarning test/geofence.test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  }
+}

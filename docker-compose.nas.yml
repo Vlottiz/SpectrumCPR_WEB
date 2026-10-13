@@ -1,0 +1,62 @@
+# Spectrum CPR booking — UGREEN NAS (UGOS Pro)
+#
+# Paste this into Docker > Project > Create.
+#
+# No build step: UGOS's Compose editor has no build context to work from, so
+# this runs the stock Node image straight against your files. Copy the project
+# to the NAS with File Manager or SMB — nothing to compile, nothing to push.
+#
+# BEFORE DEPLOYING, replace /volume1/docker/spectrum-booking below with the
+# real path shown in UGOS Files. Storage pool names differ between models and
+# an assumed path is the usual reason a first deploy fails.
+
+services:
+  booking:
+    image: node:22-alpine
+    container_name: spectrum-booking
+    restart: unless-stopped
+    working_dir: /app
+
+    volumes:
+      # The project: index.html, admin.html, package.json, src/, the logos.
+      - /volume1/docker/spectrum-booking/app:/app
+      # The database, kept outside the app folder so replacing the app never
+      # touches the bookings. Back this one up.
+      - /volume1/docker/spectrum-booking/data:/data
+
+    # Installs dependencies on first run, then starts. Express is the only
+    # one, so this takes seconds.
+    command: >
+      sh -c "npm install --omit=dev --no-audit --no-fund &&
+             node --disable-warning=ExperimentalWarning src/server.js"
+
+    environment:
+      - DB_PATH=/data/booking.db
+      - PORT=3000
+      - HOLD_MINUTES=20
+      - OFFER_HOURS=24
+      - SESSION_MINUTES=240
+      - BUFFER_MINUTES=90
+      - ORG_NAME=Spectrum CPR + First Aid
+      # CHANGE THIS. Anyone with it can read every customer's name, phone and
+      # home address.
+      - ADMIN_TOKEN=change-me-to-something-long-and-random
+      # Nothing is charged until Elavon credentials exist.
+      - PAYMENT_PROVIDER=mock
+      # Once it's on a real domain, list it here instead of *.
+      - ALLOWED_ORIGINS=*
+      # Rank address suggestions near the business.
+      - ADDRESS_BIAS_LAT=45.5229
+      - ADDRESS_BIAS_LON=-122.9898
+      - TZ=America/Los_Angeles
+
+    ports:
+      # http://<nas-ip>:3000
+      - "3000:3000"
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3

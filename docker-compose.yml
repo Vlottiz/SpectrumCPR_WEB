@@ -1,0 +1,34 @@
+# Spectrum CPR booking — runs on a NAS, VPS or any machine with Docker.
+#
+#   docker compose up -d      start
+#   docker compose logs -f    watch
+#   docker compose down       stop
+#
+# Set ADMIN_TOKEN in a .env file beside this one before the first run.
+
+services:
+  booking:
+    build: .
+    container_name: spectrum-booking
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    environment:
+      - DB_PATH=/data/booking.db
+      - HOLD_MINUTES=${HOLD_MINUTES:-20}
+      - OFFER_HOURS=${OFFER_HOURS:-24}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:?set ADMIN_TOKEN in .env}
+      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-mock}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      - ORG_NAME=${ORG_NAME:-Spectrum CPR + First Aid}
+      # Filled in once Elavon issues credentials.
+      - CONVERGE_MERCHANT_ID=${CONVERGE_MERCHANT_ID:-}
+      - CONVERGE_USER_ID=${CONVERGE_USER_ID:-}
+      - CONVERGE_PIN=${CONVERGE_PIN:-}
+      - CONVERGE_ENV=${CONVERGE_ENV:-demo}
+    volumes:
+      # Named volume, so bookings survive rebuilds. Back this up.
+      - booking-data:/data
+
+volumes:
+  booking-data:

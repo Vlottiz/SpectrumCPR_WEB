@@ -1,0 +1,2300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spectrum CPR + First Aid — Certification Classes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#141821;
+    --ink-soft:#4a5261;
+    --paper:#ffffff;
+    --paper-2:#f2f4f7;
+    --rule:#d8dce3;
+    --red:#d8202f;
+    --red-dark:#a8141f;
+
+    /* spectrum = course type coding */
+    --c-bls:#d8202f;
+    --c-heartsaver:#e8811a;
+    --c-firstaid:#c99f06;
+    --c-pediatric:#2a9d4e;
+    --c-babysit:#2472c8;
+    --c-onsite:#7a3fc4;
+
+    /* inverted band */
+    --band-bg:#141821;
+    --band-text:#ffffff;
+    --band-soft:#c3c9d4;
+
+    --note-bg:#fff8e1;
+    --note-rule:#e8cf7a;
+    --note-ink:#5c4a10;
+
+    --sans:'Barlow', system-ui, -apple-system, sans-serif;
+    --cond:'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+    --wrap:1120px;
+  }
+
+  [data-theme="dark"]{
+    --ink:#e9edf4;
+    --ink-soft:#98a1b2;
+    --paper:#11141a;
+    --paper-2:#1a1e26;
+    --rule:#2d333f;
+    --red:#f2515e;
+    --red-dark:#d8202f;
+
+    --c-bls:#f2515e;
+    --c-heartsaver:#f59a3c;
+    --c-firstaid:#e8c531;
+    --c-pediatric:#3fc16c;
+    --c-babysit:#4b93e8;
+    --c-onsite:#a069e8;
+
+    --band-bg:#1a1e26;
+    --band-text:#e9edf4;
+    --band-soft:#98a1b2;
+
+    --note-bg:#241f10;
+    --note-rule:#5c4d1e;
+    --note-ink:#e0cd8a;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    font-family:var(--sans);
+    color:var(--ink);
+    background:var(--paper);
+    font-size:17px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    transition:background-color .25s ease, color .25s ease;
+  }
+  .wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px;}
+
+  /* ---------- spectrum rule: the one recurring brand device ---------- */
+  .spectrum-bar{
+    height:5px;
+    background:linear-gradient(90deg,
+      var(--c-bls) 0%, var(--c-heartsaver) 20%, var(--c-firstaid) 38%,
+      var(--c-pediatric) 58%, var(--c-babysit) 78%, var(--c-onsite) 100%);
+  }
+
+  /* ---------- header ---------- */
+  header{position:sticky;top:0;z-index:50;background:var(--paper);border-bottom:1px solid var(--rule);}
+  .bar{display:flex;align-items:center;gap:28px;height:74px;}
+  .logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);margin-right:auto;}
+  .logo svg{display:block;}
+  .logo-txt{font-family:var(--cond);font-weight:700;font-size:26px;letter-spacing:.02em;line-height:1;}
+  .logo-txt span{display:block;font-size:11px;font-weight:600;letter-spacing:.22em;color:var(--ink-soft);}
+
+  /* ---------- logo image swap (light / dark versions) ---------- */
+  .logo-img{display:block;width:auto;}
+  .logo-dark{display:none;}
+  [data-theme="dark"] .logo-light{display:none;}
+  [data-theme="dark"] .logo-dark{display:block;}
+  .bar .logo-img{height:52px;}
+  .footer-logo{width:200px;height:auto;margin-bottom:4px;}
+
+  nav{display:flex;gap:26px;}
+  nav button{
+    background:none;border:0;padding:6px 0;cursor:pointer;
+    font-family:var(--sans);font-size:15px;font-weight:500;color:var(--ink-soft);
+    border-bottom:2px solid transparent;
+  }
+  nav button:hover{color:var(--ink);}
+  nav button[aria-current="page"]{color:var(--ink);border-bottom-color:var(--red);}
+  .btn{
+    display:inline-block;background:var(--red);color:#fff;text-decoration:none;
+    font-weight:600;font-size:15px;padding:11px 20px;border:0;border-radius:2px;cursor:pointer;
+    font-family:var(--sans);
+  }
+  .btn:hover{background:var(--red-dark);}
+  .btn-ghost{background:none;color:var(--ink);border:1.5px solid var(--ink);}
+  .btn-ghost:hover{background:var(--ink);color:#fff;}
+  .menu-toggle{display:none;background:none;border:1.5px solid var(--rule);border-radius:2px;padding:8px 12px;font-size:14px;cursor:pointer;font-family:var(--sans);}
+
+  /* ---------- dark mode slide switch ---------- */
+  .theme-switch{
+    position:relative;flex-shrink:0;
+    width:56px;height:30px;padding:0;border-radius:999px;cursor:pointer;
+    border:1.5px solid var(--rule);background:var(--paper-2);
+    transition:background .3s ease, border-color .3s ease;
+  }
+  .theme-switch::before{
+    content:"";position:absolute;inset:0;border-radius:999px;opacity:0;
+    background:linear-gradient(90deg,
+      #f2515e 0%, #f59a3c 20%, #e8c531 38%,
+      #3fc16c 58%, #4b93e8 78%, #a069e8 100%);
+    transition:opacity .3s ease;
+  }
+  .theme-switch .knob{
+    position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;
+    background:var(--ink);
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .3s cubic-bezier(.4,.1,.3,1.3), background .3s ease;
+    z-index:1;
+  }
+  .theme-switch .knob svg{width:13px;height:13px;color:var(--paper);}
+  .theme-switch .knob .moon{display:none;}
+  .theme-switch:focus-visible{outline:2px solid var(--red);outline-offset:3px;}
+
+  [data-theme="dark"] .theme-switch{border-color:transparent;background:var(--paper-2);}
+  [data-theme="dark"] .theme-switch::before{opacity:1;}
+  [data-theme="dark"] .theme-switch .knob{transform:translateX(26px);background:#11141a;}
+  [data-theme="dark"] .theme-switch .knob svg{color:#fff;}
+  [data-theme="dark"] .theme-switch .knob .sun{display:none;}
+  [data-theme="dark"] .theme-switch .knob .moon{display:block;}
+
+  /* ---------- page switching ---------- */
+  .page{display:none;}
+  .page.active{display:block;}
+
+  /* ---------- hero ---------- */
+  .hero{padding:64px 0 0;border-bottom:1px solid var(--rule);}
+  .hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:56px;align-items:start;}
+  h1{
+    font-family:var(--cond);font-weight:700;font-size:clamp(44px,6vw,76px);
+    line-height:.98;letter-spacing:-.01em;margin:0 0 20px;
+  }
+  .lede{font-size:19px;color:var(--ink-soft);max-width:52ch;margin:0 0 28px;}
+  .hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:36px;}
+  .credential-strip{
+    display:flex;gap:28px;flex-wrap:wrap;padding:18px 0 44px;
+    border-top:1px solid var(--rule);font-size:14px;color:var(--ink-soft);
+  }
+  .credential-strip b{color:var(--ink);font-weight:600;}
+
+  /* next classes panel */
+  .next-panel{border:1.5px solid var(--ink);background:var(--paper);}
+  .next-panel h2{
+    font-family:var(--cond);font-size:20px;font-weight:600;margin:0;
+    padding:14px 18px;border-bottom:1px solid var(--rule);letter-spacing:.01em;
+  }
+  .slot{display:flex;gap:14px;padding:14px 18px;border-bottom:1px solid var(--rule);align-items:baseline;}
+  .slot:last-of-type{border-bottom:0;}
+  .slot-date{
+    font-family:var(--cond);font-size:15px;font-weight:600;min-width:66px;
+    padding-left:10px;border-left:4px solid var(--rule);
+  }
+  .slot-body{flex:1;}
+  .slot-name{font-weight:600;font-size:15px;}
+  .slot-meta{font-size:13.5px;color:var(--ink-soft);}
+  .slot-seats{font-size:12.5px;font-weight:600;color:var(--c-pediatric);}
+  .slot-seats.low{color:var(--red);}
+  .next-foot{padding:14px 18px;background:var(--paper-2);border-top:1px solid var(--rule);}
+  .next-foot a{color:var(--ink);font-weight:600;font-size:14px;}
+
+  /* ---------- pulse divider ---------- */
+  .pulse{display:block;width:100%;height:54px;color:var(--rule);}
+
+  /* ---------- sections ---------- */
+  section{padding:64px 0;}
+  section + section{border-top:1px solid var(--rule);}
+  h2.sec{font-family:var(--cond);font-weight:700;font-size:clamp(30px,3.6vw,42px);line-height:1.05;margin:0 0 10px;}
+  .sec-note{color:var(--ink-soft);max-width:58ch;margin:0 0 34px;}
+  h3{font-family:var(--cond);font-weight:600;font-size:24px;margin:0 0 8px;line-height:1.15;}
+
+  /* course rows — color coded by certification, not identical cards */
+  .course{
+    display:grid;grid-template-columns:6px 1fr auto;gap:0 22px;
+    border-top:1px solid var(--rule);padding:24px 0;align-items:start;
+  }
+  .course:last-child{border-bottom:1px solid var(--rule);}
+  .swatch{width:6px;align-self:stretch;border-radius:1px;}
+  .course-meta{font-size:14px;color:var(--ink-soft);margin:8px 0 0;}
+  .course p{margin:0;max-width:62ch;}
+  .course-price{text-align:right;}
+  .price{font-family:var(--cond);font-size:34px;font-weight:700;line-height:1;}
+  .price small{display:block;font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--ink-soft);letter-spacing:.02em;margin-top:6px;}
+
+  /* schedule table */
+  table{width:100%;border-collapse:collapse;font-size:15.5px;}
+  th{
+    text-align:left;font-family:var(--cond);font-size:16px;font-weight:600;
+    padding:10px 12px;border-bottom:1.5px solid var(--ink);
+  }
+  td{padding:14px 12px;border-bottom:1px solid var(--rule);vertical-align:top;}
+  tr td:first-child{border-left:4px solid var(--rule);font-weight:600;}
+  .tag{font-size:12.5px;font-weight:600;color:#fff;padding:2px 8px;border-radius:2px;display:inline-block;}
+  .seats-ok{color:var(--c-pediatric);font-weight:600;font-size:14px;}
+  .seats-low{color:var(--red);font-weight:600;font-size:14px;}
+  .seats-full{color:var(--ink-soft);font-size:14px;}
+
+  /* about */
+  .about-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:48px;align-items:start;}
+  .portrait{
+    aspect-ratio:4/5;background:var(--paper-2);border:1px solid var(--rule);
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    color:var(--ink-soft);font-size:14px;padding:24px;
+  }
+  .creds{list-style:none;padding:0;margin:24px 0 0;}
+  .creds li{padding:12px 0 12px 20px;border-top:1px solid var(--rule);position:relative;}
+  .creds li::before{content:"";position:absolute;left:0;top:19px;width:8px;height:8px;background:var(--red);border-radius:50%;}
+
+  /* testimonials */
+  .quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:0;}
+  .quote{padding:0 26px;border-left:1px solid var(--rule);}
+  .quote:first-child{padding-left:0;border-left:0;}
+  .quote p{font-size:17px;margin:0 0 14px;}
+  .quote cite{font-style:normal;font-size:14px;color:var(--ink-soft);font-weight:600;}
+
+  /* contact */
+  .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:52px;}
+  label{display:block;font-size:14px;font-weight:600;margin:0 0 6px;}
+  input,select,textarea{
+    width:100%;padding:11px 12px;border:1.5px solid var(--rule);border-radius:2px;
+    font-family:var(--sans);font-size:15.5px;background:var(--paper);color:var(--ink);margin-bottom:18px;
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--red);outline-offset:1px;border-color:var(--ink);}
+  textarea{min-height:120px;resize:vertical;}
+  .info-row{display:flex;gap:14px;padding:16px 0;border-top:1px solid var(--rule);}
+  .info-row:last-of-type{border-bottom:1px solid var(--rule);}
+  .info-label{font-family:var(--cond);font-weight:600;font-size:17px;min-width:100px;}
+  .map{
+    margin-top:24px;aspect-ratio:16/10;background:var(--paper-2);border:1px solid var(--rule);
+    display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:14px;
+  }
+  .formnote{font-size:13.5px;color:var(--ink-soft);margin-top:14px;}
+
+  /* group training band */
+  .band{background:var(--band-bg);color:var(--band-text);padding:56px 0;transition:background .25s ease;}
+  .band h2{color:var(--band-text);}
+  .band p{color:var(--band-soft);max-width:56ch;}
+  .band .btn-ghost{color:var(--band-text);border-color:var(--band-text);}
+  .band .btn-ghost:hover{background:var(--band-text);color:var(--band-bg);}
+  [data-theme="dark"] .band{border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);}
+
+  /* footer */
+  footer{border-top:1px solid var(--rule);padding:40px 0 56px;font-size:14px;color:var(--ink-soft);}
+  .foot-grid{display:flex;gap:40px;flex-wrap:wrap;justify-content:space-between;}
+  footer a{color:var(--ink-soft);}
+
+  .demo-note{
+    background:var(--note-bg);border:1px solid var(--note-rule);color:var(--note-ink);padding:12px 16px;
+    font-size:14px;margin:20px auto;max-width:var(--wrap);border-radius:2px;
+  }
+
+
+  /* ---------- booking modal ---------- */
+  .modal-veil{
+    position:fixed;inset:0;z-index:100;display:none;
+    background:rgba(20,24,33,.55);
+    align-items:flex-start;justify-content:center;
+    padding:6vh 20px 20px;overflow-y:auto;
+  }
+  .modal-veil.open{display:flex;}
+  .modal{
+    background:var(--paper);border:1.5px solid var(--ink);
+    width:100%;max-width:470px;position:relative;
+  }
+  .modal-head{
+    padding:18px 22px;border-bottom:1px solid var(--rule);
+    display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+  }
+  .modal-head h3{margin:0 0 2px;font-size:22px;}
+  .modal-when{font-size:14px;color:var(--ink-soft);}
+  .modal-close{
+    background:none;border:0;font-size:24px;line-height:1;cursor:pointer;
+    color:var(--ink-soft);padding:0 2px;flex-shrink:0;
+  }
+  .modal-close:hover{color:var(--ink);}
+  .modal-body{padding:22px;}
+  .modal-body label{margin-top:2px;}
+  .modal-body input{margin-bottom:14px;}
+  .modal-price{
+    font-family:var(--cond);font-size:30px;font-weight:700;line-height:1;
+    margin:0 0 18px;
+  }
+  .modal-price small{
+    display:block;font-family:var(--sans);font-size:13px;font-weight:500;
+    color:var(--ink-soft);margin-top:5px;
+  }
+  .modal-err{
+    background:#fdeaec;border:1px solid var(--red);color:var(--red-dark);
+    padding:10px 13px;font-size:14px;margin-bottom:16px;border-radius:2px;display:none;
+  }
+  [data-theme="dark"] .modal-err{background:#3a1519;color:#ffb3ba;}
+  .modal-err.show{display:block;}
+  .modal-note{font-size:13.5px;color:var(--ink-soft);margin:14px 0 0;}
+
+  /* countdown on the hold */
+  .hold-bar{
+    background:var(--paper-2);border:1px solid var(--rule);
+    padding:12px 15px;margin-bottom:18px;font-size:14px;border-radius:2px;
+  }
+  .hold-bar b{font-family:var(--cond);font-size:20px;letter-spacing:.02em;}
+  .hold-bar.urgent{border-color:var(--red);color:var(--red);}
+
+  .mock-banner{
+    background:var(--note-bg);border:1px solid var(--note-rule);color:var(--note-ink);
+    padding:10px 13px;font-size:13.5px;margin-bottom:16px;border-radius:2px;
+  }
+
+  /* confirmation */
+  .ok-mark{
+    font-family:var(--cond);font-size:26px;font-weight:700;
+    color:var(--c-pediatric);margin:0 0 6px;
+  }
+  .ref-chip{
+    display:inline-block;font-family:var(--cond);font-size:22px;font-weight:700;
+    letter-spacing:.06em;border:1.5px dashed var(--rule);padding:8px 14px;margin:6px 0 18px;
+  }
+  .cal-row{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 4px;}
+  .cal-row .btn{flex:1;min-width:150px;text-align:center;}
+
+  /* group booking */
+  .qty-row{display:flex;align-items:center;gap:12px;margin:0 0 18px;}
+  .qty-row label{margin:0;flex:1;}
+  .qty-btns{display:flex;align-items:center;border:1.5px solid var(--rule);border-radius:2px;}
+  .qty-btns button{
+    background:none;border:0;font:inherit;font-size:19px;font-weight:600;
+    width:38px;height:38px;cursor:pointer;color:var(--ink);line-height:1;
+  }
+  .qty-btns button:disabled{opacity:.3;cursor:not-allowed;}
+  .qty-btns b{
+    font-family:var(--cond);font-size:20px;min-width:36px;text-align:center;
+    border-left:1px solid var(--rule);border-right:1px solid var(--rule);
+    line-height:38px;
+  }
+  .attendee{display:flex;align-items:center;gap:9px;margin-bottom:6px;}
+  .att-block{margin-bottom:12px;}
+  .att-extra{display:none;padding:0 0 4px 29px;}
+  .att-extra.open{display:block;}
+  .att-extra input{font-size:14px;padding:8px 10px;margin-bottom:7px;}
+  .att-toggle{
+    background:none;border:0;padding:0 0 0 29px;margin:0 0 8px;cursor:pointer;
+    font:inherit;font-size:12.5px;font-weight:600;color:var(--ink-soft);
+    text-decoration:underline;text-underline-offset:2px;
+  }
+  .att-toggle:hover{color:var(--ink);}
+
+  /* email domain suggestions */
+  .email-suggest,
+  .addr-suggest{
+    position:fixed;z-index:200;background:var(--paper);
+    border:1.5px solid var(--ink);border-top:0;
+    max-height:190px;overflow-y:auto;display:none;
+    box-shadow:0 6px 18px rgba(0,0,0,.18);
+  }
+  .email-suggest.open,
+  .addr-suggest.open{display:block;}
+  .email-suggest div,
+  .addr-suggest div{
+    padding:9px 12px;cursor:pointer;font-size:15px;
+    border-bottom:1px solid var(--rule);
+  }
+  .email-suggest div:last-child,
+  .addr-suggest div:last-child{border-bottom:0;}
+  .email-suggest div:hover,
+  .email-suggest div.active,
+  .addr-suggest div:hover,
+  .addr-suggest div.active{background:var(--paper-2);}
+  .email-suggest b{font-weight:600;}
+  .attendee span{
+    font-family:var(--cond);font-size:14px;font-weight:600;color:var(--ink-soft);
+    min-width:20px;text-align:right;
+  }
+  .attendee input{margin:0;}
+  .group-note{
+    background:var(--paper-2);border:1px solid var(--rule);padding:10px 13px;
+    font-size:13.5px;color:var(--ink-soft);margin:0 0 16px;border-radius:2px;
+  }
+  .total-line{
+    display:flex;justify-content:space-between;align-items:baseline;
+    border-top:1px solid var(--rule);padding-top:13px;margin:16px 0 18px;
+  }
+  .total-line b{font-family:var(--cond);font-size:27px;}
+
+  /* group pricing */
+  .price-why{
+    border:1.5px solid var(--rule);border-left:4px solid var(--c-pediatric);
+    background:var(--paper-2);padding:11px 14px;margin:0 0 16px;
+    font-size:13.5px;border-radius:2px;
+  }
+  .price-why.surcharge{border-left-color:var(--c-heartsaver);}
+  .price-why b{display:block;font-family:var(--cond);font-size:16px;margin-bottom:3px;}
+  .price-why .nudge{display:block;margin-top:7px;color:var(--ink-soft);}
+  .was{text-decoration:line-through;color:var(--ink-soft);font-weight:400;
+       font-size:15px;margin-right:7px;}
+  .tier-table{width:100%;border-collapse:collapse;font-size:13.5px;margin:2px 0 16px;}
+  .tier-table td{padding:5px 0;border-bottom:1px solid var(--rule);}
+  .tier-table tr:last-child td{border-bottom:0;}
+  .tier-table td:last-child{text-align:right;font-weight:600;}
+  .tier-table tr.now td{color:var(--red);}
+
+  /* time slot picker */
+  .slot-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));
+    gap:8px;margin:0 0 6px;
+  }
+  .slot-btn{
+    font:inherit;font-weight:600;font-size:14.5px;padding:11px 6px;
+    border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);
+    border-radius:2px;cursor:pointer;
+  }
+  .slot-btn:hover:not(:disabled){border-color:var(--ink);}
+  .slot-btn.picked{background:var(--red);border-color:var(--red);color:#fff;}
+  .slot-btn:disabled{
+    opacity:.34;cursor:not-allowed;text-decoration:line-through;
+  }
+  .slot-legend{font-size:12.5px;color:var(--ink-soft);margin:2px 0 18px;}
+
+  .alt-day{
+    border:1.5px solid var(--rule);border-left:4px solid var(--c-pediatric);
+    padding:11px 13px;margin-bottom:9px;cursor:pointer;background:var(--paper);
+  }
+  .alt-day:hover{border-color:var(--ink);}
+  .alt-day b{display:block;font-family:var(--cond);font-size:17px;}
+  .alt-day span{font-size:13.5px;color:var(--ink-soft);}
+  .alt-day .match{color:var(--c-pediatric);font-weight:600;}
+
+  .addr-row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:0 10px;}
+  .addr-row input{margin-bottom:14px;}
+  .addr-row select{
+    width:100%;padding:11px 12px;border:1.5px solid var(--rule);border-radius:2px;
+    font-family:var(--sans);font-size:15.5px;background:var(--paper);color:var(--ink);
+    margin-bottom:14px;
+  }
+  .addr-hint{font-size:12.5px;color:var(--ink-soft);margin:-8px 0 14px;}
+  .addr-hint.bad{color:var(--red);font-weight:600;}
+  .addr-hint.good{color:var(--c-pediatric);font-weight:600;}
+
+  /* service area */
+  .area{
+    border:1.5px solid var(--rule);border-left:4px solid var(--c-babysit);
+    background:var(--paper-2);padding:10px 13px;margin:0 0 16px;
+    font-size:13.5px;border-radius:2px;
+  }
+  .area b{display:block;font-family:var(--cond);font-size:16px;margin-bottom:3px;}
+  .area .zips{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;
+              word-spacing:3px;}
+  .area button{
+    background:none;border:0;padding:0;margin-left:5px;cursor:pointer;
+    font:inherit;font-size:12.5px;font-weight:600;color:var(--ink-soft);
+    text-decoration:underline;text-underline-offset:2px;
+  }
+  .row-area{font-size:12px;color:var(--ink-soft);display:block;margin-top:2px;}
+  @media (max-width:520px){ .addr-row{grid-template-columns:1fr;} }
+
+  textarea.addr-notes{
+    width:100%;padding:10px 11px;border:1.5px solid var(--rule);border-radius:2px;
+    font-family:var(--sans);font-size:15px;background:var(--paper);color:var(--ink);
+    min-height:62px;resize:vertical;margin-bottom:14px;
+  }
+
+  .seats-pill{font-size:12.5px;font-weight:600;}
+  .row-loading{color:var(--ink-soft);font-style:italic;}
+
+  @media (max-width:900px){
+    .hero-grid,.about-grid,.contact-grid{grid-template-columns:1fr;gap:36px;}
+    .quotes{grid-template-columns:1fr;}
+    .quote{padding:22px 0;border-left:0;border-top:1px solid var(--rule);}
+    .quote:first-child{border-top:0;padding-top:0;}
+    nav{
+      display:none;position:absolute;top:74px;left:0;right:0;background:var(--paper);
+      flex-direction:column;gap:0;padding:8px 24px 16px;border-bottom:1px solid var(--rule);
+    }
+    nav.open{display:flex;}
+    nav button{padding:12px 0;text-align:left;border-bottom:1px solid var(--rule);}
+    .menu-toggle{display:block;}
+    .bar .btn{display:none;}
+    .bar{gap:12px;}
+    .bar .logo-img{height:42px;}
+    .theme-switch{margin-left:auto;}
+    .course{grid-template-columns:6px 1fr;}
+    .course-price{text-align:left;grid-column:2;margin-top:12px;}
+    .price{font-size:28px;}
+    table{font-size:14px;}
+    td,th{padding:10px 8px;}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+</style>
+</head>
+<body>
+
+<div class="spectrum-bar"></div>
+
+<header>
+  <div class="wrap bar">
+    <a class="logo" href="#" onclick="go('home');return false;" aria-label="Spectrum CPR + First Aid — Home">
+      <img class="logo-img logo-light" src="g214.svg" alt="Spectrum CPR + First Aid">
+      <img class="logo-img logo-dark" src="g214-dark.svg" alt="Spectrum CPR + First Aid">
+    </a>
+    <button class="theme-switch" id="themeSwitch" role="switch" aria-checked="false" aria-label="Dark mode" onclick="toggleTheme()">
+      <span class="knob">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/><path d="M12 1.6v2.6M12 19.8v2.6M4.6 4.6l1.9 1.9M17.5 17.5l1.9 1.9M1.6 12h2.6M19.8 12h2.6M4.6 19.4l1.9-1.9M17.5 6.5l1.9-1.9"/>
+        </svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M20.5 14.2A8.6 8.6 0 0 1 9.8 3.5a8.7 8.7 0 1 0 10.7 10.7z"/>
+        </svg>
+      </span>
+    </button>
+    <button class="menu-toggle" onclick="document.querySelector('nav').classList.toggle('open')">Menu</button>
+    <nav>
+      <button onclick="go('home')" data-p="home" aria-current="page">Home</button>
+      <button onclick="go('courses')" data-p="courses">Courses &amp; pricing</button>
+      <button onclick="go('schedule')" data-p="schedule">Class schedule</button>
+      <button onclick="go('about')" data-p="about">About</button>
+      <button onclick="go('contact')" data-p="contact">Contact</button>
+    </nav>
+    <button class="btn" onclick="go('schedule')">Book a class</button>
+  </div>
+</header>
+
+<div class="demo-note"><b>Demo layout.</b> All course names, prices, dates and contact details are placeholders — swap in the real ones.</div>
+
+<!-- ================= HOME ================= -->
+<div class="page active" id="home">
+
+  <div class="hero">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <h1>We come to you.</h1>
+          <p class="lede">Hands-on CPR, AED and first aid certification for childcare
+             providers, coaches and workplaces — taught at your site, not ours.
+             Pick a day, choose a time, and we bring everything.</p>
+          <div class="hero-actions">
+            <button class="btn" onclick="go('schedule')">See open class dates</button>
+            <button class="btn btn-ghost" onclick="go('contact')">Ask about a group</button>
+          </div>
+        </div>
+
+        <div class="next-panel">
+          <h2>Next available days</h2>
+          <div id="nextClasses">
+            <div class="slot"><div class="slot-body row-loading">Loading classes…</div></div>
+          </div>
+          <div class="next-foot"><a href="#" onclick="go('schedule');return false;">View the full schedule</a></div>
+        </div>
+      </div>
+
+      <div class="credential-strip">
+        <span><b>Certified instructor</b> — AHA &amp; Red Cross</span>
+        <span><b>Same-day</b> certification cards</span>
+        <span><b>2-year</b> certification validity</span>
+        <span><b>We travel</b> to your site</span>
+      </div>
+    </div>
+  </div>
+
+  <svg class="pulse" viewBox="0 0 1200 54" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 27h380l22-19 20 38 26-52 24 66 22-33h60l16-14 18 28 22-42 20 56 18-27h552"
+          fill="none" stroke="currentColor" stroke-width="2"/>
+  </svg>
+
+  <section>
+    <div class="wrap">
+      <h2 class="sec">What we teach</h2>
+      <p class="sec-note">Three courses, taught at your location. Every session
+        is hands-on with real manikins and AED trainers — you leave knowing you
+        could actually do it.</p>
+
+      <div class="course">
+        <div class="swatch" style="background:var(--c-bls)"></div>
+        <div>
+          <h3>CPR / AED</h3>
+          <p>Adult, child and infant CPR plus AED use. The certification most
+             workplaces ask for, taught hands-on with real manikins and AED
+             trainers.</p>
+          <p class="course-meta">4 hour session · at your location</p>
+        </div>
+        <div class="course-price"><div class="price">$85<small>per person</small></div></div>
+      </div>
+
+      <div class="course">
+        <div class="swatch" style="background:var(--c-heartsaver)"></div>
+        <div>
+          <h3>Heartsaver CPR / AED / First Aid</h3>
+          <p>Everything in the CPR class plus first aid — bleeding, burns,
+             breaks, allergic reactions, and recognising a stroke or heart
+             attack. The fuller workplace certification.</p>
+          <p class="course-meta">4 hour session · at your location</p>
+        </div>
+        <div class="course-price"><div class="price">$95<small>per person</small></div></div>
+      </div>
+
+      <div class="course">
+        <div class="swatch" style="background:var(--c-babysit)"></div>
+        <div>
+          <h3>Babysitter Safety</h3>
+          <p>For teens taking on their first babysitting jobs. Choking response,
+             basic first aid, home safety, and knowing when to call for help.</p>
+          <p class="course-meta">4 hour session · ages 11–15 · at your location</p>
+        </div>
+        <div class="course-price"><div class="price">$55<small>per person</small></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="sec">What students say</h2>
+      <div class="quotes">
+        <div class="quote">
+          <p>Placeholder testimonial. Small class, plenty of time on the manikin, and I had my card before I left the parking lot.</p>
+          <cite>— Student name, job title</cite>
+        </div>
+        <div class="quote">
+          <p>Placeholder testimonial. She came to our daycare on a Saturday and got all eleven of us certified in one morning.</p>
+          <cite>— Student name, job title</cite>
+        </div>
+        <div class="quote">
+          <p>Placeholder testimonial. I'd renewed three times before and this was the first one that didn't feel like a video I had to sit through.</p>
+          <cite>— Student name, job title</cite>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="band">
+    <div class="wrap">
+      <h2 class="sec">Need your whole team certified?</h2>
+      <p>Tell us the headcount and the shift that works. We handle the rest —
+         equipment, paperwork and cards, at your location. Groups of three or
+         more pay less per person, and five or more get our best rate.</p>
+      <p style="margin-top:24px"><button class="btn btn-ghost" onclick="go('contact')">Request a group quote</button></p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= COURSES ================= -->
+<div class="page" id="courses">
+  <section>
+    <div class="wrap">
+      <h2 class="sec">Courses &amp; pricing</h2>
+      <p class="sec-note">Prices include the certification card, all course
+        materials and travel to your location. Sessions run four hours.</p>
+
+      <div class="course">
+        <div class="swatch" style="background:var(--c-bls)"></div>
+        <div>
+          <h3>CPR / AED</h3>
+          <p>Adult, child and infant CPR, AED operation and choking relief.
+             Hands-on with real manikins and AED trainers — you leave knowing
+             you could actually do it. Suits offices, gyms, coaches, parents
+             and volunteers.</p>
+          <p class="course-meta">4 hour session · certification valid 2 years · cards issued before we leave</p>
+        </div>
+        <div class="course-price"><div class="price">$85<small>per person</small></div></div>
+      </div>
+
+      <div class="course">
+        <div class="swatch" style="background:var(--c-heartsaver)"></div>
+        <div>
+          <h3>Heartsaver CPR / AED / First Aid</h3>
+          <p>The CPR and AED material plus first aid: bleeding control, burns,
+             fractures, allergic reactions, diabetic emergencies, and
+             recognising stroke and heart attack. Most workplaces that require
+             first aid alongside CPR want this one.</p>
+          <p class="course-meta">4 hour session · certification valid 2 years · cards issued before we leave</p>
+        </div>
+        <div class="course-price"><div class="price">$95<small>per person</small></div></div>
+      </div>
+
+      <div class="course">
+        <div class="swatch" style="background:var(--c-babysit)"></div>
+        <div>
+          <h3>Babysitter Safety</h3>
+          <p>A confidence-builder for teens starting to babysit. Home safety,
+             choking response, basic first aid, handling an emergency and
+             knowing when to call for help.</p>
+          <p class="course-meta">4 hour session · ages 13+ · certificate of completion</p>
+        </div>
+        <div class="course-price"><div class="price">$55<small>per person</small></div></div>
+      </div>
+
+      <h2 class="sec" style="font-size:26px;margin-top:40px">Group pricing</h2>
+      <p class="sec-note" style="margin-bottom:18px">
+        We come to you, and a visit costs the same to travel to and set up
+        whether it trains two people or eight. So the price per person moves
+        with the size of the group.
+      </p>
+
+      <div class="course">
+        <div class="swatch" style="background:var(--c-heartsaver)"></div>
+        <div>
+          <h3>1–2 people</h3>
+          <p>A small booking carries a share of the fixed cost of the trip —
+             the drive, unloading the equipment, setting up and packing down.</p>
+        </div>
+        <div class="course-price"><div class="price">+10%<small>per person</small></div></div>
+      </div>
+
+      <div class="course">
+        <div class="swatch" style="background:var(--c-pediatric)"></div>
+        <div>
+          <h3>3–4 people</h3>
+          <p>A fuller session spreads that cost further, so the per-person
+             price comes down.</p>
+        </div>
+        <div class="course-price"><div class="price">−5%<small>per person</small></div></div>
+      </div>
+
+      <div class="course">
+        <div class="swatch" style="background:var(--c-pediatric)"></div>
+        <div>
+          <h3>5 or more</h3>
+          <p>Our best rate. One visit, more people trained, less cost each —
+             the usual choice for a daycare, dental practice or job site.</p>
+        </div>
+        <div class="course-price"><div class="price">−10%<small>per person</small></div></div>
+      </div>
+
+
+      <p class="sec-note" style="margin-top:34px">
+        The price you see when booking already includes the group rate, and we
+        show you why. Ask about student, veteran and nonprofit rates.
+      </p>
+      <button class="btn" onclick="go('schedule')">Check available dates</button>
+    </div>
+  </section>
+</div>
+
+<!-- ================= SCHEDULE ================= -->
+<div class="page" id="schedule">
+  <section>
+    <div class="wrap">
+      <h2 class="sec">Class schedule</h2>
+      <p class="sec-note">Register any time — online booking is open 24/7. Classes run at the training center unless noted. Can't find a date that works? Ask about a private session.</p>
+
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Course</th><th>Hours</th><th>Available</th><th></th></tr>
+        </thead>
+        <tbody id="scheduleRows">
+          <tr><td colspan="5" class="row-loading">Loading the schedule…</td></tr>
+        </tbody>
+      </table>
+
+      <p class="sec-note" style="margin-top:32px">Arrive 10 minutes early. Wear comfortable clothes — you'll be on the floor doing compressions. Cards are issued before you leave.</p>
+    </div>
+  </section>
+</div>
+
+<!-- ================= ABOUT ================= -->
+<div class="page" id="about">
+  <section>
+    <div class="wrap">
+      <h2 class="sec">Your instructor</h2>
+      <div class="about-grid">
+        <div class="portrait">Instructor photo goes here<br>(4:5 portrait)</div>
+        <div>
+          <h3>[Instructor name]</h3>
+          <p>Two or three paragraphs in her own voice: how she got into emergency care, what she did before teaching, and why she started Spectrum. This is the section that turns a price-shopper into a booking, so it should sound like a person and not a brochure.</p>
+          <p>A second paragraph about her teaching approach — small classes, lots of hands-on time, no death by PowerPoint. Mention the kinds of groups she works with most.</p>
+          <ul class="creds">
+            <li>Certified AHA BLS Instructor</li>
+            <li>Certified Red Cross First Aid / CPR / AED Instructor</li>
+            <li>[Years] years of experience in [background]</li>
+            <li>[Number]+ students certified</li>
+            <li>Fully insured and licensed</li>
+          </ul>
+          <p style="margin-top:28px"><button class="btn" onclick="go('contact')">Get in touch</button></p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= CONTACT ================= -->
+<div class="page" id="contact">
+  <section>
+    <div class="wrap">
+      <h2 class="sec">Contact</h2>
+      <p class="sec-note">Questions about which certification you need, or want a quote for your team? Send a note and we'll get back within one business day.</p>
+
+      <div class="contact-grid">
+        <div>
+          <label for="n">Name</label>
+          <input id="n" type="text" placeholder="Your name">
+
+          <label for="e">Email</label>
+          <input id="e" type="email" placeholder="you@example.com">
+
+          <label for="ph">Phone</label>
+          <input id="ph" type="tel" placeholder="(000) 000-0000">
+
+          <label for="c">What are you interested in?</label>
+          <select id="c">
+            <option>CPR / AED</option>
+            <option>Heartsaver CPR / AED / First Aid</option>
+            <option>Babysitter Safety</option>
+            <option>Not sure — help me pick</option>
+          </select>
+
+          <label for="m">Message</label>
+          <textarea id="m" placeholder="Tell us about your group size, timing, or any questions."></textarea>
+
+          <button class="btn" onclick="alert('This is where the form submits.')">Send message</button>
+          <p class="formnote">Prefer to just book? The full class schedule is open 24/7.</p>
+        </div>
+
+        <div>
+          <div class="info-row"><div class="info-label">Phone</div><div>[Phone number]<br><span style="color:var(--ink-soft);font-size:14px">Text is usually fastest</span></div></div>
+          <div class="info-row"><div class="info-label">Email</div><div>[Email address]</div></div>
+          <div class="info-row"><div class="info-label">Training center</div><div>[Street address]<br>[City, State ZIP]</div></div>
+          <div class="info-row"><div class="info-label">Hours</div><div>Classes days, evenings and weekends<br>Office replies Mon–Fri, 9–5</div></div>
+          <div class="info-row"><div class="info-label">Service area</div><div>On-site training throughout [service area]</div></div>
+          <div class="map">Google Map embed goes here</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap foot-grid">
+    <div>
+      <img class="logo-img logo-light footer-logo" src="g214.svg" alt="Spectrum CPR + First Aid">
+      <img class="logo-img logo-dark footer-logo" src="g214-dark.svg" alt="Spectrum CPR + First Aid">
+      <p style="margin-top:12px;max-width:34ch">Hands-on certification classes for healthcare, childcare and workplaces.</p>
+    </div>
+    <div>
+      <p><a href="#" onclick="go('courses');return false;">Courses &amp; pricing</a><br>
+      <a href="#" onclick="go('schedule');return false;">Class schedule</a><br>
+      <a href="#" onclick="go('about');return false;">About the instructor</a><br>
+      <a href="#" onclick="go('contact');return false;">Contact</a></p>
+    </div>
+    <div>
+      <p>[Phone number]<br>[Email address]<br>[City, State]</p>
+    </div>
+  </div>
+  <div class="wrap" style="margin-top:28px">© 2026 Spectrum CPR + First Aid. All rights reserved.</div>
+</footer>
+
+<div class="spectrum-bar"></div>
+
+
+<!-- ===================== booking modal ===================== -->
+<div class="modal-veil" id="bookVeil" role="dialog" aria-modal="true" aria-labelledby="bookTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h3 id="bookTitle">Class</h3>
+        <div class="modal-when" id="bookWhen"></div>
+      </div>
+      <button class="modal-close" onclick="Booking.close()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="bookBody"></div>
+  </div>
+</div>
+
+<script>
+  function go(id){
+    document.querySelectorAll('.page').forEach(function(p){p.classList.toggle('active', p.id===id);});
+    document.querySelectorAll('nav button').forEach(function(b){
+      if(b.dataset.p===id){b.setAttribute('aria-current','page');}
+      else{b.removeAttribute('aria-current');}
+    });
+    document.querySelector('nav').classList.remove('open');
+    window.scrollTo({top:0,behavior:'instant'});
+  }
+
+  function setTheme(dark){
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    var sw = document.getElementById('themeSwitch');
+    sw.setAttribute('aria-checked', dark ? 'true' : 'false');
+    sw.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+  function toggleTheme(){
+    setTheme(document.documentElement.getAttribute('data-theme') !== 'dark');
+  }
+  // follow the visitor's system setting on first load
+  setTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+// ===========================================================================
+// Booking
+// ===========================================================================
+const Booking = (() => {
+  // Empty means "same origin as this page" — correct when the API also serves
+  // the site. Point it at the API's URL once the pages move to a static host,
+  // e.g. 'https://booking.spectrumcpr.com'.
+  const API = window.BOOKING_API_BASE || '';
+  const MAX_GROUP = 12;   // mirrors MAX_GROUP_SEATS on the server
+
+  // Server features this page relies on. Checked against /health on load, so a
+  // mismatched pair says so plainly instead of failing mid-booking.
+  const NEEDS = ['groups', 'attendee-contacts'];
+
+  let classes = [];
+  let current = null;      // class being booked
+  let holdRef = null;      // confirmation reference of the active hold
+  let ticker = null;       // countdown interval
+  let qty = 1;             // seats being booked
+  let lastBooking = null;  // group details for the confirmation screen
+  let daySlots = null;     // the day's bookable times
+  let chosenSlot = null;   // the time they picked
+  let quote = null;        // what this party size costs, and why
+
+  // ---------------------------------------------------------------- helpers
+
+  const money = (cents) =>
+    (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+
+  // Times arrive as UTC. Render in the visitor's own zone, or a student in
+  // Portland reads 16:00 for a 9am class.
+  const fmtDate = (iso) =>
+    new Date(iso).toLocaleDateString(undefined,
+      { weekday: 'short', month: 'short', day: 'numeric' });
+
+  const fmtTime = (iso) =>
+    new Date(iso).toLocaleTimeString(undefined,
+      { hour: 'numeric', minute: '2-digit' });
+
+  const fmtRange = (a, b) => `${fmtTime(a)} – ${fmtTime(b)}`;
+
+  const esc = (str) => String(str ?? '').replace(/[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  async function api(path, options) {
+    const res = await fetch(API + path, options);
+    let data = {};
+    try { data = await res.json(); } catch { /* non-JSON error page */ }
+    return { status: res.status, data };
+  }
+
+  const swatch = (code) => ({
+    CPR: 'var(--c-bls)',
+    HEARTSAVER: 'var(--c-heartsaver)',
+    BABYSIT: 'var(--c-babysit)',
+  }[code] || 'var(--rule)');
+
+  const shortTag = (code) => ({
+    CPR: 'CPR', HEARTSAVER: 'HEARTSAVER', BABYSIT: 'BABYSITTING',
+  }[code] || code.slice(0, 4));
+
+  // ----------------------------------------------------------------- render
+
+  /**
+   * What the schedule row says about a day.
+   *
+   * Two things can run out: the times the instructor has left, and the number
+   * of people they'll train that day. Whichever is scarcer is what matters.
+   */
+  function seatLabel(c) {
+    if (c.isFull) {
+      return c.waitlistCount
+        ? `<span class="seats-full">Booked — ${c.waitlistCount} waiting</span>`
+        : '<span class="seats-full">Fully booked</span>';
+    }
+    const tight = c.availableSlots <= 2 || c.seatsAvailable <= 3;
+    return `<span class="${tight ? 'seats-low' : 'seats-ok'}">
+      ${c.availableSlots} time${c.availableSlots === 1 ? '' : 's'} ·
+      ${c.seatsAvailable} place${c.seatsAvailable === 1 ? '' : 's'}
+    </span>`;
+  }
+
+  function renderSchedule() {
+    const tbody = document.getElementById('scheduleRows');
+    if (!tbody) return;
+
+    if (!classes.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="5" class="row-loading">No classes scheduled right now. ' +
+        'Get in touch and we will arrange one.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = classes.map((c) => `
+      <tr>
+        <td style="border-left-color:${swatch(c.courseCode)}">${fmtDate(c.opensAt || c.startsAt)}</td>
+        <td>
+          <span class="tag" style="background:${swatch(c.courseCode)}">${shortTag(c.courseCode)}</span>
+          ${esc(c.title)}
+          ${c.serviceZips && c.serviceZips.length
+            ? `<span class="row-area">ZIPs ${esc(areaSummary(c.serviceZips, 3))}</span>` : ''}
+        </td>
+        <td>${fmtTime(c.opensAt || c.startsAt)}–${fmtTime(c.closesAt || c.endsAt)}</td>
+        <td>${seatLabel(c)}</td>
+        <td>
+          <button class="btn ${c.isFull ? 'btn-ghost' : ''}" onclick="Booking.open(${c.id})">
+            ${c.isFull ? 'Waitlist' : 'Book a time'}
+          </button>
+        </td>
+      </tr>`).join('');
+  }
+
+  function renderNext() {
+    const box = document.getElementById('nextClasses');
+    if (!box) return;
+
+    const soon = classes.slice(0, 3);
+    if (!soon.length) {
+      box.innerHTML = '<div class="slot"><div class="slot-body row-loading">No classes scheduled.</div></div>';
+      return;
+    }
+
+    box.innerHTML = soon.map((c) => `
+      <div class="slot">
+        <div class="slot-date" style="border-left-color:${swatch(c.courseCode)}">
+          ${fmtDate(c.opensAt || c.startsAt).replace(',', '<br>')}
+        </div>
+        <div class="slot-body">
+          <div class="slot-name">${esc(c.title)}</div>
+          <div class="slot-meta">
+            ${fmtTime(c.opensAt || c.startsAt)}–${fmtTime(c.closesAt || c.endsAt)} ·
+            ${c.availableSlots} time${c.availableSlots === 1 ? '' : 's'} open
+          </div>
+        </div>
+        <div class="slot-seats ${c.isFull || c.availableSlots <= 2 ? 'low' : ''}">
+          ${c.isFull ? 'Booked' : c.availableSlots + ' times'}
+        </div>
+      </div>`).join('');
+  }
+
+  /** Warn plainly if the server is older than this page. */
+  async function checkServer() {
+    try {
+      const { data } = await api('/health');
+      const have = data.features || [];
+      const missing = NEEDS.filter((f) => !have.includes(f));
+      if (!missing.length) return true;
+
+      const warn = document.createElement('div');
+      warn.className = 'demo-note';
+      warn.style.borderColor = 'var(--red)';
+      warn.innerHTML =
+        '<b>The server is out of date.</b> This page needs features it does not have (' +
+        missing.join(', ') + '). Copy the latest src/db.js, src/seats.js and ' +
+        'src/server.js together, then restart.';
+      document.querySelector('.demo-note')?.after(warn);
+      return false;
+    } catch {
+      return true;   // offline is handled elsewhere
+    }
+  }
+
+  async function load() {
+    // Opened straight off disk, so a relative fetch would resolve to
+    // file:///api/classes and hang. Say so rather than spinning forever.
+    if (location.protocol === 'file:' && !window.BOOKING_API_BASE) {
+      const msg = 'This page is open from a file, so it cannot reach the booking API. ' +
+                  'Start the server and open http://localhost:3000 instead.';
+      const tbody = document.getElementById('scheduleRows');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="row-loading">${msg}</td></tr>`;
+      const box = document.getElementById('nextClasses');
+      if (box) box.innerHTML = `<div class="slot"><div class="slot-body row-loading">${msg}</div></div>`;
+      return;
+    }
+
+    let data;
+    try {
+      ({ data } = await api('/api/classes'));
+    } catch {
+      data = { ok: false };
+    }
+
+    if (!data.ok) {
+      const tbody = document.getElementById('scheduleRows');
+      if (tbody) {
+        tbody.innerHTML =
+          '<tr><td colspan="5" class="row-loading">Could not load the schedule. ' +
+          'Please refresh, or call us to book.</td></tr>';
+      }
+      const box = document.getElementById('nextClasses');
+      if (box) {
+        box.innerHTML =
+          '<div class="slot"><div class="slot-body row-loading">' +
+          'Could not load classes.</div></div>';
+      }
+      return;
+    }
+    classes = data.classes;
+    renderSchedule();
+    renderNext();
+  }
+
+
+  const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN',
+    'IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY',
+    'NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
+
+  // ------------------------------------------------- input helpers
+
+  /**
+   * Format a North American number as the person types: (503) 555-1234.
+   *
+   * Anything starting with + is left alone — that's an international number
+   * and this formatting would mangle it.
+   */
+  function formatPhone(raw) {
+    if (raw.trim().startsWith('+')) return raw;
+
+    let digits = raw.replace(/\D/g, '').slice(0, 11);
+    let prefix = '';
+    if (digits.length === 11 && digits[0] === '1') {
+      prefix = '1 ';
+      digits = digits.slice(1);
+    }
+    if (digits.length <= 3) return prefix + digits;
+    if (digits.length <= 6) return `${prefix}(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    return `${prefix}(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+  }
+
+  /** Reformat in place, keeping the caret where the typist expects it. */
+  function applyPhoneFormat(input) {
+    const digitsBefore = input.value
+      .slice(0, input.selectionStart ?? input.value.length)
+      .replace(/\D/g, '').length;
+
+    const formatted = formatPhone(input.value);
+    if (formatted === input.value) return;
+    input.value = formatted;
+
+    // Walk forward past the same number of digits to find the new caret spot.
+    let pos = 0;
+    let seen = 0;
+    while (pos < formatted.length && seen < digitsBefore) {
+      if (/\d/.test(formatted[pos])) seen++;
+      pos++;
+    }
+    try { input.setSelectionRange(pos, pos); } catch { /* not focused */ }
+  }
+
+  // Ordered roughly by how often they turn up on a booking form.
+  const EMAIL_DOMAINS = [
+    'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com',
+    'aol.com', 'comcast.net', 'live.com', 'me.com', 'msn.com',
+    'proton.me', 'protonmail.com', 'verizon.net', 'att.net',
+    'sbcglobal.net', 'charter.net', 'frontier.com',
+  ];
+
+  let suggestBox = null;
+  let suggestInput = null;
+  let suggestIndex = -1;
+
+  function suggestEl() {
+    if (!suggestBox) {
+      suggestBox = document.createElement('div');
+      suggestBox.className = 'email-suggest';
+      document.body.appendChild(suggestBox);
+    }
+    return suggestBox;
+  }
+
+  function hideSuggest() {
+    suggestEl().classList.remove('open');
+    suggestInput = null;
+    suggestIndex = -1;
+  }
+
+  /**
+   * Offer domain completions once an @ has been typed.
+   *
+   * Only completes the domain — the local part is the person's own, and
+   * guessing at it would be worse than useless.
+   */
+  function showSuggest(input) {
+    const value = input.value;
+    const at = value.indexOf('@');
+    if (at < 1) return hideSuggest();
+
+    const local = value.slice(0, at);
+    const typed = value.slice(at + 1).toLowerCase();
+    if (local.includes(' ')) return hideSuggest();
+
+    const matches = EMAIL_DOMAINS
+      .filter((d) => d.startsWith(typed) && d !== typed)
+      .slice(0, 5);
+
+    if (!matches.length) return hideSuggest();
+
+    const box = suggestEl();
+    suggestInput = input;
+    suggestIndex = -1;
+
+    box.innerHTML = matches.map((d, i) => `
+      <div data-value="${esc(local)}@${d}" data-i="${i}">
+        ${esc(local)}@<b>${esc(d)}</b>
+      </div>`).join('');
+
+    for (const row of box.querySelectorAll('div')) {
+      // mousedown, not click: blur would tear the list down first.
+      row.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        acceptSuggest(row.dataset.value);
+      });
+    }
+
+    const r = input.getBoundingClientRect();
+    box.style.left = `${r.left}px`;
+    box.style.top = `${r.bottom}px`;
+    box.style.width = `${r.width}px`;
+    box.classList.add('open');
+  }
+
+  function acceptSuggest(value) {
+    if (!suggestInput) return;
+    suggestInput.value = value;
+    suggestInput.focus();
+    hideSuggest();
+  }
+
+  function moveSuggest(delta) {
+    const box = suggestEl();
+    const rows = [...box.querySelectorAll('div')];
+    if (!rows.length) return;
+    suggestIndex = (suggestIndex + delta + rows.length) % rows.length;
+    rows.forEach((r, i) => r.classList.toggle('active', i === suggestIndex));
+  }
+
+  /**
+   * One set of listeners on the modal body, so fields added later — extra
+   * attendees, the waitlist form — are covered without rebinding.
+   */
+  function wireInputHelpers() {
+    const root = document.getElementById('bookBody');
+    if (!root || root.dataset.wired) return;
+    root.dataset.wired = '1';
+
+    root.addEventListener('input', (e) => {
+      const el = e.target;
+      if (el.type === 'tel') applyPhoneFormat(el);
+      if (el.type === 'email') showSuggest(el);
+      if (el.id === 'fAddress') queryAddress(el);
+      if (el.id === 'fZip') {
+        el.value = el.value.replace(/[^\d-]/g, '').slice(0, 10);
+        lookupZip(el);
+        checkZip();
+      }
+    });
+
+    root.addEventListener('keydown', (e) => {
+      if (e.target.id === 'fAddress' && addrEl().classList.contains('open')) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); moveAddr(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); moveAddr(-1); }
+        else if (e.key === 'Escape') { hideAddr(); }
+        else if ((e.key === 'Enter' || e.key === 'Tab') && addrIndex >= 0) {
+          e.preventDefault();
+          chooseAddress(addrIndex);
+        }
+        return;
+      }
+      if (e.target.type !== 'email' || !suggestEl().classList.contains('open')) return;
+
+      if (e.key === 'ArrowDown') { e.preventDefault(); moveSuggest(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); moveSuggest(-1); }
+      else if (e.key === 'Escape') { hideSuggest(); }
+      else if (e.key === 'Enter' || e.key === 'Tab') {
+        const active = suggestEl().querySelector('div.active');
+        if (active) { e.preventDefault(); acceptSuggest(active.dataset.value); }
+      }
+    });
+
+    root.addEventListener('focusout', (e) => {
+      if (e.target.type === 'email') setTimeout(hideSuggest, 120);
+      if (e.target.id === 'fAddress') setTimeout(hideAddr, 150);
+    });
+  }
+
+
+
+  // --------------------------------------------------- service area
+
+  /** "97123, 97124 and 3 more" — the whole list is a click away. */
+  function areaSummary(zips, shown = 4) {
+    if (!zips || !zips.length) return '';
+    if (zips.length <= shown) return zips.join(', ');
+    return `${zips.slice(0, shown).join(', ')} and ${zips.length - shown} more`;
+  }
+
+  let areaExpanded = false;
+
+  function renderArea() {
+    const el = document.getElementById('areaBox');
+    if (!el) return;
+
+    const zips = current.serviceZips || [];
+    if (!zips.length) {
+      el.innerHTML = `<p class="area"><b>We travel anywhere</b>
+        No ZIP restriction on this day.</p>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <div class="area">
+        <b>Where we travel on this day</b>
+        <span class="zips">${areaExpanded ? zips.join(', ') : esc(areaSummary(zips))}</span>
+        ${zips.length > 4 ? `<button type="button" onclick="Booking.toggleArea()">
+          ${areaExpanded ? 'show fewer' : 'show all'}</button>` : ''}
+      </div>`;
+  }
+
+  function toggleArea() {
+    areaExpanded = !areaExpanded;
+    renderArea();
+  }
+
+  const zipServed = (zip) => {
+    const zips = current?.serviceZips || [];
+    if (!zips.length) return true;
+    return zips.includes(String(zip || '').trim().slice(0, 5));
+  };
+
+  /**
+   * Tell them as they type, not after they've filled in the whole form.
+   *
+   * A customer who reaches the payment step before learning we don't drive to
+   * them has wasted their time and ours.
+   */
+  function checkZip() {
+    const hint = document.getElementById('addrHint');
+    const zipEl = document.getElementById('fZip');
+    if (!hint || !zipEl) return;
+
+    const zip = zipEl.value.trim().slice(0, 5);
+    hint.classList.remove('bad', 'good');
+
+    if (!/^\d{5}$/.test(zip)) {
+      hint.textContent = "Start typing the street, or enter a ZIP and we'll fill the rest.";
+      return;
+    }
+    if (zipServed(zip)) {
+      hint.textContent = `${zip} is in our area for this day.`;
+      hint.classList.add('good');
+      return;
+    }
+    hint.textContent = `We don't travel to ${zip} on this day — see other days below.`;
+    hint.classList.add('bad');
+    showAlternatives(null, zip);
+  }
+
+  // --------------------------------------------------- address lookup
+
+  let addrTimer = null;
+  let addrBox = null;
+  let addrIndex = -1;
+  let addrSuggestions = [];
+
+  function addrEl() {
+    if (!addrBox) {
+      addrBox = document.createElement('div');
+      addrBox.className = 'addr-suggest';        // same styling, own hook
+      document.body.appendChild(addrBox);
+    }
+    return addrBox;
+  }
+
+  function hideAddr() {
+    addrEl().classList.remove('open');
+    addrIndex = -1;
+  }
+
+  /**
+   * Ask the server for matches, debounced.
+   *
+   * Debounced rather than fired per keystroke because the lookup is a paid
+   * call under some providers, and a rate-limited one under the rest.
+   */
+  function queryAddress(input) {
+    clearTimeout(addrTimer);
+    const q = input.value.trim();
+
+    if (q.length < 5) { hideAddr(); return; }
+
+    addrTimer = setTimeout(async () => {
+      const { data } = await api(`/api/address/suggest?q=${encodeURIComponent(q)}`);
+      if (!data.ok || !data.suggestions.length) { hideAddr(); return; }
+
+      addrSuggestions = data.suggestions;
+      const box = addrEl();
+      addrIndex = -1;
+
+      box.innerHTML = addrSuggestions
+        .map((sg, i) => `<div data-i="${i}">${esc(sg.label)}</div>`).join('');
+
+      for (const row of box.querySelectorAll('div')) {
+        // mousedown, not click: blur would close the list first.
+        row.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          chooseAddress(Number(row.dataset.i));
+        });
+      }
+
+      const r = input.getBoundingClientRect();
+      box.style.left = `${r.left}px`;
+      box.style.top = `${r.bottom}px`;
+      box.style.width = `${r.width}px`;
+      box.classList.add('open');
+    }, 350);
+  }
+
+  /** Fill street, city, state and ZIP from a chosen suggestion. */
+  async function chooseAddress(i) {
+    let pick = addrSuggestions[i];
+    if (!pick) return;
+
+    // Google predictions arrive without components; fetch them on selection.
+    if (pick.placeId && !pick.city) {
+      const { data } = await api(`/api/address/details?placeId=${encodeURIComponent(pick.placeId)}`);
+      if (data.ok) pick = data.address;
+    }
+
+    const set = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val) el.value = val;
+    };
+    set('fAddress', pick.street || pick.label);
+    set('fCity', pick.city);
+    set('fZip', pick.zip);
+
+    const st = document.getElementById('fState');
+    if (st && pick.state) st.value = pick.state;
+
+    hideAddr();
+    document.getElementById('addrHint').textContent = 'Looks good.';
+    document.getElementById('fUnit')?.focus();
+  }
+
+  function moveAddr(delta) {
+    const rows = [...addrEl().querySelectorAll('div')];
+    if (!rows.length) return;
+    addrIndex = (addrIndex + delta + rows.length) % rows.length;
+    rows.forEach((r, i) => r.classList.toggle('active', i === addrIndex));
+  }
+
+  let zipTimer = null;
+
+  /**
+   * Fill city and state once a full ZIP is typed.
+   *
+   * Independent of street matching, so somebody who knows their ZIP gets two
+   * fields for free. Never overwrites a city the customer typed themselves.
+   */
+  function lookupZip(input) {
+    clearTimeout(zipTimer);
+    const zip = input.value.trim();
+    if (!/^\d{5}/.test(zip)) return;
+
+    zipTimer = setTimeout(async () => {
+      const { data } = await api(`/api/address/zip?zip=${encodeURIComponent(zip.slice(0, 5))}`);
+      if (!data.ok) return;
+
+      const city = document.getElementById('fCity');
+      const state = document.getElementById('fState');
+      if (city && !city.value.trim()) city.value = data.city;
+      if (state && !state.value) state.value = data.state;
+
+      // Leave the area verdict in place; it matters more than the city name.
+      const hint = document.getElementById('addrHint');
+      if (hint && !hint.classList.contains('bad')) {
+        hint.textContent = `${data.city}, ${data.state}`;
+      }
+    }, 300);
+  }
+
+  /** "1200 SW Main St, Apt 4, Hillsboro, OR 97123" */
+  function composeAddress() {
+    const v = (id) => (document.getElementById(id)?.value || '').trim();
+    const stateZip = [v('fState'), v('fZip')].filter(Boolean).join(' ');
+    return [v('fAddress'), v('fUnit'), v('fCity'), stateZip].filter(Boolean).join(', ');
+  }
+
+  // ------------------------------------------------------------------ modal
+
+  function open(classId) {
+    current = classes.find((c) => c.id === classId);
+    if (!current) return;
+
+    chosenSlot = null;
+    daySlots = null;
+    quote = null;
+    areaExpanded = false;
+
+    document.getElementById('bookTitle').textContent = current.title;
+    document.getElementById('bookWhen').textContent =
+      `${fmtDate(current.opensAt || current.startsAt)} · ` +
+      `open ${fmtTime(current.opensAt || current.startsAt)}–` +
+      `${fmtTime(current.closesAt || current.endsAt)} · we come to you`;
+
+    current.isFull ? stepWaitlist() : stepDetails();
+    wireInputHelpers();
+    document.getElementById('bookVeil').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('fName0')?.focus(), 60);
+  }
+
+  function close() {
+    hideSuggest();
+    hideAddr();
+    document.getElementById('bookVeil').classList.remove('open');
+    document.body.style.overflow = '';
+    stopTicker();
+    // A hold left open stays reserved and lapses on its own after 20 minutes.
+    holdRef = null;
+    lastBooking = null;
+    qty = 1;
+    chosenSlot = null;
+    daySlots = null;
+    quote = null;
+    load();
+  }
+
+  const body = (html) => { document.getElementById('bookBody').innerHTML = html; };
+
+  function showErr(msg) {
+    const el = document.getElementById('bookErr');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  const nameFields = () => `
+    <label for="fName0">Your name</label>
+    <input id="fName0" type="text" autocomplete="name" placeholder="First and last name">
+    <label for="fEmail">Email</label>
+    <input id="fEmail" type="email" autocomplete="email" placeholder="you@example.com">
+    <label for="fPhone">Phone <span style="font-weight:400;color:var(--ink-soft)">(optional)</span></label>
+    <input id="fPhone" type="tel" autocomplete="tel" placeholder="(000) 000-0000">`;
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  /**
+   * Collect the form.
+   *
+   * The waitlist asks for none of the booking specifics — there's no time to
+   * pick yet and nowhere to drive to — so it opts out of those checks.
+   */
+  function readFields({ requireBooking = true } = {}) {
+    const people = Array.from({ length: qty }, (_, i) => ({
+      name: (document.getElementById(`fName${i}`)?.value || '').trim(),
+      email: (document.getElementById(`fEmail${i}`)?.value || '').trim(),
+      phone: (document.getElementById(`fPhone${i}`)?.value || '').trim(),
+    }));
+
+    const email = document.getElementById('fEmail').value.trim();
+    const phone = document.getElementById('fPhone').value.trim();
+    const street = document.getElementById('fAddress')?.value.trim() || '';
+    const city = document.getElementById('fCity')?.value.trim() || '';
+    const state = document.getElementById('fState')?.value || '';
+    const zip = document.getElementById('fZip')?.value.trim() || '';
+    const address = composeAddress();
+    const addressNotes = document.getElementById('fAddrNotes')?.value.trim() || '';
+
+    if (requireBooking && !chosenSlot) {
+      showErr('Please pick a time for us to arrive.');
+      return null;
+    }
+
+    const blank = people.findIndex((p) => p.name.length < 2);
+    if (blank !== -1) {
+      showErr(qty === 1
+        ? 'Please enter your name.'
+        : `Please enter a name for attendee ${blank + 1}.`);
+      document.getElementById(`fName${blank}`)?.focus();
+      return null;
+    }
+
+    const badEmail = people.findIndex((p) => p.email && !EMAIL_RE.test(p.email));
+    if (badEmail !== -1) {
+      showErr(`That email for attendee ${badEmail + 1} doesn't look right.`);
+      document.getElementById(`fEmail${badEmail}`)?.focus();
+      return null;
+    }
+
+    if (!EMAIL_RE.test(email)) {
+      showErr(qty > 1
+        ? 'Please enter a valid email address for the booking — the confirmation goes there.'
+        : 'Please enter a valid email address — your confirmation goes there.');
+      return null;
+    }
+
+    // The instructor is driving here, so each part has to be there — a missing
+    // city or ZIP is how a van ends up at the wrong Main Street.
+    if (requireBooking) {
+      if (street.length < 5) {
+        showErr('Please enter the street address.');
+        document.getElementById('fAddress')?.focus();
+        return null;
+      }
+      if (city.length < 2) {
+        showErr('Please enter the city.');
+        document.getElementById('fCity')?.focus();
+        return null;
+      }
+      if (!state) {
+        showErr('Please choose the state.');
+        document.getElementById('fState')?.focus();
+        return null;
+      }
+      if (!/^\d{5}(-\d{4})?$/.test(zip)) {
+        showErr('Please enter a five digit ZIP code.');
+        document.getElementById('fZip')?.focus();
+        return null;
+      }
+      if (!zipServed(zip)) {
+        showErr(`We don't travel to ${zip.slice(0, 5)} on this day. ` +
+                `Other days are listed below the times.`);
+        document.getElementById('fZip')?.focus();
+        showAlternatives(null, zip.slice(0, 5));
+        return null;
+      }
+    }
+
+    return {
+      attendees: people, email, phone,
+      slotStart: chosenSlot, address, addressNotes,
+      zip: zip.slice(0, 5),
+    };
+  }
+
+  // step 1 — how many, what time, who, and where
+  function stepDetails() {
+    qty = 1;
+    chosenSlot = null;
+
+    body(`
+      <div class="modal-err" id="bookErr"></div>
+      <div class="modal-price" id="priceLine">${money(current.priceCents)}
+        <small>per person · ${current.sessionMinutes || 120} minute session</small>
+      </div>
+      <div id="priceWhy"></div>
+
+      <div class="qty-row">
+        <label for="qtyVal" style="margin:0">How many people?</label>
+        <div class="qty-btns">
+          <button type="button" onclick="Booking.setQty(-1)" id="qtyDown" aria-label="One fewer">−</button>
+          <b id="qtyVal">1</b>
+          <button type="button" onclick="Booking.setQty(1)" id="qtyUp" aria-label="One more">+</button>
+        </div>
+      </div>
+
+      <label>What time should we arrive?</label>
+      <div id="slotArea"><p class="modal-note">Loading times…</p></div>
+
+      <div id="groupNote"></div>
+      <div id="attendees"></div>
+
+      <div id="areaBox"></div>
+
+      <label for="fAddress">Where are we coming to?</label>
+      <input id="fAddress" type="text" autocomplete="street-address"
+             placeholder="Street address">
+      <input id="fUnit" type="text" autocomplete="address-line2"
+             placeholder="Suite, unit, floor (optional)">
+      <div class="addr-row">
+        <input id="fCity" type="text" autocomplete="address-level2" placeholder="City">
+        <select id="fState" aria-label="State">
+          <option value="">State</option>
+          ${US_STATES.map((st) => `<option value="${st}">${st}</option>`).join('')}
+        </select>
+        <input id="fZip" type="text" inputmode="numeric" autocomplete="postal-code"
+               placeholder="ZIP" maxlength="10">
+      </div>
+      <p class="addr-hint" id="addrHint">Start typing the street, or enter a ZIP and we'll fill the rest.</p>
+      <textarea id="fAddrNotes" class="addr-notes"
+                placeholder="Parking, gate code, suite number, where to meet (optional)"></textarea>
+
+      <label for="fEmail">Email</label>
+      <input id="fEmail" type="email" autocomplete="email" placeholder="you@example.com">
+      <label for="fPhone">Phone <span style="font-weight:400;color:var(--ink-soft)">(optional)</span></label>
+      <input id="fPhone" type="tel" autocomplete="tel" placeholder="(000) 000-0000">
+
+      <div id="totalLine"></div>
+      <button class="btn" style="width:100%" onclick="Booking.hold()">Hold my seat</button>
+      <p class="modal-note">Your time is reserved for 20 minutes while you pay.</p>
+    `);
+
+    renderSeats();
+    renderArea();
+    loadQuote();
+    loadSlots();
+  }
+
+  /** Fetch the day's times for the current party size. */
+  async function loadSlots() {
+    const { data } = await api(`/api/classes/${current.id}/slots?partySize=${qty}`);
+    if (!data.ok) {
+      document.getElementById('slotArea').innerHTML =
+        '<p class="modal-note">Could not load times. Please call us to book.</p>';
+      return;
+    }
+    daySlots = data;
+
+    // A time already chosen may no longer be offered at this party size.
+    if (chosenSlot && !data.slots.some((s) => s.start === chosenSlot && s.available)) {
+      chosenSlot = null;
+    }
+    renderSlots();
+  }
+
+  function renderSlots() {
+    const area = document.getElementById('slotArea');
+    if (!area || !daySlots) return;
+
+    const usable = daySlots.slots.filter((s) => s.reason !== 'past');
+
+    if (!usable.some((s) => s.available)) {
+      const why = daySlots.seatsLeft === 0
+        ? 'This day is fully booked.'
+        : daySlots.seatsLeft < qty
+          ? `Only ${daySlots.seatsLeft} place${daySlots.seatsLeft === 1 ? '' : 's'} left this day.`
+          : 'Every time on this day is taken.';
+      area.innerHTML = `<p class="group-note">${why}</p>`;
+      showAlternatives();
+      return;
+    }
+
+    area.innerHTML = `
+      <div class="slot-grid">
+        ${usable.map((s) => `
+          <button type="button" class="slot-btn ${s.start === chosenSlot ? 'picked' : ''}"
+                  ${s.available ? '' : 'disabled'}
+                  title="${s.available ? `${fmtTime(s.start)} to ${fmtTime(s.end)}` : 'Not available'}"
+                  onclick="Booking.pickSlot('${s.start}')">
+            ${fmtTime(s.start)}
+          </button>`).join('')}
+      </div>
+      <p class="slot-legend">
+        Each session runs ${daySlots.sessionMinutes} minutes.
+        Crossed-out times are already booked.
+      </p>`;
+  }
+
+  function pickSlot(start) {
+    chosenSlot = start;
+    renderSlots();
+    document.getElementById('bookErr')?.classList.remove('show');
+  }
+
+  /** Offer other days when this one can't take the booking. */
+  async function showAlternatives(preferredTime = null, zip = null) {
+    const query = new URLSearchParams({ partySize: String(qty) });
+    if (preferredTime) query.set('preferredTime', preferredTime);
+    if (zip) query.set('zip', zip);
+
+    const { data } = await api(`/api/classes/${current.id}/alternatives?${query}`);
+    if (!data.ok || !data.alternatives.length) return;
+
+    const area = document.getElementById('slotArea');
+    if (!area) return;
+
+    // Replace any previous list rather than stacking another one.
+    area.querySelector('.alt-list')?.remove();
+
+    const wrap = document.createElement('div');
+    wrap.className = 'alt-list';
+    wrap.innerHTML = `
+      <p style="font-weight:600;margin:16px 0 8px">
+        ${zip ? `Other days we travel to ${esc(zip)}` : 'Other days we could come out'}</p>
+      ${data.alternatives.map((a) => `
+        <div class="alt-day" onclick="Booking.switchDay(${a.classId}, '${a.suggestedSlot}')">
+          <b>${fmtDate(a.opensAt)}</b>
+          <span>
+            ${fmtTime(a.suggestedSlot)}
+            ${a.matchesPreferredTime ? '<span class="match">· the time you wanted</span>' : ''}
+            · ${a.seatsLeft} place${a.seatsLeft === 1 ? '' : 's'} left
+          </span>
+        </div>`).join('')}`;
+    area.appendChild(wrap);
+  }
+
+  /** Jump to another day, keeping the party size and the suggested time. */
+  async function switchDay(classId, slotStart) {
+    await load();
+    const next = classes.find((c) => c.id === classId);
+    if (!next) return;
+
+    const keepQty = qty;
+    current = next;
+    open(classId);
+    // open() resets these, so restore after it has drawn.
+    setTimeout(async () => {
+      qty = keepQty;
+      renderSeats();
+      await loadSlots();
+      pickSlot(slotStart);
+    }, 40);
+  }
+
+
+  /**
+   * Show what this party size costs and why it differs from the headline.
+   *
+   * The reason matters as much as the number: a customer who sees a surcharge
+   * with no explanation assumes they're being penalised for booking alone.
+   */
+  async function loadQuote() {
+    const { data } = await api(`/api/classes/${current.id}/quote?partySize=${qty}`);
+    if (data.ok) quote = data;
+    renderPrice();
+  }
+
+  function renderPrice() {
+    const priceEl = document.getElementById('priceLine');
+    const whyEl = document.getElementById('priceWhy');
+    const totalEl = document.getElementById('totalLine');
+    if (!priceEl || !whyEl || !totalEl) return;
+
+    // Before the quote lands, show the headline rather than a blank.
+    if (!quote || quote.partySize !== qty) {
+      priceEl.innerHTML = `${money(current.priceCents)}
+        <small>per person · ${current.sessionMinutes || 120} minute session</small>`;
+      whyEl.innerHTML = '';
+      totalEl.innerHTML = '';
+      return;
+    }
+
+    const changed = quote.perSeatCents !== quote.baseCents;
+    const cheaper = quote.perSeatCents < quote.baseCents;
+
+    priceEl.innerHTML = `
+      ${changed ? `<span class="was">${money(quote.baseCents)}</span>` : ''}
+      ${money(quote.perSeatCents)}
+      <small>per person · ${current.sessionMinutes || 120} minute session</small>`;
+
+    whyEl.innerHTML = quote.reason ? `
+      <div class="price-why ${cheaper ? '' : 'surcharge'}">
+        <b>${esc(quote.label)} — ${quote.adjustPct > 0 ? '+' : ''}${quote.adjustPct}%</b>
+        ${esc(quote.reason)}
+        ${nextTierNudge()}
+      </div>` : '';
+
+    totalEl.innerHTML = qty > 1
+      ? `<div class="total-line">
+           <span>${qty} × ${money(quote.perSeatCents)}</span>
+           <b>${money(quote.totalCents)}</b>
+         </div>`
+      : '';
+  }
+
+  /**
+   * If one more person would move them into a better band, say so.
+   *
+   * Only when it genuinely lowers the per-person price — nagging someone to
+   * add a colleague they don't have is just noise.
+   */
+  function nextTierNudge() {
+    if (!quote || !quote.tiers) return '';
+
+    const better = quote.tiers
+      .filter((t) => t.minSize > qty && t.perSeatCents < quote.perSeatCents)
+      .sort((a, b) => a.minSize - b.minSize)[0];
+    if (!better) return '';
+
+    const more = better.minSize - qty;
+    return `<span class="nudge">Add ${more} more ${more === 1 ? 'person' : 'people'}
+      and it drops to ${money(better.perSeatCents)} each.</span>`;
+  }
+
+  /** Show or hide one attendee's optional email and phone. */
+  function toggleContact(i) {
+    const box = document.getElementById(`attExtra${i}`);
+    const btn = document.getElementById(`attToggle${i}`);
+    if (!box) return;
+    const open = box.classList.toggle('open');
+    btn.textContent = `${open ? 'Hide' : 'Add'} their own email or phone`;
+    if (open) document.getElementById(`fEmail${i}`)?.focus();
+  }
+
+  /** Change the party size, keeping names already typed. */
+  function setQty(delta) {
+    const max = Math.min(current.seatsAvailable, MAX_GROUP);
+    const next = Math.max(1, Math.min(max, qty + delta));
+    if (next === qty) return;
+    qty = next;
+    renderSeats();
+    loadQuote();        // party size moves the per-person price
+    loadSlots();        // and a bigger party may not fit where a smaller one did
+  }
+
+  /**
+   * Redraw the name fields for the current party size.
+   *
+   * Each attendee needs their own name — they each get a certification card —
+   * but one email and phone covers the booking, since a manager signing up
+   * staff is the common case.
+   */
+  function renderSeats() {
+    const max = Math.min(current.seatsAvailable, MAX_GROUP);
+
+    // Keep anything already typed when the party size changes.
+    const existing = [];
+    const existingEmails = [];
+    const existingPhones = [];
+    for (let i = 0; i < MAX_GROUP; i++) {
+      const n = document.getElementById(`fName${i}`);
+      if (!n) break;
+      existing.push(n.value);
+      existingEmails.push(document.getElementById(`fEmail${i}`)?.value || '');
+      existingPhones.push(document.getElementById(`fPhone${i}`)?.value || '');
+    }
+
+    document.getElementById('qtyVal').textContent = qty;
+    document.getElementById('qtyDown').disabled = qty <= 1;
+    document.getElementById('qtyUp').disabled = qty >= max;
+
+    document.getElementById('attendees').innerHTML = qty === 1
+      ? `<label for="fName0">Your name</label>
+         <input id="fName0" class="solo-name" type="text" autocomplete="name"
+                placeholder="First and last name" value="${esc(existing[0] || '')}">`
+      : `<label>Who's attending?</label>` +
+        Array.from({ length: qty }, (_, i) => `
+          <div class="att-block">
+            <div class="attendee">
+              <span>${i + 1}.</span>
+              <input id="fName${i}" type="text" placeholder="Attendee ${i + 1} full name"
+                     value="${esc(existing[i] || '')}">
+            </div>
+            <button type="button" class="att-toggle" onclick="Booking.toggleContact(${i})"
+                    id="attToggle${i}">
+              ${(existingEmails[i] || existingPhones[i]) ? 'Hide' : 'Add'} their own email or phone
+            </button>
+            <div class="att-extra ${(existingEmails[i] || existingPhones[i]) ? 'open' : ''}"
+                 id="attExtra${i}">
+              <input id="fEmail${i}" type="email" placeholder="Their email (optional)"
+                     value="${esc(existingEmails[i] || '')}">
+              <input id="fPhone${i}" type="tel" placeholder="Their phone (optional)"
+                     value="${esc(existingPhones[i] || '')}">
+            </div>
+          </div>`).join('');
+
+    document.getElementById('groupNote').innerHTML = qty > 1
+      ? `<p class="group-note">Each person needs their own name for their
+           certification card. The booking email and phone below cover everyone —
+           add an individual email only if that person should get their own
+           confirmation.</p>`
+      : '';
+
+    renderPrice();
+
+    const btn = document.querySelector('#bookBody > .btn');
+    if (btn) btn.textContent = qty > 1 ? `Hold ${qty} places` : 'Hold my seat';
+  }
+
+  // step 2 — seat held, pay now
+  async function hold() {
+    const fields = readFields();
+    if (!fields) return;
+
+    const btn = document.querySelector('#bookBody > .btn');
+    btn.disabled = true;
+    btn.textContent = qty > 1 ? `Holding ${qty} seats…` : 'Holding your seat…';
+
+    const { status, data } = await api(`/api/classes/${current.id}/hold`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+
+    if (!data.ok) {
+      btn.disabled = false;
+      btn.textContent = qty > 1 ? `Hold ${qty} seats` : 'Hold my seat';
+
+      // Someone took the last seat(s) while this form was open.
+      if (status === 409 && data.canJoinWaitlist) { stepWaitlist(true); return; }
+
+      if (data.reason === 'outside_service_area') {
+        showErr(data.message);
+        showAlternatives(null, (fields.zip || '').slice(0, 5));
+        return;
+      }
+
+      // Someone took that time while the form was open.
+      if (data.reason === 'slot_taken' || data.reason === 'slot_in_past') {
+        showErr(data.message);
+        chosenSlot = null;
+        await loadSlots();
+        return;
+      }
+
+      // The day filled partway — offer what's actually left.
+      if (data.reason === 'not_enough_seats') {
+        showErr(data.message);
+        current.seatsAvailable = data.available;
+        qty = Math.max(1, Math.min(qty, data.available));
+        renderSeats();
+        await loadSlots();
+        return;
+      }
+      // Show what the server actually said. A blanket apology hides real
+      // causes — a stale server that doesn't understand group bookings, say.
+      showErr(data.message
+        || (data.reason ? `Could not hold the seats (${data.reason}).`
+                        : 'Sorry, that did not go through. Please try again.'));
+      return;
+    }
+
+    holdRef = data.registration.ref;
+    lastBooking = data;
+    stepPay(data);
+  }
+
+  function stepPay(data) {
+    const mock = data.payment.mode === 'mock';
+
+    body(`
+      <div class="modal-err" id="bookErr"></div>
+      <div class="hold-bar" id="holdBar">
+        ${data.seats > 1 ? `${data.seats} seats held` : 'Seat held'}
+        for <b id="holdClock">20:00</b><br>
+        <span style="color:var(--ink-soft)">Reference ${esc(data.groupRef || holdRef)}</span>
+      </div>
+      ${mock ? '<div class="mock-banner"><b>Test mode.</b> No card is charged.</div>' : ''}
+      <div class="modal-price">${money(data.totalCents ?? data.registration.amountCents)}
+        <small>${esc(current.title)}${data.seats > 1
+          ? ` — ${data.seats} people at ${money(data.registration.amountCents)} each` : ''}</small>
+      </div>
+      ${data.pricing && data.pricing.label ? `<p class="price-why ${
+        data.pricing.adjustPct < 0 ? '' : 'surcharge'}">
+        <b>${esc(data.pricing.label)} — ${data.pricing.adjustPct > 0 ? '+' : ''}${
+          data.pricing.adjustPct}%</b>${esc(data.pricing.reason)}
+      </p>` : ''}
+      <p class="group-note">
+        <b>${fmtDate(data.slotStart)}, ${fmtTime(data.slotStart)}–${fmtTime(data.slotEnd)}</b><br>
+        ${esc(data.address)}
+      </p>
+      ${data.seats > 1 ? `<p class="group-note">
+        ${data.attendees.map((a) => esc(a.name)).join(', ')}
+      </p>` : ''}
+      ${mock ? `
+        <button class="btn" style="width:100%;margin-bottom:8px" onclick="Booking.pay('approve')">
+          Simulate successful payment
+        </button>
+        <button class="btn btn-ghost" style="width:100%" onclick="Booking.pay('decline')">
+          Simulate declined card
+        </button>`
+      : `
+        <button class="btn" style="width:100%" onclick="Booking.payConverge()">
+          Pay ${money(data.totalCents ?? data.registration.amountCents)}
+        </button>`}
+      <p class="modal-note">If the timer runs out your seat is released and offered to the next person.</p>
+    `);
+
+    startTicker(data.expiresAt);
+  }
+
+  // Mock payment. Replaced by payConverge() when Elavon goes live.
+  async function pay(outcome) {
+    document.querySelectorAll('#bookBody .btn').forEach((b) => { b.disabled = true; });
+
+    const { data } = await api(`/api/registrations/${holdRef}/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outcome }),
+    });
+
+    if (!data.ok) {
+      document.querySelectorAll('#bookBody .btn').forEach((b) => { b.disabled = false; });
+      showErr(data.message || 'That payment was declined. Please try another card.');
+      return;
+    }
+    stepDone();
+  }
+
+  /**
+   * Converge Lightbox goes here.
+   *
+   * The hold response carries payment.sessionToken and payment.scriptUrl once
+   * PAYMENT_PROVIDER=converge. Load that script, then:
+   *
+   *   PayWithConverge.open({ ssl_txn_auth_token: token }, {
+   *     onApproval: (r) => postConfirm(r),
+   *     onDeclined: (r) => showErr(r.ssl_result_message),
+   *     onError:    (r) => showErr('Payment could not be processed.'),
+   *   });
+   *
+   * onApproval posts the response to /confirm, same as pay() does. Note the
+   * server treats a browser callback as a hint — see payments/converge.js for
+   * the server-side verification still to wire up.
+   */
+  function payConverge() {
+    showErr('Card payments are not switched on yet. Please call us to book.');
+  }
+
+  function stepDone() {
+    stopTicker();
+    const ref = holdRef;
+
+    const group = lastBooking && lastBooking.seats > 1 ? lastBooking : null;
+
+    body(`
+      <p class="ok-mark">${group ? `${group.seats} seats booked.` : "You're registered."}</p>
+      <p style="margin:0 0 4px;color:var(--ink-soft);font-size:14px">
+        Confirmation sent to your email. ${group ? 'Group reference:' : 'Your reference:'}
+      </p>
+      <div class="ref-chip">${esc(group?.groupRef || ref)}</div>
+
+      ${group ? `<p class="group-note" style="margin-bottom:18px">
+        ${group.attendees.map((a) => `${a.seat}. ${esc(a.name)}`).join('<br>')}
+      </p>` : ''}
+
+      <p style="margin:0 0 10px;font-weight:600">Add it to your calendar</p>
+      <div class="cal-row">
+        <a class="btn" id="calGoogle" target="_blank" rel="noopener">Google Calendar</a>
+        <a class="btn btn-ghost" id="calIcs">Apple / Outlook</a>
+      </div>
+
+      <p class="modal-note">
+        ${esc(current.title)}<br>
+        ${lastBooking ? `${fmtDate(lastBooking.slotStart)},
+          ${fmtTime(lastBooking.slotStart)}–${fmtTime(lastBooking.slotEnd)}<br>
+          ${esc(lastBooking.address)}<br>` : ''}
+        We come to you — have floor space ready and wear comfortable clothes.
+        ${group ? 'Each person gets their own certification card.' : ''}
+      </p>
+      <p style="margin-top:20px">
+        <button class="btn btn-ghost" style="width:100%" onclick="Booking.close()">Done</button>
+      </p>
+    `);
+
+    api(`/api/registrations/${ref}/calendar-links`).then(({ data }) => {
+      if (!data.ok) return;
+      document.getElementById('calGoogle').href = data.google;
+      document.getElementById('calIcs').href = API + data.ics;
+    });
+  }
+
+  // waitlist
+  function stepWaitlist(stolen = false) {
+    body(`
+      <div class="modal-err" id="bookErr"></div>
+      ${stolen ? `<div class="mock-banner">
+        The last seat was taken while you were filling this in. You can join the waitlist instead.
+      </div>` : ''}
+      <p style="margin:0 0 16px">
+        This day is fully booked. Join the waitlist and we'll email you if a time
+        frees up — it stays reserved for you for 24 hours.
+      </p>
+      ${nameFields()}
+      <label for="fWantTime">What time would suit you? <span
+        style="font-weight:400;color:var(--ink-soft)">(optional)</span></label>
+      <input id="fWantTime" type="time" step="1800">
+      <button class="btn" style="width:100%" onclick="Booking.joinWaitlist()">Join the waitlist</button>
+      <p class="modal-note">No payment now. You only pay if you claim a time.</p>
+      <div id="waitAlts"></div>
+    `);
+  }
+
+  async function joinWaitlist() {
+    const fields = readFields({ requireBooking: false });
+    if (!fields) return;
+
+    const btn = document.querySelector('#bookBody .btn');
+    btn.disabled = true;
+    btn.textContent = 'Adding you…';
+
+    const { data } = await api(`/api/classes/${current.id}/waitlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: fields.attendees[0].name, email: fields.email, phone: fields.phone,
+        preferredTime: document.getElementById('fWantTime')?.value || null,
+        partySize: qty,
+      }),
+    });
+
+    if (!data.ok) {
+      btn.disabled = false;
+      btn.textContent = 'Join the waitlist';
+      showErr(data.reason === 'already_registered'
+        ? "You're already on the list for this class."
+        : 'Sorry, that did not go through. Please try again.');
+      return;
+    }
+
+    body(`
+      <p class="ok-mark">You're on the list.</p>
+      <p>You're number ${data.position} for ${esc(current.title)} on
+         ${fmtDate(current.opensAt || current.startsAt)}. We'll email
+         ${esc(fields.email)} the moment a time frees up.</p>
+
+      ${data.alternatives && data.alternatives.length ? `
+        <p style="font-weight:600;margin:20px 0 8px">
+          Or book one of these instead — no waiting
+        </p>
+        ${data.alternatives.map((a) => `
+          <div class="alt-day" onclick="Booking.switchDay(${a.classId}, '${a.suggestedSlot}')">
+            <b>${fmtDate(a.opensAt)}</b>
+            <span>
+              ${fmtTime(a.suggestedSlot)}
+              ${a.matchesPreferredTime ? '<span class="match">· the time you wanted</span>' : ''}
+              · ${a.seatsLeft} place${a.seatsLeft === 1 ? '' : 's'} left
+            </span>
+          </div>`).join('')}` : ''}
+
+      <p style="margin-top:20px">
+        <button class="btn btn-ghost" style="width:100%" onclick="Booking.close()">Done</button>
+      </p>
+    `);
+  }
+
+  // -------------------------------------------------------------- countdown
+
+  function startTicker(expiresAt) {
+    stopTicker();
+    const deadline = new Date(expiresAt).getTime();
+
+    const tick = () => {
+      const left = deadline - Date.now();
+      const clock = document.getElementById('holdClock');
+      if (!clock) { stopTicker(); return; }
+
+      if (left <= 0) {
+        stopTicker();
+        clock.textContent = '0:00';
+        showErr('Your hold expired and the seat was released. Please start again.');
+        document.querySelectorAll('#bookBody .btn').forEach((b) => { b.disabled = true; });
+        return;
+      }
+
+      const mins = Math.floor(left / 60000);
+      const secs = Math.floor((left % 60000) / 1000);
+      clock.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+      if (left < 120000) document.getElementById('holdBar')?.classList.add('urgent');
+    };
+
+    tick();
+    ticker = setInterval(tick, 1000);
+  }
+
+  function stopTicker() {
+    if (ticker) { clearInterval(ticker); ticker = null; }
+  }
+
+  // ------------------------------------------------------------------- init
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (suggestBox?.classList.contains('open')) { hideSuggest(); return; }
+      close();
+    }
+  });
+
+  // The list is fixed-position, so it would drift away from its field.
+  window.addEventListener('scroll', () => { hideSuggest(); hideAddr(); }, true);
+  window.addEventListener('resize', () => { hideSuggest(); hideAddr(); });
+
+  document.getElementById('bookVeil')?.addEventListener('click', (e) => {
+    if (e.target.id === 'bookVeil') close();
+  });
+
+  checkServer();
+  load();
+  // Keep seat counts honest for someone who leaves the page open.
+  setInterval(load, 60000);
+
+  return { open, close, hold, pay, payConverge, joinWaitlist, load, setQty, toggleContact,
+           pickSlot, switchDay, loadSlots, loadQuote, toggleArea, checkZip,
+           // exposed for tests
+           _formatPhone: formatPhone, _showSuggest: showSuggest, _hideSuggest: hideSuggest,
+           _composeAddress: composeAddress, _chooseAddress: chooseAddress,
+           _queryAddress: queryAddress, _lookupZip: lookupZip };
+})();
+
+// The inline onclick handlers resolve Booking through global scope, but a
+// top-level const never lands on window. Publish it so the console can reach
+// it too — handy when debugging a booking that misbehaved.
+window.Booking = Booking;
+</script>
+</body>
+</html>

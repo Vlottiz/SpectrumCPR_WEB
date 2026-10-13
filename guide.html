@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spectrum CPR — Running your booking system</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#141821; --soft:#4a5261; --paper:#fff; --paper2:#f4f6f9;
+    --rule:#d8dce3; --red:#d8202f; --green:#2a9d4e; --amber:#c99f06;
+    --blue:#2472c8; --purple:#7a3fc4;
+    --sans:'Barlow',system-ui,sans-serif; --cond:'Barlow Condensed',sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:var(--sans);color:var(--ink);background:var(--paper2);
+    font-size:16px;line-height:1.6;
+  }
+  .sheet{
+    max-width:850px;margin:0 auto;background:var(--paper);
+    padding:48px 56px 64px;box-shadow:0 1px 14px rgba(0,0,0,.09);
+  }
+  .bar{height:6px;background:linear-gradient(90deg,#d8202f,#e8811a 20%,#c99f06 38%,#2a9d4e 58%,#2472c8 78%,#7a3fc4)}
+
+  header{display:flex;align-items:flex-end;gap:20px;border-bottom:2px solid var(--ink);
+         padding-bottom:18px;margin-bottom:8px}
+  header img{width:150px;height:auto}
+  h1{font-family:var(--cond);font-size:34px;margin:0;line-height:1.05;flex:1}
+  h1 span{display:block;font-family:var(--sans);font-size:13px;font-weight:600;
+          letter-spacing:.14em;color:var(--soft);margin-top:4px}
+
+  h2{font-family:var(--cond);font-size:26px;margin:38px 0 6px;
+     border-bottom:1px solid var(--rule);padding-bottom:5px}
+  h3{font-family:var(--cond);font-size:19px;margin:22px 0 4px}
+  p{margin:0 0 12px;max-width:66ch}
+  ul,ol{margin:0 0 14px;padding-left:22px;max-width:66ch}
+  li{margin-bottom:6px}
+  code{background:var(--paper2);padding:2px 6px;border-radius:2px;
+       font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px}
+
+  .box{border:1.5px solid var(--rule);border-left:4px solid var(--blue);
+       background:var(--paper2);padding:14px 18px;margin:0 0 18px;border-radius:2px}
+  .box.warn{border-left-color:var(--red);background:#fdeaec}
+  .box.note{border-left-color:var(--amber);background:#fff8e1}
+  .box b{font-family:var(--cond);font-size:17px;display:block;margin-bottom:3px}
+  .box p:last-child{margin-bottom:0}
+
+  .links{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0 8px}
+  .link{border:1.5px solid var(--ink);padding:13px 16px}
+  .link b{font-family:var(--cond);font-size:18px;display:block}
+  .link code{background:none;padding:0;font-size:14px;word-break:break-all}
+  .link span{display:block;font-size:13px;color:var(--soft);margin-top:4px}
+
+  table{width:100%;border-collapse:collapse;font-size:15px;margin:0 0 16px}
+  th{text-align:left;font-family:var(--cond);font-size:16px;padding:7px 10px;
+     border-bottom:1.5px solid var(--ink)}
+  td{padding:9px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  td:first-child{white-space:nowrap;font-weight:600}
+
+  .pill{font-size:12px;font-weight:600;padding:2px 8px;border-radius:2px;color:#fff;
+        display:inline-block}
+  .p-confirmed{background:var(--green)} .p-held{background:var(--amber);color:#3a2f00}
+  .p-offered{background:var(--blue)} .p-waitlist{background:#e4e7ec;color:var(--soft)}
+
+  .timeline{border:1.5px solid var(--rule);padding:0;margin:0 0 16px;font-size:14.5px}
+  .timeline div{padding:9px 14px;border-bottom:1px solid var(--rule);display:flex;gap:14px}
+  .timeline div:last-child{border-bottom:0}
+  .timeline b{font-family:var(--cond);font-size:16px;min-width:96px}
+  .timeline .busy{background:#fdeaec}
+  .timeline .free{background:#eaf7ee}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--rule);
+         font-size:13px;color:var(--soft)}
+
+  @media print{
+    body{background:#fff;font-size:11.5pt}
+    .sheet{box-shadow:none;max-width:none;padding:0 0 24px}
+    h2{page-break-after:avoid} h3{page-break-after:avoid}
+    .box,.timeline,table,.links{page-break-inside:avoid}
+    .bar{display:none}
+  }
+  @media (max-width:640px){
+    .sheet{padding:28px 22px}
+    .links{grid-template-columns:1fr}
+    header{flex-direction:column;align-items:flex-start;gap:12px}
+  }
+</style>
+</head>
+<body>
+<div class="bar"></div>
+<div class="sheet">
+
+<header>
+  <img src="g214.svg" alt="Spectrum CPR + First Aid">
+  <h1>Running your booking system<span>QUICK REFERENCE</span></h1>
+</header>
+
+<p>Customers pick a day you're working, choose an arrival time, tell you where
+to come, and pay. You manage the whole thing from one admin page.</p>
+
+<div class="links">
+  <div class="link">
+    <b>Your booking page</b>
+    <code>http://192.168.50.32:3000</code>
+    <span>What customers see</span>
+  </div>
+  <div class="link">
+    <b>Your admin page</b>
+    <code>http://192.168.50.32:3000/admin.html</code>
+    <span>Where you work</span>
+  </div>
+</div>
+
+<div class="box warn">
+  <b>Card payments are not switched on yet</b>
+  <p>The system is running in test mode. Nobody is charged and no money moves,
+  even though the booking goes through and looks normal. Until Elavon is
+  connected, take payment yourself and mark it paid (see below).</p>
+</div>
+
+<h2>Signing in</h2>
+
+<p>Open the admin page and enter your admin token. It's the password for the
+whole system — keep it in a password manager, not on a note by the desk.</p>
+
+<div class="box warn">
+  <b>What the token protects</b>
+  <p>Anyone holding it can see every customer's name, phone number, email and
+  <b>home address</b>. Don't email it, don't text it, and don't reuse it
+  anywhere else. If you think it's got out, ask for a new one — it takes a
+  minute to change.</p>
+</div>
+
+<p>Closing the browser tab signs you out.</p>
+
+<h2>Setting up a day you're available</h2>
+
+<p>You publish <b>days</b>, not classes. A day is: the date, which course, the
+hours you're willing to work, how many people you'll train that day, and the
+price per person.</p>
+
+<ol>
+  <li>Click <b>Add a day</b></li>
+  <li>Course name and type — CPR / AED, Heartsaver, or Babysitter Safety</li>
+  <li><b>Day opens</b> and <b>Day closes</b> — the hours you'll work, say 8:00 AM to 6:00 PM</li>
+  <li><b>People you'll train that day</b> — your limit across every visit,
+      based on manikins, cards and how much you want to do in one day</li>
+  <li>Base price per person, and the group price bands (below)</li>
+  <li>The ZIP codes you'll travel to that day, if you want to limit it</li>
+</ol>
+
+<p>Customers then book four-hour sessions inside those hours, at their address.</p>
+
+<h3>Choosing where you'll travel</h3>
+
+<p>Each day has a <b>service area</b> — the ZIP codes you're willing to drive
+to. Type a ZIP into the box on the day's form and it becomes a chip; click the
+× to remove one. Leave it empty and you'll travel anywhere.</p>
+
+<p>Customers see the area before they book, and get told as they type their ZIP
+whether you cover it. Someone outside is shown other days that do reach them,
+so an out-of-area enquiry turns into a booking on a different date rather than
+a dead end.</p>
+
+<div class="box note">
+  <b>Empty means everywhere</b>
+  <p>A day with no ZIP codes listed is unrestricted, not unbookable. If you
+  want to limit a day, you have to add the codes.</p>
+</div>
+
+<h3>Group pricing</h3>
+
+<p>A visit costs the same to drive to and set up whether you're training two
+people or eight. So the per-person price moves with the group size:</p>
+
+<table>
+  <tr><th>Group size</th><th>Price</th><th>Why</th></tr>
+  <tr><td>1–2 people</td><td>+10%</td>
+      <td>A small booking carries a share of the fixed cost of the trip</td></tr>
+  <tr><td>3–4 people</td><td>−5%</td>
+      <td>A fuller session spreads that cost further</td></tr>
+  <tr><td>5 or more</td><td>−10%</td>
+      <td>Best rate — one visit, more people trained</td></tr>
+</table>
+
+<p>Customers see the adjusted price and the reason for it before they pay, so
+nobody is surprised at checkout. If someone is booking for two, the page also
+tells them what a third person would bring the price down to.</p>
+
+<p>You set these bands per day when you create it, and the starting values are
+already filled in. Change a percentage, or the wording customers read, in the
+<b>Group price bands</b> table on the day's form. A small preview underneath
+shows what 1, 2, 3, 5 and 8 people would each pay.</p>
+
+<div class="box note">
+  <b>Every group size needs a band</b>
+  <p>The bands have to run continuously from 1 upward, and the last one is
+  left open-ended. The form will tell you if there's a gap — otherwise a group
+  that falls through it would quietly pay the base price.</p>
+</div>
+
+<h3>How your day fills up</h3>
+
+<p>Each booking takes four hours of teaching plus ninety minutes to set up,
+pack down and drive. So one booking blocks five and a half hours of your
+calendar.</p>
+
+<div class="timeline">
+  <div class="busy"><b>8:00 – 12:00</b><span>Booked — teaching at the customer's site</span></div>
+  <div class="busy"><b>12:00 – 1:30</b><span>Blocked — packing up and driving</span></div>
+  <div class="free"><b>1:30 PM</b><span>Next time a customer can book</span></div>
+</div>
+
+<p>An 8:00 AM booking removes every start from 8:00 through 1:00 PM. The next
+offered time is 1:30 PM, which finishes at 5:30. So an 8–6 day holds two
+visits.</p>
+
+<div class="box note">
+  <b>Want three visits in a day?</b>
+  <p>You'd need to open earlier or close later — three bookings need about
+  fifteen and a half hours. Set the day's hours to whatever you're actually
+  willing to work and the system offers what fits.</p>
+</div>
+
+<div class="box note">
+  <b>Two things run out separately</b>
+  <p><b>Times</b> — how many two-hour slots are left in the day.<br>
+  <b>People</b> — the headcount you set for that day.</p>
+  <p>A day with hours free can still turn away a group of eight if only four
+  places remain. The admin table shows both.</p>
+</div>
+
+<h2>Seeing who's booked</h2>
+
+<p>Click <b>Roster</b> on any day. It's laid out as your run sheet for that
+day, in driving order.</p>
+
+<p>Each visit shows the arrival time, the address as a link that opens Google
+Maps, any access notes the customer left (gate code, parking, which door),
+everyone attending, and what they've paid.</p>
+
+<h3>What the labels mean</h3>
+
+<table>
+  <tr><th>Label</th><th>Meaning</th></tr>
+  <tr><td><span class="pill p-confirmed">confirmed</span></td>
+      <td>Paid and locked in. This one is happening.</td></tr>
+  <tr><td><span class="pill p-held">held</span></td>
+      <td>Part-way through booking. Their slot is reserved for 20 minutes
+          while they pay. If they don't finish, it frees up by itself.</td></tr>
+  <tr><td><span class="pill p-offered">offered</span></td>
+      <td>Was on the waitlist, a slot opened, and it's reserved for them for
+          24 hours while they decide.</td></tr>
+  <tr><td><span class="pill p-waitlist">waitlist</span></td>
+      <td>Waiting for a slot on a full day. Not booked, not charged.</td></tr>
+</table>
+
+<h2>Everyday jobs</h2>
+
+<h3>Someone paid you cash or by cheque</h3>
+<p>Open the roster, find them, click <b>Mark paid</b>. They go to confirmed and
+their seat is secure.</p>
+
+<h3>Someone cancels</h3>
+<p><b>Remove</b> next to their name frees just their place. On a group
+booking, <b>cancel this visit</b> in the visit header cancels all of them.
+Either way the freed places are offered to anyone waiting, automatically.</p>
+
+<h3>You need to call off a whole day</h3>
+<p>Edit the day, then <b>Cancel this day</b>. Existing bookings stay on the
+list so you still have their details — <b>you need to phone those customers
+yourself</b>. The system won't do it for you.</p>
+
+<h3>Changing a day's hours or headcount</h3>
+<p>Edit it. You can raise the headcount any time, and extra places are offered
+to the waitlist straight away. You can't drop it below what's already
+booked — the system will stop you rather than let you strand someone who
+paid.</p>
+
+<h3>Emailing everyone on a day</h3>
+<p><b>Copy contact emails</b> at the bottom of the roster puts them all on
+your clipboard, ready to paste into a message.</p>
+
+<h2>What customers experience</h2>
+
+<ol>
+  <li>They pick a day from your schedule</li>
+  <li>Choose how many people</li>
+  <li>Pick an arrival time — booked times show crossed out</li>
+  <li>Enter each person's name (everyone needs their own, for their card)</li>
+  <li>Enter the address you're coming to — the ZIP is checked against your
+      service area as they type</li>
+  <li>Pay — one payment covers the whole group</li>
+  <li>Get a confirmation with a reference and an <b>Add to calendar</b> button</li>
+</ol>
+
+<p>If a day is full they can join the waitlist, and they're also shown other
+days that would work — with the time they wanted listed first where possible.</p>
+
+<h2>Group bookings</h2>
+
+<p>A manager can book several people at once — a daycare signing up staff, for
+example. One address, one payment, one visit, but every person is named
+separately so they each get their own certification card.</p>
+
+<p>Any attendee can optionally give their own email to get their own
+confirmation. Otherwise everything goes to whoever booked.</p>
+
+<p>Groups appear on the roster as one block, so you can see at a glance that
+six names are one stop rather than six.</p>
+
+<h2>Worth knowing</h2>
+
+<table>
+  <tr><td>Hold time</td><td>20 minutes to finish paying before a slot is released</td></tr>
+  <tr><td>Waitlist offer</td><td>24 hours to claim a freed slot</td></tr>
+  <tr><td>Session length</td><td>4 hours teaching</td></tr>
+  <tr><td>Travel buffer</td><td>90 minutes after each booking</td></tr>
+  <tr><td>Largest group</td><td>12 people in one booking</td></tr>
+  <tr><td>Courses</td><td>CPR / AED, Heartsaver, Babysitter Safety</td></tr>
+  <tr><td>Service area</td><td>Set per day by ZIP; empty means anywhere</td></tr>
+  <tr><td>Time zone</td><td>Pacific — customers see their own local time</td></tr>
+</table>
+
+<div class="box">
+  <b>Confirmation emails aren't sending yet</b>
+  <p>The system writes every email it would have sent, but nothing leaves the
+  building until a mail service is connected. For now, confirm bookings by
+  phone or email yourself.</p>
+</div>
+
+<h2>If something looks wrong</h2>
+
+<ul>
+  <li><b>The page won't load</b> — the NAS may have restarted. It normally
+      comes back on its own within a minute or two.</li>
+  <li><b>A booking looks stuck on "held"</b> — leave it. It clears itself
+      after 20 minutes and the slot returns.</li>
+  <li><b>A customer says they paid but isn't confirmed</b> — check the roster
+      first. If they're genuinely missing, don't rebook them blind; their
+      payment reference will sort it out.</li>
+  <li><b>Anything else</b> — note the day, the customer's name and roughly
+      when it happened. That's usually enough to track down.</li>
+</ul>
+
+<footer>
+  Spectrum CPR + First Aid — booking system quick reference.<br>
+  Admin: <code>http://192.168.50.32:3000/admin.html</code>
+</footer>
+
+</div>
+</body>
+</html>

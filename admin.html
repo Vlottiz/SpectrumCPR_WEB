@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spectrum CPR — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#141821; --ink-soft:#4a5261; --paper:#fff; --paper-2:#f2f4f7;
+    --rule:#d8dce3; --red:#d8202f; --red-dark:#a8141f;
+    --green:#2a9d4e; --amber:#c99f06; --blue:#2472c8; --purple:#7a3fc4;
+    --sans:'Barlow',system-ui,sans-serif; --cond:'Barlow Condensed','Barlow',sans-serif;
+  }
+  [data-theme="dark"]{
+    --ink:#e9edf4; --ink-soft:#98a1b2; --paper:#11141a; --paper-2:#1a1e26;
+    --rule:#2d333f; --red:#f2515e; --red-dark:#d8202f;
+    --green:#3fc16c; --amber:#e8c531; --blue:#4b93e8; --purple:#a069e8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:16px;line-height:1.55}
+  .spectrum-bar{height:4px;background:linear-gradient(90deg,#d8202f,#e8811a 20%,#c99f06 38%,#2a9d4e 58%,#2472c8 78%,#7a3fc4)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+
+  header{border-bottom:1px solid var(--rule);background:var(--paper);position:sticky;top:0;z-index:20}
+  .bar{display:flex;align-items:center;gap:18px;height:64px}
+  .brand{font-family:var(--cond);font-weight:700;font-size:23px;margin-right:auto;letter-spacing:.01em}
+  .brand span{display:block;font-family:var(--sans);font-size:10.5px;font-weight:600;letter-spacing:.2em;color:var(--ink-soft)}
+
+  .btn{font:inherit;font-weight:600;font-size:14.5px;padding:9px 16px;border:0;border-radius:2px;cursor:pointer;background:var(--red);color:#fff;font-family:var(--sans)}
+  .btn:hover{background:var(--red-dark)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn-ghost{background:none;border:1.5px solid var(--ink);color:var(--ink)}
+  .btn-ghost:hover{background:var(--ink);color:var(--paper)}
+  .btn-sm{padding:5px 11px;font-size:13px}
+
+  /* login gate */
+  #gate{max-width:380px;margin:14vh auto;padding:0 22px}
+  #gate h1{font-family:var(--cond);font-size:32px;margin:0 0 6px}
+  #gate p{color:var(--ink-soft);font-size:15px;margin:0 0 22px}
+
+  label{display:block;font-size:13.5px;font-weight:600;margin:0 0 5px}
+  input,select,textarea{width:100%;padding:10px 11px;border:1.5px solid var(--rule);border-radius:2px;
+    font-family:var(--sans);font-size:15px;background:var(--paper);color:var(--ink);margin-bottom:14px}
+  input:focus,select:focus{outline:2px solid var(--red);outline-offset:1px;border-color:var(--ink)}
+
+  .err{background:#fdeaec;border:1px solid var(--red);color:var(--red-dark);padding:9px 12px;
+    font-size:14px;margin-bottom:14px;border-radius:2px;display:none}
+  [data-theme="dark"] .err{background:#3a1519;color:#ffb3ba}
+  .err.show{display:block}
+
+  /* dashboard */
+  main{display:none;padding:28px 0 60px}
+  main.on{display:block}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:30px}
+  .stat{border:1px solid var(--rule);padding:15px 17px;background:var(--paper-2)}
+  .stat b{display:block;font-family:var(--cond);font-size:31px;line-height:1.1}
+  .stat span{font-size:12.5px;color:var(--ink-soft);letter-spacing:.02em}
+
+  h2{font-family:var(--cond);font-size:27px;margin:0 0 4px}
+  .sub{color:var(--ink-soft);font-size:14.5px;margin:0 0 18px}
+  .head-row{display:flex;align-items:flex-end;gap:16px;margin-bottom:18px}
+  .head-row div{margin-right:auto}
+
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  th{text-align:left;font-family:var(--cond);font-size:15px;font-weight:600;padding:9px 10px;
+     border-bottom:1.5px solid var(--ink);white-space:nowrap}
+  td{padding:11px 10px;border-bottom:1px solid var(--rule);vertical-align:middle}
+  tr.past td{opacity:.5}
+  tr.cancelled td{opacity:.45;text-decoration:line-through}
+  .tag{font-size:11.5px;font-weight:600;color:#fff;padding:2px 7px;border-radius:2px;display:inline-block}
+  .num{font-family:var(--cond);font-size:17px;font-weight:600}
+  .ok{color:var(--green);font-weight:600}
+  .low{color:var(--red);font-weight:600}
+  .muted{color:var(--ink-soft)}
+  .nowrap{white-space:nowrap}
+
+  /* modal */
+  .veil{position:fixed;inset:0;background:rgba(20,24,33,.55);z-index:50;display:none;
+        align-items:flex-start;justify-content:center;padding:5vh 18px;overflow-y:auto}
+  .veil.open{display:flex}
+  .box{background:var(--paper);border:1.5px solid var(--ink);width:100%;max-width:560px}
+  .box-head{padding:16px 20px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:14px}
+  .box-head h3{margin:0;font-family:var(--cond);font-size:21px}
+  .box-body{padding:20px}
+  .x{background:none;border:0;font-size:23px;cursor:pointer;color:var(--ink-soft);line-height:1}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+
+  /* group price bands */
+  .tiers{border:1.5px solid var(--rule);margin:0 0 6px}
+  .tier{display:grid;grid-template-columns:52px 52px 64px 1fr 28px;gap:0 8px;
+        align-items:start;padding:10px 11px;border-bottom:1px solid var(--rule)}
+  .tier:last-child{border-bottom:0}
+  .tier input,.tier textarea{margin:0;padding:7px 8px;font-size:14px}
+  .tier textarea{min-height:52px;resize:vertical;width:100%;
+    border:1.5px solid var(--rule);border-radius:2px;background:var(--paper);
+    color:var(--ink);font-family:var(--sans)}
+  .tier .drop{background:none;border:0;color:var(--ink-soft);font-size:19px;
+    cursor:pointer;line-height:1;padding:4px}
+  .tier .drop:hover{color:var(--red)}
+  .tier-head{display:grid;grid-template-columns:52px 52px 64px 1fr 28px;gap:0 8px;
+    padding:7px 11px;background:var(--paper-2);border-bottom:1px solid var(--rule);
+    font-size:11.5px;font-weight:600;letter-spacing:.04em;color:var(--ink-soft)}
+  .tier-preview{font-size:13px;color:var(--ink-soft);margin:0 0 14px}
+  .tier-preview b{color:var(--ink);font-family:var(--cond);font-size:15px}
+
+  /* service area */
+  .zip-box{border:1.5px solid var(--rule);padding:11px 12px;margin:0 0 6px;
+    display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:46px;
+    background:var(--paper)}
+  .zip-chip{background:var(--paper-2);border:1px solid var(--rule);border-radius:2px;
+    padding:3px 7px;font-size:13.5px;font-family:ui-monospace,Menlo,Consolas,monospace;
+    display:inline-flex;align-items:center;gap:5px}
+  .zip-chip button{background:none;border:0;cursor:pointer;color:var(--ink-soft);
+    font-size:15px;line-height:1;padding:0}
+  .zip-chip button:hover{color:var(--red)}
+  .zip-box input{border:0;outline:0;margin:0;padding:3px 2px;width:96px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;background:none}
+  .zip-note{font-size:12.5px;color:var(--ink-soft);margin:0 0 14px}
+
+  .roster-row{display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--rule);font-size:14px}
+  .roster-row:last-child{border-bottom:0}
+  .roster-row .who{flex:1;min-width:0}
+  .roster-row .who b{display:block}
+  .roster-row .who span{color:var(--ink-soft);font-size:13px}
+  /* group bookings on the roster */
+  .group-block{border:1.5px solid var(--rule);border-left:4px solid var(--purple);
+    margin:0 0 14px;background:var(--paper-2)}
+  .group-head{display:flex;align-items:center;gap:10px;padding:10px 13px;
+    border-bottom:1px solid var(--rule);flex-wrap:wrap}
+  .group-head b{font-family:var(--cond);font-size:16px}
+  .group-head .who{flex:1;min-width:0;font-size:13px;color:var(--ink-soft)}
+  .group-block .roster-row{padding:8px 13px;border-bottom:1px solid var(--rule)}
+  .group-block .roster-row:last-child{border-bottom:0}
+  .group-tag{background:var(--purple);color:#fff;font-size:11px;font-weight:600;
+    padding:2px 7px;border-radius:2px;white-space:nowrap}
+  .solo-head{font-family:var(--cond);font-size:16px;margin:18px 0 4px;color:var(--ink-soft)}
+
+  /* one visit on the day's run sheet */
+  .visit{border:1.5px solid var(--rule);border-left:4px solid var(--blue);
+    margin:0 0 14px;background:var(--paper-2)}
+  .visit-head{padding:11px 13px;border-bottom:1px solid var(--rule)}
+  .visit-time{font-family:var(--cond);font-size:19px;font-weight:700;display:block}
+  .visit-addr{font-size:13.5px;margin-top:3px}
+  .visit-addr a{color:var(--blue);font-weight:600}
+  .visit-notes{font-size:12.5px;color:var(--ink-soft);margin-top:4px;font-style:italic}
+  .visit .roster-row{padding:8px 13px;border-bottom:1px solid var(--rule)}
+  .visit .roster-row:last-child{border-bottom:0}
+  .visit-meta{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
+
+  .pill{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:2px;white-space:nowrap}
+  .p-confirmed{background:var(--green);color:#fff}
+  .p-held{background:var(--amber);color:#3a2f00}
+  .p-offered{background:var(--blue);color:#fff}
+  .p-waitlist{background:var(--paper-2);color:var(--ink-soft);border:1px solid var(--rule)}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);
+    color:var(--paper);padding:11px 20px;border-radius:2px;font-size:14.5px;font-weight:600;
+    z-index:80;opacity:0;pointer-events:none;transition:opacity .2s}
+  .toast.show{opacity:1}
+
+  @media (max-width:820px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .two{grid-template-columns:1fr}
+    .hide-sm{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="spectrum-bar"></div>
+
+<!-- ============================ login ============================ -->
+<div id="gate">
+  <h1>Admin</h1>
+  <p>Spectrum CPR + First Aid — class and booking management.</p>
+  <div class="err" id="gateErr"></div>
+  <label for="tok">Admin token</label>
+  <input id="tok" type="password" placeholder="Your admin token"
+         onkeydown="if(event.key==='Enter')Admin.login()">
+  <button class="btn" style="width:100%" onclick="Admin.login()">Sign in</button>
+  <p style="font-size:13px;margin-top:16px">
+    This is the <code>ADMIN_TOKEN</code> set on the server.
+  </p>
+</div>
+
+<!-- ========================== dashboard ========================== -->
+<header id="topbar" style="display:none">
+  <div class="wrap bar">
+    <div class="brand">SPECTRUM<span>ADMIN</span></div>
+    <button class="btn btn-ghost btn-sm" onclick="Admin.toggleTheme()">Theme</button>
+    <button class="btn btn-ghost btn-sm" onclick="Admin.logout()">Sign out</button>
+  </div>
+</header>
+
+<main id="app">
+  <div class="wrap">
+    <div class="stats" id="stats"></div>
+
+    <div class="head-row">
+      <div>
+        <h2>Training days</h2>
+        <p class="sub">Each row is a day you're available and the hours you'll work.
+          Customers book two-hour sessions inside that window at their own address.</p>
+      </div>
+      <button class="btn" onclick="Admin.newClass()">Add a day</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Course</th><th class="hide-sm">Hours</th>
+          <th>Booked</th><th class="hide-sm">People</th><th class="hide-sm">Waitlist</th>
+          <th class="hide-sm">Area</th><th class="hide-sm">Price</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+        <tr><td colspan="9" class="muted">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<div class="veil" id="veil" onclick="if(event.target.id==='veil')Admin.closeBox()">
+  <div class="box">
+    <div class="box-head">
+      <h3 id="boxTitle">—</h3>
+      <button class="x" onclick="Admin.closeBox()" aria-label="Close">&times;</button>
+    </div>
+    <div class="box-body" id="boxBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const Admin = (() => {
+  const API = window.BOOKING_API_BASE || '';
+  let token = null;
+  let classes = [];
+
+  // ------------------------------------------------------------- utilities
+
+  const $ = (id) => document.getElementById(id);
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const money = (c) => (c/100).toLocaleString(undefined,{style:'currency',currency:'USD'});
+
+  // Server speaks UTC; staff think in local time.
+  const fmtDate = (iso) => new Date(iso).toLocaleDateString(undefined,
+    {weekday:'short', month:'short', day:'numeric', year:'numeric'});
+  const fmtTime = (iso) => new Date(iso).toLocaleTimeString(undefined,
+    {hour:'numeric', minute:'2-digit'});
+
+  /** UTC ISO -> value for <input type="datetime-local">, in local time. */
+  function toLocalInput(iso){
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` +
+           `T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  /** ...and back. new Date() reads the local value, toISOString gives UTC. */
+  const fromLocalInput = (v) => new Date(v).toISOString();
+
+  const swatch = (c) => ({CPR:'#d8202f', HEARTSAVER:'#e8811a', BABYSIT:'#2472c8'}[c]
+    // Days created under the old course list still need a colour.
+    || '#7a8194');
+
+  function toast(msg){
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  async function api(path, opts = {}){
+    const res = await fetch(API + path, {
+      ...opts,
+      headers: {'Content-Type':'application/json', 'x-admin-token': token, ...(opts.headers||{})},
+    });
+    if (res.status === 401){ logout(); throw new Error('unauthorized'); }
+    let data = {};
+    try { data = await res.json(); } catch {}
+    return { status: res.status, data };
+  }
+
+  // ----------------------------------------------------------------- login
+
+  async function login(){
+    const val = $('tok').value.trim();
+    if (!val) return;
+    token = val;
+    try {
+      const { status, data } = await api('/api/admin/summary');
+
+      // A 404 here means the server predates the admin routes. Say so rather
+      // than signing in to an empty dashboard that sits on "Loading…".
+      if (status === 404){
+        token = null;
+        $('gateErr').textContent =
+          'This server does not have the admin endpoints. Update src/server.js and restart.';
+        $('gateErr').classList.add('show');
+        return;
+      }
+      if (status === 401 || status === 503 || !data.ok){
+        token = null;
+        $('gateErr').textContent = status === 503
+          ? 'Admin is disabled on the server — ADMIN_TOKEN is not set.'
+          : 'That token was not accepted.';
+        $('gateErr').classList.add('show');
+        return;
+      }
+      // Session storage, not local: closing the tab signs you out.
+      sessionStorage.setItem('spectrum_admin_token', token);
+      show();
+    } catch {
+      $('gateErr').textContent = 'Could not reach the server. Is it running?';
+      $('gateErr').classList.add('show');
+    }
+  }
+
+  function logout(){
+    token = null;
+    sessionStorage.removeItem('spectrum_admin_token');
+    $('gate').style.display = '';
+    $('topbar').style.display = 'none';
+    $('app').classList.remove('on');
+  }
+
+  function show(){
+    $('gate').style.display = 'none';
+    $('topbar').style.display = '';
+    $('app').classList.add('on');
+    refresh();
+  }
+
+  // ------------------------------------------------------------- dashboard
+
+  async function refresh(){
+    const [{ data: sum }, { data: list }] = await Promise.all([
+      api('/api/admin/summary'),
+      api('/api/admin/classes'),
+    ]);
+
+    if (sum.ok){
+      $('stats').innerHTML = `
+        <div class="stat"><b>${sum.upcomingClasses}</b><span>UPCOMING DAYS</span></div>
+        <div class="stat"><b>${sum.confirmedStudents}</b><span>BOOKED STUDENTS</span></div>
+        <div class="stat"><b>${sum.waitlisted}</b><span>ON WAITLISTS</span></div>
+        <div class="stat"><b>${money(sum.expectedRevenueCents)}</b><span>EXPECTED REVENUE</span></div>`;
+    }
+
+    if (!list.ok){
+      $('rows').innerHTML =
+        '<tr><td colspan="9" class="muted">Could not load classes. ' +
+        'The server may need updating — restart it with the latest src/server.js.</td></tr>';
+      return;
+    }
+    classes = list.classes;
+    const now = Date.now();
+
+    $('rows').innerHTML = classes.length ? classes.map((c) => {
+      const past = new Date(c.endsAt).getTime() < now;
+      const cls = c.status === 'cancelled' ? 'cancelled' : (past ? 'past' : '');
+      const seatClass = c.available === 0 ? 'low' : 'ok';
+      return `
+        <tr class="${cls}">
+          <td class="nowrap">${fmtDate(c.startsAt)}</td>
+          <td>
+            <span class="tag" style="background:${swatch(c.courseCode)}">${esc(c.courseCode)}</span>
+            ${esc(c.title)}
+            ${c.status === 'cancelled' ? ' <span class="muted">(cancelled)</span>' : ''}
+          </td>
+          <td class="hide-sm nowrap">${fmtTime(c.startsAt)} – ${fmtTime(c.endsAt)}</td>
+          <td class="nowrap">
+            <span class="num ${c.availableSlots === 0 ? 'low' : 'ok'}">${c.bookedSlots || 0}</span>
+            <span class="muted">of ${(c.bookedSlots || 0) + (c.availableSlots || 0)} times</span>
+          </td>
+          <td class="hide-sm nowrap">
+            <span class="num ${seatClass}">${c.taken}/${c.capacity}</span>
+            <span class="muted">(${c.confirmed} paid)</span>
+          </td>
+          <td class="hide-sm">${c.waitlist || '—'}</td>
+          <td class="hide-sm" title="${(c.serviceZips || []).join(', ')}">
+            ${c.serviceZips && c.serviceZips.length
+              ? `${c.serviceZips.length} ZIP${c.serviceZips.length === 1 ? '' : 's'}`
+              : '<span class="muted">anywhere</span>'}
+          </td>
+          <td class="hide-sm nowrap">${money(c.priceCents)}</td>
+          <td class="nowrap">
+            <button class="btn btn-ghost btn-sm" onclick="Admin.roster(${c.id})">Roster</button>
+            <button class="btn btn-ghost btn-sm" onclick="Admin.edit(${c.id})">Edit</button>
+          </td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="9" class="muted">No training days yet. Add one to get started.</td></tr>';
+  }
+
+  // ------------------------------------------------------------ class form
+
+  const openBox = (title, html) => {
+    $('boxTitle').textContent = title;
+    $('boxBody').innerHTML = html;
+    $('veil').classList.add('open');
+  };
+  const closeBox = () => $('veil').classList.remove('open');
+
+  const COURSES = [
+    ['CPR',        'CPR / AED'],
+    ['HEARTSAVER', 'Heartsaver CPR / AED / First Aid'],
+    ['BABYSIT',    'Babysitter Safety'],
+  ];
+
+  function classForm(c){
+    const start = c ? toLocalInput(c.startsAt) : '';
+    const end   = c ? toLocalInput(c.endsAt)   : '';
+    return `
+      <div class="err" id="fErr"></div>
+      <p class="sub" style="margin:-4px 0 16px">
+        You travel to the customer, so set the hours you're willing to work.
+        Sessions are booked inside that window.
+      </p>
+
+      <label for="fTitle">Course name</label>
+      <input id="fTitle" value="${esc(c?.title || '')}" placeholder="BLS Provider">
+
+      <label for="fCode">Course type</label>
+      <select id="fCode">
+        ${COURSES.map(([code,label]) =>
+          `<option value="${code}" ${c?.courseCode===code?'selected':''}>${label}</option>`).join('')}
+      </select>
+
+      <div class="two">
+        <div><label for="fStart">Day opens</label>
+          <input id="fStart" type="datetime-local" value="${start}"></div>
+        <div><label for="fEnd">Day closes</label>
+          <input id="fEnd" type="datetime-local" value="${end}"></div>
+      </div>
+
+      <input id="fLoc" type="hidden" value="">
+
+      <div class="two">
+        <div>
+          <label for="fCap">People you'll train that day</label>
+          <input id="fCap" type="number" min="1" value="${c?.capacity ?? 20}">
+          ${c && c.taken ? `<p class="sub" style="margin-top:-8px;font-size:13px">
+            ${c.taken} already booked — cannot go below this.</p>` : ''}
+        </div>
+        <div>
+          <label for="fPrice">Base price per person</label>
+          <input id="fPrice" type="number" min="0" step="0.01"
+                 oninput="Admin.previewTiers()"
+                 value="${c ? (c.priceCents/100).toFixed(2) : '85.00'}">
+        </div>
+      </div>
+
+      <label>Group price bands</label>
+      <p class="sub" style="margin:-4px 0 8px;font-size:13px">
+        A visit costs the same to travel to and set up whatever the headcount,
+        so party size moves the per-person price. Customers are shown the reason
+        you write here.
+      </p>
+      <div class="tiers" id="tiers"></div>
+      <button type="button" class="btn btn-ghost btn-sm" style="margin:0 0 10px"
+              onclick="Admin.addTier()">Add a band</button>
+      <div class="tier-preview" id="tierPreview"></div>
+
+      <label>Where you'll travel on this day</label>
+      <div class="zip-box" id="zipBox" onclick="document.getElementById('zipInput')?.focus()"></div>
+      <p class="zip-note" id="zipNote"></p>
+
+      <button class="btn" style="width:100%" onclick="Admin.save(${c ? c.id : 'null'})">
+        ${c ? 'Save changes' : 'Add the day'}
+      </button>
+
+      ${c && c.status === 'open' ? `
+        <button class="btn btn-ghost" style="width:100%;margin-top:9px"
+                onclick="Admin.cancelClass(${c.id})">Cancel this day</button>` : ''}
+      ${c && c.status === 'cancelled' ? `
+        <button class="btn btn-ghost" style="width:100%;margin-top:9px"
+                onclick="Admin.reopen(${c.id})">Reopen this day</button>` : ''}`;
+  }
+
+  // Matches DEFAULT_TIERS on the server.
+  const STARTER_TIERS = [
+    { minSize: 1, maxSize: 2, adjustPct: 10, label: 'Small group rate',
+      reason: 'A visit costs the same to travel to and set up whether it trains '
+            + 'two people or eight, so smaller bookings carry a share of that.' },
+    { minSize: 3, maxSize: 4, adjustPct: -5, label: 'Group discount',
+      reason: 'Three or more makes the trip worthwhile, so the per-person price comes down.' },
+    { minSize: 5, maxSize: null, adjustPct: -10, label: 'Large group discount',
+      reason: 'Our best rate — one visit, more people trained, less cost each.' },
+  ];
+
+  function newClass(){
+    tierRows = JSON.parse(JSON.stringify(STARTER_TIERS));
+    zipRows = [];
+    openBox('Add a training day', classForm(null));
+    renderTiers();
+    renderZips();
+  }
+
+  function edit(id){
+    const c = classes.find((x) => x.id === id);
+    if (!c) return;
+    tierRows = c.pricingTiers && c.pricingTiers.length
+      ? JSON.parse(JSON.stringify(c.pricingTiers))
+      : JSON.parse(JSON.stringify(STARTER_TIERS));
+    zipRows = [...(c.serviceZips || [])];
+    openBox(`Edit — ${fmtDate(c.startsAt)}`, classForm(c));
+    renderTiers();
+    renderZips();
+  }
+
+  function formErr(msg){
+    $('fErr').textContent = msg;
+    $('fErr').classList.add('show');
+  }
+
+  async function save(id){
+    const title = $('fTitle').value.trim();
+    const startsAt = $('fStart').value;
+    const endsAt = $('fEnd').value;
+    const capacity = parseInt($('fCap').value, 10);
+    const price = parseFloat($('fPrice').value);
+
+    if (title.length < 2) return formErr('Give the course a name.');
+    if (!startsAt || !endsAt) return formErr('Set the hours you\'ll be working.');
+    if (new Date(endsAt) <= new Date(startsAt)) return formErr('Closing time must be after opening.');
+    // Below one session length there is nothing anyone could book.
+    if (new Date(endsAt) - new Date(startsAt) < 240 * 60000) {
+      return formErr('The day needs to be at least four hours — one session.');
+    }
+    if (!Number.isInteger(capacity) || capacity < 1) return formErr('Set at least one place.');
+    if (!(price >= 0)) return formErr('Enter a valid price.');
+
+    const bandProblem = tierProblem();
+    if (bandProblem) return formErr(bandProblem);
+
+    const payload = {
+      title,
+      courseCode: $('fCode').value,
+      startsAt: fromLocalInput(startsAt),
+      endsAt: fromLocalInput(endsAt),
+      location: $('fLoc').value.trim(),
+      capacity,
+      priceCents: Math.round(price * 100),
+      serviceZips: [...zipRows],
+      pricingTiers: tierRows.map((t) => ({
+        minSize: t.minSize ?? 1,
+        maxSize: t.maxSize ?? null,
+        adjustPct: Number(t.adjustPct) || 0,
+        label: String(t.label || 'Group rate'),
+        reason: String(t.reason || '').trim(),
+      })),
+    };
+
+    const { data } = id
+      ? await api(`/api/admin/classes/${id}/update`, {method:'POST', body:JSON.stringify(payload)})
+      : await api('/api/admin/classes', {method:'POST', body:JSON.stringify(payload)});
+
+    if (!data.ok) return formErr(data.message || `Could not save (${data.reason}).`);
+
+    closeBox();
+    toast(id ? 'Day updated' : 'Day added');
+    if (data.promoted) toast(`${data.promoted} waitlisted student offered a seat`);
+    refresh();
+  }
+
+  async function cancelClass(id){
+    if (!confirm('Cancel this day? Existing bookings stay — contact those customers yourself.')) return;
+    await api(`/api/admin/classes/${id}/cancel`, {method:'POST', body:'{}'});
+    closeBox(); toast('Day cancelled'); refresh();
+  }
+
+  async function reopen(id){
+    await api(`/api/admin/classes/${id}/update`,
+      {method:'POST', body:JSON.stringify({status:'open'})});
+    closeBox(); toast('Day reopened'); refresh();
+  }
+
+
+
+  // ------------------------------------------------------ service area
+
+  let zipRows = [];
+
+  /**
+   * ZIP codes this day will drive to.
+   *
+   * An empty list means anywhere, which is also the right default — a day with
+   * no stated area should be bookable, not unreachable.
+   */
+  function renderZips(){
+    const box = $('zipBox');
+    if (!box) return;
+
+    box.innerHTML = zipRows.map((z, i) => `
+      <span class="zip-chip">${z}
+        <button type="button" title="Remove" onclick="Admin.dropZip(${i});event.stopPropagation()">&times;</button>
+      </span>`).join('') +
+      `<input id="zipInput" inputmode="numeric" maxlength="5"
+              placeholder="${zipRows.length ? 'add ZIP' : 'any ZIP'}"
+              oninput="Admin.zipTyped(this)"
+              onkeydown="Admin.zipKey(event)">`;
+
+    $('zipNote').textContent = zipRows.length
+      ? `${zipRows.length} ZIP code${zipRows.length === 1 ? '' : 's'}. ` +
+        `Customers outside these are told so before they book, and are offered other days.`
+      : 'Empty means you will travel anywhere. Add ZIP codes to limit this day.';
+  }
+
+  /** Five digits is a complete ZIP, so commit it without waiting for Enter. */
+  function zipTyped(input){
+    input.value = input.value.replace(/\D/g, '').slice(0, 5);
+    if (input.value.length === 5) commitZip(input);
+  }
+
+  function zipKey(e){
+    const input = e.target;
+    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+      e.preventDefault();
+      commitZip(input);
+    } else if (e.key === 'Backspace' && !input.value && zipRows.length) {
+      // Backspace on an empty box removes the chip before it.
+      e.preventDefault();
+      dropZip(zipRows.length - 1);
+    }
+  }
+
+  function commitZip(input){
+    const z = input.value.trim();
+    if (!/^\d{5}$/.test(z)) return;
+    if (!zipRows.includes(z)) zipRows.push(z);
+    zipRows.sort();
+    renderZips();
+    $('zipInput')?.focus();
+  }
+
+  function dropZip(i){
+    zipRows.splice(i, 1);
+    renderZips();
+    $('zipInput')?.focus();
+  }
+
+  // ------------------------------------------------------- price bands
+
+  let tierRows = [];
+
+  /**
+   * Bands are held in an array while editing rather than read off the DOM, so
+   * adding or removing one doesn't lose what's already typed elsewhere.
+   */
+  function renderTiers(){
+    const box = $('tiers');
+    if (!box) return;
+
+    box.innerHTML = `
+      <div class="tier-head">
+        <span>FROM</span><span>TO</span><span>CHANGE</span>
+        <span>REASON CUSTOMERS SEE</span><span></span>
+      </div>` +
+      tierRows.map((t, i) => `
+        <div class="tier">
+          <input type="number" min="1" value="${t.minSize ?? 1}"
+                 oninput="Admin.editTier(${i},'minSize',this.value)">
+          <input type="number" min="1" placeholder="∞"
+                 value="${t.maxSize ?? ''}"
+                 oninput="Admin.editTier(${i},'maxSize',this.value)">
+          <input type="number" step="1" value="${t.adjustPct ?? 0}"
+                 oninput="Admin.editTier(${i},'adjustPct',this.value)">
+          <textarea placeholder="Why this band costs what it does"
+                    oninput="Admin.editTier(${i},'reason',this.value)">${esc(t.reason || '')}</textarea>
+          <button type="button" class="drop" title="Remove this band"
+                  onclick="Admin.dropTier(${i})">&times;</button>
+        </div>`).join('');
+
+    previewTiers();
+  }
+
+  function editTier(i, field, value){
+    if (field === 'reason') { tierRows[i].reason = value; return; }
+    if (field === 'maxSize') {
+      // Blank means open-ended, which the last band needs.
+      tierRows[i].maxSize = value === '' ? null : parseInt(value, 10);
+    } else {
+      tierRows[i][field] = parseInt(value, 10);
+    }
+    previewTiers();
+  }
+
+  function addTier(){
+    const last = tierRows[tierRows.length - 1];
+    const from = last ? (last.maxSize ?? (last.minSize ?? 1)) + 1 : 1;
+    // Close off the previous open-ended band, or the new one is unreachable.
+    if (last && last.maxSize === null) last.maxSize = (last.minSize ?? 1);
+    tierRows.push({ minSize: from, maxSize: null, adjustPct: 0, label: 'Group rate', reason: '' });
+    renderTiers();
+  }
+
+  function dropTier(i){
+    tierRows.splice(i, 1);
+    if (tierRows.length) tierRows[tierRows.length - 1].maxSize = null;
+    renderTiers();
+  }
+
+  /** Show what a few party sizes would actually pay. */
+  function previewTiers(){
+    const el = $('tierPreview');
+    if (!el) return;
+
+    const base = Math.round((parseFloat($('fPrice')?.value) || 0) * 100);
+    if (!base || !tierRows.length) { el.innerHTML = ''; return; }
+
+    const priceAt = (n) => {
+      const t = tierRows.find((x) =>
+        n >= (x.minSize ?? 1) &&
+        (x.maxSize === null || x.maxSize === undefined || n <= x.maxSize));
+      const pct = t ? (Number(t.adjustPct) || 0) : 0;
+      return Math.round(base * (1 + pct / 100));
+    };
+
+    el.innerHTML = [1, 2, 3, 5, 8]
+      .map((n) => `${n}: <b>${money(priceAt(n))}</b> each`)
+      .join(' &nbsp;·&nbsp; ');
+  }
+
+  /** Warn about the mistakes the server would reject anyway. */
+  function tierProblem(){
+    if (!tierRows.length) return 'Add at least one price band.';
+
+    const sorted = [...tierRows].sort((a, b) => (a.minSize ?? 1) - (b.minSize ?? 1));
+    if ((sorted[0].minSize ?? 1) !== 1) return 'The first band has to start at 1 person.';
+
+    const last = sorted[sorted.length - 1];
+    if (last.maxSize !== null && last.maxSize !== undefined) {
+      return 'Leave the last band\'s "to" blank so every group size is covered.';
+    }
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const max = sorted[i].maxSize;
+      if (max === null || max === undefined) return 'Only the last band can be open-ended.';
+      if ((sorted[i + 1].minSize ?? 1) !== max + 1) {
+        return `Nothing covers a group of ${max + 1}.`;
+      }
+    }
+    if (sorted.some((t) => !String(t.reason || '').trim())) {
+      return 'Every band needs a reason — customers are shown it.';
+    }
+    return null;
+  }
+
+  // --------------------------------------------------------------- rosters
+
+  async function roster(id){
+    const c = classes.find((x) => x.id === id);
+    openBox(`Run sheet — ${c ? fmtDate(c.startsAt) : ''}`, '<p class="muted">Loading…</p>');
+
+    const { data } = await api(`/api/admin/classes/${id}/roster`);
+    if (!data.ok) return;
+
+    const people = data.roster;
+    if (!people.length){
+      $('boxBody').innerHTML = '<p class="muted">Nothing booked yet.</p>';
+      return;
+    }
+
+    // Grouped by visit: the instructor drives to one address at one time, so
+    // that's the unit that matters when planning the day.
+    const visits = new Map();
+    const waiting = [];
+    for (const p of people){
+      if (p.status === 'waitlist' || !p.slot_start){ waiting.push(p); continue; }
+      const key = `${p.slot_start}|${p.address}`;
+      if (!visits.has(key)) visits.set(key, []);
+      visits.get(key).push(p);
+    }
+
+    const row = (p) => `
+      <div class="roster-row">
+        <div class="who">
+          <b>${esc(p.student_name)}</b>
+          <span>${esc(p.student_email)}${p.student_phone ? ' · ' + esc(p.student_phone) : ''}</span>
+        </div>
+        <span class="pill p-${p.status}">${p.status}</span>
+        ${p.status !== 'confirmed' ? `
+          <button class="btn btn-ghost btn-sm" title="Record a cash or cheque payment"
+                  onclick="Admin.markPaid('${p.public_ref}')">Mark paid</button>` : ''}
+        <button class="btn btn-ghost btn-sm"
+                onclick="Admin.dropStudent('${p.public_ref}', ${id})">Remove</button>
+      </div>`;
+
+    const visitHtml = [...visits.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, rows]) => {
+        const [slotStart, address] = key.split('|');
+        const lead = rows[0];
+        const paid = rows.filter((r) => r.status === 'confirmed').length;
+        const value = rows.reduce((sum, r) =>
+          sum + (r.status === 'confirmed' ? r.amount_cents : 0), 0);
+        const end = new Date(new Date(slotStart).getTime() + 240 * 60000).toISOString();
+
+        return `
+          <div class="visit">
+            <div class="visit-head">
+              <span class="visit-time">${fmtTime(slotStart)} – ${fmtTime(end)}</span>
+              <div class="visit-addr">
+                ${address
+                  ? `<a href="https://www.google.com/maps/search/?api=1&query=${
+                      encodeURIComponent(address)}" target="_blank" rel="noopener">${esc(address)}</a>`
+                  : '<span class="muted">No address on file</span>'}
+              </div>
+              ${lead.address_notes ? `<div class="visit-notes">${esc(lead.address_notes)}</div>` : ''}
+              <div class="visit-meta">
+                ${rows.length} ${rows.length === 1 ? 'person' : 'people'} ·
+                ${paid} paid · ${money(value)}
+                ${lead.group_ref ? ` · <a href="#" onclick="Admin.cancelGroup('${
+                  lead.group_ref}', ${id});return false;">cancel this visit</a>` : ''}
+              </div>
+            </div>
+            ${rows.map(row).join('')}
+          </div>`;
+      }).join('');
+
+    $('boxBody').innerHTML = `
+      <p class="sub">
+        ${visits.size} visit${visits.size === 1 ? '' : 's'} ·
+        ${data.seats.taken} of ${data.seats.capacity} places booked
+        ${waiting.length ? ` · ${waiting.length} waiting` : ''}
+      </p>
+      ${visitHtml}
+      ${waiting.length ? `<div class="solo-head">Waiting list</div>
+        ${waiting.map((p) => `
+          <div class="roster-row">
+            <div class="who">
+              <b>${esc(p.student_name)}</b>
+              <span>${esc(p.student_email)}${p.notes ? ' · ' + esc(p.notes) : ''}</span>
+            </div>
+            <span class="pill p-waitlist">waitlist</span>
+            <button class="btn btn-ghost btn-sm"
+                    onclick="Admin.dropStudent('${p.public_ref}', ${id})">Remove</button>
+          </div>`).join('')}` : ''}
+      ${(() => {
+        const emails = [...new Set(people
+          .filter((p) => p.status === 'confirmed')
+          .map((p) => p.student_email))];
+        return emails.length ? `
+          <button class="btn btn-ghost" style="width:100%;margin-top:16px"
+                  onclick="Admin.copyEmails('${emails.join(',')}')">
+            Copy ${emails.length} contact email${emails.length === 1 ? '' : 's'}
+          </button>` : '';
+      })()}`;
+  }
+
+  async function cancelGroup(ref, classId){
+    if (!confirm('Cancel every seat in this group booking? The seats are freed and offered to the waitlist.')) return;
+    const { data } = await api(`/api/admin/groups/${ref}/cancel`, {method:'POST', body:'{}'});
+    if (!data.ok){ toast('Could not cancel the group'); return; }
+    toast(`${data.cancelled} seats released`);
+    closeBox(); refresh();
+  }
+
+  async function markPaid(ref){
+    const { data } = await api(`/api/admin/registrations/${ref}/mark-paid`,
+      {method:'POST', body:JSON.stringify({note:'recorded in admin'})});
+    if (!data.ok){ toast('Could not mark paid'); return; }
+    toast('Marked paid');
+    closeBox(); refresh();
+  }
+
+  async function dropStudent(ref, classId){
+    if (!confirm('Remove this person? Their seat is freed and offered to the waitlist.')) return;
+    await api(`/api/admin/registrations/${ref}/cancel`, {method:'POST', body:'{}'});
+    toast('Removed');
+    roster(classId); refresh();
+  }
+
+  function copyEmails(list){
+    navigator.clipboard.writeText(list.split(',').join(', '))
+      .then(() => toast('Emails copied'))
+      .catch(() => toast('Could not copy'));
+  }
+
+  // ------------------------------------------------------------------ misc
+
+  function toggleTheme(){
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+    localStorage.setItem('spectrum_admin_theme', dark ? 'light' : 'dark');
+  }
+
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeBox(); });
+
+  // boot
+  const savedTheme = localStorage.getItem('spectrum_admin_theme');
+  document.documentElement.setAttribute('data-theme',
+    savedTheme || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+
+  const saved = sessionStorage.getItem('spectrum_admin_token');
+  if (saved){ token = saved; show(); }
+
+  return { login, logout, refresh, newClass, edit, save, cancelClass, reopen,
+           roster, markPaid, dropStudent, cancelGroup, copyEmails, closeBox, toggleTheme,
+           addTier, dropTier, editTier, previewTiers,
+           zipTyped, zipKey, dropZip };
+})();
+window.Admin = Admin;
+</script>
+</body>
+</html>
