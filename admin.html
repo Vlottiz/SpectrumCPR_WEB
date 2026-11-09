@@ -302,6 +302,20 @@
   .p-offered{background:var(--blue);color:#fff}
   .p-waitlist{background:var(--paper-2);color:var(--ink-soft);border:1px solid var(--rule)}
 
+  /* guided tour */
+  .tour{position:fixed;inset:0;z-index:90}
+  .tour[hidden]{display:none}
+  .tour-spot{position:fixed;border-radius:4px;pointer-events:none;
+    box-shadow:0 0 0 3px var(--red), 0 0 0 9999px rgba(8,10,14,.68);transition:all .25s ease}
+  .tour-spot.none{box-shadow:0 0 0 9999px rgba(8,10,14,.68);width:0;height:0}
+  .tour-card{position:fixed;width:min(380px, calc(100vw - 24px));background:var(--paper);
+    border:1.5px solid var(--ink);padding:16px 18px;box-shadow:0 10px 30px rgba(0,0,0,.35);
+    transition:top .25s ease, left .25s ease}
+  .tour-card h3{font-family:var(--cond);font-size:21px;margin:2px 0 6px}
+  .tour-card p{margin:0 0 14px;font-size:14.5px;line-height:1.5}
+  .tour-step{font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--red);text-transform:uppercase}
+  .tour-btns{display:flex;gap:8px;align-items:center}
+  @media (prefers-reduced-motion:reduce){ .tour-spot,.tour-card{transition:none} }
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);
     color:var(--paper);padding:11px 20px;border-radius:2px;font-size:14.5px;font-weight:600;
     z-index:80;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -346,6 +360,7 @@
 <header id="topbar" style="display:none">
   <div class="wrap bar">
     <div class="brand">SPECTRUM<span>ADMIN</span></div>
+    <button class="btn btn-ghost btn-sm" id="tourBtn" onclick="Admin.tour()">Tour</button>
     <button class="btn btn-ghost btn-sm" onclick="Admin.toggleTheme()">Theme</button>
     <button class="btn btn-ghost btn-sm" onclick="Admin.logout()">Sign out</button>
   </div>
@@ -356,16 +371,16 @@
     <div class="stats" id="stats"></div>
 
     <div class="panels">
-      <section class="panel">
+      <section class="panel" id="panelSchedule">
         <h3>Repeating schedule</h3>
         <div id="schedList"><p class="muted">Loading…</p></div>
       </section>
-      <section class="panel">
+      <section class="panel" id="panelTimeOff">
         <h3>Time off</h3>
         <div id="offList"><p class="muted">Loading…</p></div>
         <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="Admin.newTimeOff()">Add time off</button>
       </section>
-      <section class="panel">
+      <section class="panel" id="panelRules">
         <h3>Booking rules</h3>
         <label for="notice" style="font-weight:400;color:var(--ink-soft)">How far ahead customers must book</label>
         <select id="notice" aria-label="Minimum booking notice" onchange="Admin.setNotice(this.value)"></select>
@@ -376,9 +391,9 @@
           Trainers on a normal day</label>
         <select id="trainersDefault" onchange="Admin.setDefaultTrainers(this.value)"></select>
         <p class="muted" style="font-size:12.5px;margin-top:6px">Someone joining or calling
-          out? Use <b>Change</b> next to that week's trainers below.</p>
+          out? Use <b>−</b> and <b>+</b> under that date below.</p>
       </section>
-      <section class="panel">
+      <section class="panel" id="panelPrices">
         <h3>Course prices</h3>
         <p class="muted" style="font-size:13px;margin-bottom:8px">Per person, the same every
           week. A change applies to every upcoming day at once; people already
@@ -393,7 +408,7 @@
         <p class="sub">Each row is a day you're available and the hours you'll work.
           Customers can only pick start times inside those hours.</p>
       </div>
-      <button class="btn" onclick="Admin.newClass()">Add days</button>
+      <button class="btn" id="addDaysBtn" onclick="Admin.newClass()">Add days</button>
     </div>
 
     <div id="rows" class="days"><p class="muted">Loading…</p></div>
@@ -412,6 +427,22 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- guided tour: a spotlight on one part of the page and a card explaining it -->
+<div id="tour" class="tour" hidden>
+  <div class="tour-spot" id="tourSpot"></div>
+  <div class="tour-card" id="tourCard" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+    <div class="tour-step" id="tourStep"></div>
+    <h3 id="tourTitle"></h3>
+    <p id="tourText"></p>
+    <div class="tour-btns">
+      <button class="btn btn-ghost btn-sm" id="tourSkip" onclick="Admin.endTour()">Skip tour</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-ghost btn-sm" id="tourBack" onclick="Admin.tourStep(-1)">Back</button>
+      <button class="btn btn-sm" id="tourNext" onclick="Admin.tourStep(1)">Next</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const Admin = (() => {
@@ -522,7 +553,149 @@ const Admin = (() => {
     $('gate').style.display = 'none';
     $('topbar').style.display = '';
     $('app').classList.add('on');
-    refresh();
+    refresh().then(() => {
+      let seen = true;
+      try { seen = Boolean(localStorage.getItem(TOUR_SEEN)); } catch { /* private window */ }
+      if (!seen) tour();
+    });
+  }
+
+  // ---------------------------------------------------------------- tour
+
+  /**
+   * A short guided tour of the page. Each step points at one part of it and
+   * says, in plain words, what it's for. Steps whose part isn't on the page
+   * (no days yet, say) are skipped.
+   */
+  const TOUR = [
+    { el: null, title: 'Welcome',
+      text: 'This quick tour shows where everything is. It takes about a minute. '
+          + 'You can run it again any time with the Tour button at the top.' },
+    { el: '#stats', title: 'Your numbers',
+      text: 'Upcoming days, people booked, people waiting, and the money expected from upcoming classes.' },
+    { el: '#addDaysBtn', title: 'Add days',
+      text: 'Set your hours and courses here. Choose "Keep repeating" and the calendar fills itself '
+          + 'every week — you only come back to change something.' },
+    { el: '#panelSchedule', title: 'Repeating schedule',
+      text: 'Your weekly hours, once set. Edit them, pause them for a while, or delete them here.' },
+    { el: '#panelTimeOff', title: 'Time off',
+      text: 'Vacation or a day off? Add the dates. Nothing can be booked on them, and anyone already '
+          + 'booked is listed so you can contact them.' },
+    { el: '#panelRules', title: 'Booking rules',
+      text: 'How far ahead customers must book, how long you need to drive between visits, '
+          + 'and how many trainers work on a normal day.' },
+    { el: '#panelPrices', title: 'Course prices',
+      text: 'One price per person for each course, the same every week. Change it here and every '
+          + 'upcoming day updates. People already booked keep what they paid.' },
+    { el: '.a-day', title: 'Your days',
+      text: 'Each date is listed with the classes that run on it, just like customers see it.' },
+    { el: '.tday[data-day]', title: 'Trainers that day',
+      text: 'How many people are teaching that date. Use − and + if someone joins or calls out. '
+          + 'Set it to 0 and the day stops taking bookings.' },
+    { el: '.week-head button[data-week]', title: 'A whole week at once',
+      text: 'Change the trainers for every day of that week in one go.' },
+    { el: '.day-row .acts', title: 'Roster and Edit',
+      text: 'Roster shows who’s booked, where to drive and who has paid — and lets you mark cash '
+          + 'payments or remove someone. Edit changes that day’s hours or cancels it.' },
+    { el: '.visit-list li', title: 'Booked visits',
+      text: 'Each booking: when, the address (tap it for directions), the travel zone and whether '
+          + 'it’s paid. The next one is marked NEXT UP in green.' },
+    { el: '#tourBtn', title: 'That’s it',
+      text: 'Most weeks you’ll only glance at your days and adjust trainers. '
+          + 'Press Tour any time to see this again.' },
+  ];
+  const TOUR_SEEN = 'spectrum_admin_tour_seen';
+
+  let tourSteps = [];
+  let tourAt = 0;
+
+  /** The steps whose part is actually on the page right now. */
+  const visible = (sel) => {
+    if (!sel) return true;
+    const el = document.querySelector(sel);
+    if (!el || el.closest('[hidden]')) return false;
+    // No layout at all (a test harness): being on the page is enough.
+    if (!document.body.getClientRects().length) return true;
+    return el.getClientRects().length > 0;
+  };
+
+  function tour(){
+    closeBox();
+    tourSteps = TOUR.filter((t) => visible(t.el));
+    tourAt = 0;
+    $('tour').hidden = false;
+    document.addEventListener('keydown', tourKeys);
+    window.addEventListener('resize', placeTour);
+    window.addEventListener('scroll', placeTour, true);
+    showTourStep();
+  }
+
+  function endTour(){
+    $('tour').hidden = true;
+    document.removeEventListener('keydown', tourKeys);
+    window.removeEventListener('resize', placeTour);
+    window.removeEventListener('scroll', placeTour, true);
+    try { localStorage.setItem(TOUR_SEEN, '1'); } catch { /* private window */ }
+  }
+
+  function tourStep(delta){
+    const next = tourAt + delta;
+    if (next >= tourSteps.length) return endTour();
+    tourAt = Math.max(0, next);
+    showTourStep();
+  }
+
+  function tourKeys(e){
+    if (e.key === 'Escape') endTour();
+    else if (e.key === 'ArrowRight') tourStep(1);
+    else if (e.key === 'ArrowLeft') tourStep(-1);
+  }
+
+  function showTourStep(){
+    const step = tourSteps[tourAt];
+    $('tourStep').textContent = `Step ${tourAt + 1} of ${tourSteps.length}`;
+    $('tourTitle').textContent = step.title;
+    $('tourText').textContent = step.text;
+    $('tourBack').style.visibility = tourAt === 0 ? 'hidden' : '';
+    $('tourNext').textContent = tourAt === tourSteps.length - 1 ? 'Done' : 'Next';
+    $('tourSkip').style.visibility = tourAt === tourSteps.length - 1 ? 'hidden' : '';
+    const el = step.el && document.querySelector(step.el);
+    if (el) el.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    // Let the scroll settle before measuring.
+    setTimeout(placeTour, el ? 320 : 0);
+    $('tourNext').focus?.();
+  }
+
+  /** Put the spotlight round the step's part and the card beside it. */
+  function placeTour(){
+    if ($('tour').hidden) return;
+    const step = tourSteps[tourAt];
+    const spot = $('tourSpot');
+    const card = $('tourCard');
+    const el = step && step.el && document.querySelector(step.el);
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const cw = card.offsetWidth || 360, ch = card.offsetHeight || 180;
+
+    if (!el){
+      spot.className = 'tour-spot none';
+      spot.style.cssText = `left:${vw / 2}px;top:${vh / 2}px`;
+      card.style.left = `${Math.max(12, (vw - cw) / 2)}px`;
+      card.style.top = `${Math.max(12, (vh - ch) / 2)}px`;
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    const pad = 6;
+    spot.className = 'tour-spot';
+    spot.style.cssText = `left:${r.left - pad}px;top:${r.top - pad}px;`
+      + `width:${r.width + pad * 2}px;height:${r.height + pad * 2}px`;
+
+    // Below the part if it fits, otherwise above, otherwise pinned to the bottom.
+    let top = r.bottom + pad + 12;
+    if (top + ch > vh - 12) top = r.top - pad - 12 - ch;
+    if (top < 12) top = vh - ch - 12;
+    const left = Math.min(Math.max(12, r.left), vw - cw - 12);
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
   }
 
   // ------------------------------------------------------------- dashboard
@@ -1811,6 +1984,7 @@ const Admin = (() => {
   if (saved){ token = saved; show(); }
 
   return { login, logout, refresh, newClass, edit, save, cancelClass, reopen,
+           tour, tourStep, endTour,
            roster, markPaid, dropStudent, cancelGroup, copyEmails, closeBox, toggleTheme,
            addTier, dropTier, editTier, previewTiers,
            setMode, editWeek, previewWeek,

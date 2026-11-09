@@ -84,6 +84,21 @@ async function until(fn, timeoutMs = 4000) {
   window.Admin.login();
   check('the right token signs in', await until(() => $('app').classList.contains('on')));
 
+  console.log('\nguided tour');
+
+  check('the tour starts by itself on a first sign-in',
+    await until(() => !$('tour').hidden), 'tour hidden');
+  check('it opens with a welcome', ($('tourTitle').textContent || '').includes('Welcome'));
+  check('and counts its steps', /Step 1 of \d+/.test($('tourStep').textContent), $('tourStep').textContent);
+  window.Admin.tourStep(1);
+  check('Next moves on', /Step 2 of/.test($('tourStep').textContent), $('tourStep').textContent);
+  window.Admin.tourStep(-1);
+  check('Back goes back', /Step 1 of/.test($('tourStep').textContent));
+  window.Admin.endTour();
+  check('Skip closes it', $('tour').hidden);
+  check('and it is remembered', window.localStorage.getItem('spectrum_admin_tour_seen') === '1');
+  check('a Tour button sits in the top bar', !!$('tourBtn') && $('tourBtn').closest('header'));
+
   console.log('\ndashboard');
 
   check('stats render', await until(() => ($('stats').textContent || '').includes('UPCOMING')));
@@ -650,6 +665,23 @@ async function until(fn, timeoutMs = 4000) {
   await adminPost(`/api/admin/registrations/${waiter.public_ref}/cancel`);
   check('removing the last person deletes the day',
     !(await adminList()).some((c) => c.id === busy.classId));
+
+  console.log('\nthe tour with days on the page');
+
+  window.Admin.closeBox();
+  await window.Admin.refresh();
+  $('tourBtn').click();
+  const total = Number(($('tourStep').textContent.match(/of (\d+)/) || [])[1]);
+  check('the Tour button runs it again, covering every part', total === 13, $('tourStep').textContent);
+  const titles = [];
+  for (let i = 0; i < total; i++) {
+    titles.push($('tourTitle').textContent);
+    window.Admin.tourStep(1);
+  }
+  check('it walks the whole page in order',
+    titles[0] === 'Welcome' && titles.includes('Trainers that day') && titles.includes('Booked visits')
+    && titles[titles.length - 1].includes('it'), titles.join(' > '));
+  check('Done closes it', $('tour').hidden);
 
   console.log('\nsecurity');
 
