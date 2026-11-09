@@ -746,7 +746,9 @@ app.post('/api/admin/classes/bulk', requireAdmin, (req, res) => {
 app.post('/api/admin/classes/:id/cancel', requireAdmin, (req, res) => {
   const classId = Number(req.params.id);
   getDb().prepare(`UPDATE classes SET status = 'cancelled' WHERE id = ?`).run(classId);
-  res.json({ ok: true });
+  // Nobody on it means nothing to follow up, so it goes straight away.
+  const deleted = seats.purgeEmptyCancelledDays().includes(classId);
+  res.json({ ok: true, deleted });
 });
 
 /** What would have been emailed. Replace with a real mail provider later. */
@@ -768,6 +770,10 @@ app.get('/api/admin/classes', requireAdmin, (req, res) => {
   // the same place on both screens. Days that have already happened sit below
   // the upcoming ones rather than burying them at the top.
   const now = new Date().toISOString();
+
+  // A cancelled day leaves the list once its last customer has been removed.
+  seats_.purgeEmptyCancelledDays(now);
+
   const rows = getDb()
     .prepare(`SELECT * FROM classes
                ORDER BY (ends_at < ?) ASC, starts_at ASC`)

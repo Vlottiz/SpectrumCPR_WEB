@@ -970,6 +970,8 @@ function promoteWaitlist(classId) {
     const now = nowIso();
     const avail = availability(classId, now);
     if (!avail || avail.available <= 0) return [];
+    // A cancelled day has nothing to offer, however many seats look free.
+    if (avail.status !== 'open') return [];
 
     const candidates = db
       .prepare(
@@ -1184,6 +1186,42 @@ function dayVisits(classId, now = nowIso()) {
     }));
 }
 
+/**
+ * Delete cancelled days that nobody is attached to any more.
+ *
+ * A cancelled day stays on the admin list while it still has people on it —
+ * booked, paying, offered a seat or waiting — so staff can see who needs a
+ * call. Once the last of them is removed, the day has nothing left to show
+ * and is deleted, along with its cancelled and expired rows.
+ *
+ * Returns the ids deleted.
+ */
+function purgeEmptyCancelledDays(now = nowIso()) {
+  const db = getDb();
+  return db.transaction(() => {
+    const empty = db
+      .prepare(
+        `SELECT c.id FROM classes c
+          WHERE c.status = 'cancelled'
+            AND NOT EXISTS (
+              SELECT 1 FROM registrations r
+               WHERE r.class_id = c.id
+                 AND (
+                       r.status IN ('confirmed','waitlist')
+                    OR (r.status = 'held'    AND r.hold_expires_at  > @now)
+                    OR (r.status = 'offered' AND r.offer_expires_at > @now)
+                 )
+            )`
+      )
+      .all({ now })
+      .map((r) => r.id);
+
+    const del = db.prepare('DELETE FROM classes WHERE id = ?');
+    for (const id of empty) del.run(id);
+    return empty;
+  })();
+}
+
 function roster(classId) {
   return getDb()
     .prepare(
@@ -1357,4 +1395,5 @@ module.exports = {
   listUpcomingClasses,
   roster,
   dayVisits,
+  purgeEmptyCancelledDays,
 };

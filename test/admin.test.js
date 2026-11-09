@@ -389,6 +389,61 @@ async function until(fn, timeoutMs = 4000) {
   })).json();
   check('a student can be removed', dropped.ok === true);
 
+  console.log('\ncancelled days clear themselves');
+
+  const adminPost = async (path, body = {}) => (await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: JSON.stringify(body),
+  })).json();
+  const adminList = async () => (await (await fetch(`${BASE}/api/admin/classes`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json()).classes;
+
+  const empty = await adminPost('/api/admin/classes', {
+    courseCode: 'CPR', title: 'Nobody came', capacity: 5, priceCents: 8500,
+    startsAt: '2027-04-01T16:00:00Z', endsAt: '2027-04-02T02:00:00Z',
+  });
+  const cancelledEmpty = await adminPost(`/api/admin/classes/${empty.classId}/cancel`);
+  check('an empty day is deleted when cancelled', cancelledEmpty.deleted === true,
+    JSON.stringify(cancelledEmpty));
+  check('and is gone from the list', !(await adminList()).some((c) => c.id === empty.classId));
+
+  const busy = await adminPost('/api/admin/classes', {
+    courseCode: 'CPR', title: 'Someone booked', capacity: 5, priceCents: 8500,
+    startsAt: '2027-04-03T16:00:00Z', endsAt: '2027-04-04T02:00:00Z',
+  });
+  const busySlots = await (await fetch(`${BASE}/api/classes/${busy.classId}/slots`)).json();
+  const booked = await (await fetch(`${BASE}/api/classes/${busy.classId}/hold`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Still Booked', email: 'still@example.com',
+      slotStart: busySlots.slots[0].start, address: '1200 SW Main St, Hillsboro, OR 97123',
+    }),
+  })).json();
+  await fetch(`${BASE}/api/classes/${busy.classId}/waitlist`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Waiting Here', email: 'waithere@example.com' }),
+  });
+
+  const cancelledBusy = await adminPost(`/api/admin/classes/${busy.classId}/cancel`);
+  check('a day with people on it stays when cancelled', cancelledBusy.deleted === false);
+  check('crossed out on the list',
+    (await adminList()).find((c) => c.id === busy.classId)?.status === 'cancelled');
+
+  await adminPost(`/api/admin/registrations/${booked.registration.ref}/cancel`);
+  const afterOne = (await adminList()).find((c) => c.id === busy.classId);
+  check('it stays while anyone is still on it, even the waitlist', !!afterOne);
+  check('nobody on the waitlist is offered a seat on a cancelled day',
+    afterOne?.waitlist === 1, `waitlist ${afterOne?.waitlist}`);
+
+  const waiter = (await (await fetch(`${BASE}/api/admin/classes/${busy.classId}/roster`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json()).roster.find((r) => r.status === 'waitlist');
+  await adminPost(`/api/admin/registrations/${waiter.public_ref}/cancel`);
+  check('removing the last person deletes the day',
+    !(await adminList()).some((c) => c.id === busy.classId));
+
   console.log('\nsecurity');
 
   const noToken = await fetch(`${BASE}/api/admin/classes`);

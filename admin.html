@@ -903,9 +903,12 @@ const Admin = (() => {
   }
 
   async function cancelClass(id){
-    if (!confirm('Cancel this day? Existing bookings stay — contact those customers yourself.')) return;
-    await api(`/api/admin/classes/${id}/cancel`, {method:'POST', body:'{}'});
-    closeBox(); toast('Day cancelled'); refresh();
+    if (!confirm('Cancel this day? If nobody is booked it is deleted. Otherwise it stays, '
+               + 'crossed out, until you have removed everyone on it — contact them yourself.')) return;
+    const { data } = await api(`/api/admin/classes/${id}/cancel`, {method:'POST', body:'{}'});
+    closeBox();
+    toast(data.deleted ? 'Day cancelled and removed' : 'Day cancelled — remove its customers to clear it');
+    refresh();
   }
 
   async function reopen(id){
@@ -1149,7 +1152,9 @@ const Admin = (() => {
     if (!confirm('Remove this person? Their seat is freed and offered to the waitlist.')) return;
     await api(`/api/admin/registrations/${ref}/cancel`, {method:'POST', body:'{}'});
     toast('Removed');
-    roster(classId); refresh();
+    await refresh();
+    // The last person off a cancelled day deletes the day, run sheet and all.
+    if (classes.some((c) => c.id === classId)) roster(classId); else closeBox();
   }
 
   function copyEmails(list){
