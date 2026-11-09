@@ -89,13 +89,16 @@ async function until(fn, timeoutMs = 4000) {
   check('it counts the seeded days',
     ($('stats').textContent || '').includes('4'), $('stats').textContent);
 
-  const dayRows = () => doc.querySelectorAll('#rows tr.day-row');
+  const dayRows = () => doc.querySelectorAll('#rows .day-row');
   check('the day table fills',
     await until(() => dayRows().length === 4),
     `${dayRows().length} rows`);
   check('days are grouped under week headings',
-    doc.querySelectorAll('#rows tr.week-head').length >= 1
-    && (doc.querySelector('#rows tr.week-head')?.textContent || '').includes('Week of'));
+    doc.querySelectorAll('#rows .week-head').length >= 1
+    && /week/i.test(doc.querySelector('#rows .week-head')?.textContent || ''));
+  const dateCol = doc.querySelector('#rows .a-day .a-date')?.textContent.replace(/\s+/g, ' ') || '';
+  check('each date is spelled out down the left, like the booking page',
+    /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) [A-Z][a-z]{2} \d{1,2}/.test(dateCol), dateCol);
 
   const firstRow = dayRows()[0]?.textContent || '';
   check('seat counts show as taken/capacity', /\d+\/\d+/.test(firstRow), firstRow.slice(0, 90));
@@ -165,7 +168,7 @@ async function until(fn, timeoutMs = 4000) {
   check('it is stored under the ticked course', evening?.title === 'Babysitter Safety',
     JSON.stringify(evening)?.slice(0, 120));
   check('it appears in the table',
-    await until(() => [...doc.querySelectorAll('#rows tr.day-row')]
+    await until(() => [...doc.querySelectorAll('#rows .a-day')]
       .some((r) => r.textContent.includes('Babysitter Safety') && r.textContent.includes('Dec 1'))));
   check('it takes the course price', evening?.priceCents === 5500, `got ${evening?.priceCents}`);
   check('the capacity is stored', evening?.capacity === 8, `got ${evening?.capacity}`);
@@ -276,7 +279,7 @@ async function until(fn, timeoutMs = 4000) {
     && fromSchedule.every((c) => c.courseCode === 'BABYSIT' && localDay(c.startsAt) === 6),
     fromSchedule.map((c) => `${c.courseCode} ${c.startsAt}`).join(' '));
   check('its days are marked as repeating',
-    [...doc.querySelectorAll('#rows tr.day-row')].some((r) => r.textContent.includes('repeats')));
+    [...doc.querySelectorAll('#rows .day-row')].some((r) => r.textContent.includes('repeats')));
 
   const schedId = (await (await fetch(`${BASE}/api/admin/schedules`, {
     headers: { 'x-admin-token': TOKEN },
@@ -323,66 +326,52 @@ async function until(fn, timeoutMs = 4000) {
 
   await window.Admin.refresh();
   check('the usual trainers default to 1', $('trainersDefault').value === '1');
-  const line = () => doc.querySelector('.trainer-line');
-  const boxes = () => [...line().querySelectorAll('.tday')];
-  check('each week shows a box per day with its trainers',
-    boxes().length >= 1 && boxes().every((b) => b.querySelector('b').textContent === '1'),
-    boxes().map((b) => b.textContent.replace(/\s+/g, ' ')).join(' | '));
+  const box = () => doc.querySelector('.tday[data-day]');
+  check('each date shows its trainers under it', box()?.querySelector('b').textContent === '1',
+    box()?.textContent.replace(/\s+/g, ' '));
+  const boxDay = box().dataset.day;
+  const boxOf = () => doc.querySelector(`.tday[data-day="${boxDay}"]`);
+  const trainerDaysNow = async () => (await (await fetch(`${BASE}/api/admin/schedules`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json()).trainerDays;
 
-  const changeBtn = line().querySelector('button[data-week]');
-  const weekStart = changeBtn.dataset.week;
-  changeBtn.click();
+  boxOf().querySelector('button[aria-label="One more trainer"]').click();
+  check('+ under the date saves straight away',
+    await until(() => boxOf()?.querySelector('b').textContent === '2'));
+  check('and it is marked as not the usual', boxOf().classList.contains('more')
+    && boxOf().textContent.includes('Not the usual'));
+  check('the change is stored', (await trainerDaysNow())[boxDay] === 2);
+
+  boxOf().querySelector('button[aria-label="One fewer trainer"]').click();
+  await until(() => boxOf()?.querySelector('b').textContent === '1');
+  boxOf().querySelector('button[aria-label="One fewer trainer"]').click();
+  check('− down to 0 says nobody is working',
+    await until(() => boxOf()?.classList.contains('none') && boxOf().textContent.includes('Nobody')));
+  boxOf().querySelector('button[aria-label="One more trainer"]').click();
+  await until(() => boxOf()?.querySelector('b').textContent === '1');
+  check('back to the usual clears the date', !(boxDay in (await trainerDaysNow())));
+
+  const weekBtn = doc.querySelector('.week-head button[data-week]');
+  weekBtn.click();
   await sleep(150);
-  check('Change opens a simple editor', $('veil').classList.contains('open')
+  check('the week button opens the whole-week editor', $('veil').classList.contains('open')
     && doc.querySelectorAll('#steps .step-row[data-day]').length >= 1);
-
-  // One more on the first day, and a call-out on the second if there is one.
   const rows = () => [...doc.querySelectorAll('#steps .step-row[data-day]')];
   const plus = (r) => r.querySelector('button[aria-label="One more"]');
-  const minus = (r) => r.querySelector('button[aria-label="One fewer"]');
-  plus(rows()[0]).click();
-  check('+ adds a trainer to that day', rows()[0].querySelector('output').textContent === '2');
-  check('and it is marked as more than usual', rows()[0].textContent.includes('More than usual'));
-  const second = rows()[1];
-  if (second) {
-    minus(second).click();
-    check('− down to 0 says nobody is booking that day',
-      rows()[1].textContent.includes('Nobody') && rows()[1].querySelector('output').textContent === '0');
-  }
-  window.Admin.saveTrainers();
-  await until(() => !$('veil').classList.contains('open'));
-  await sleep(300);
-
-  const sched = await (await fetch(`${BASE}/api/admin/schedules`, {
-    headers: { 'x-admin-token': TOKEN },
-  })).json();
-  check('the changed days are saved', sched.trainerDays[weekStart] === 2,
-    JSON.stringify(sched.trainerDays));
-  const changedBox = doc.querySelector(`.tday[data-day="${weekStart}"]`);
-  check('a changed day stands out in the week heading',
-    changedBox?.classList.contains('more') && changedBox.querySelector('b').textContent === '2',
-    changedBox?.outerHTML.slice(0, 120));
-  check('and a day with nobody is marked red',
-    !second || doc.querySelector(`.tday[data-day="${second.dataset.day}"]`)?.classList.contains('none'));
-
-  doc.querySelector(`.trainer-line button[data-week="${weekStart}"]`).click();
-  await sleep(150);
-  const all = doc.querySelector('#steps .step-row.all');
-  plus(all).click();
+  plus(doc.querySelector('#steps .step-row.all')).click();
   check('the every-day stepper sets the whole week',
-    rows().every((r) => r.querySelector('output').textContent === '3'),
+    rows().every((r) => r.querySelector('output').textContent === '2'),
     rows().map((r) => r.querySelector('output').textContent).join(','));
-  window.Admin.resetTrainers();
-  check('back to usual resets every day',
-    rows().every((r) => r.querySelector('output').textContent === '1'));
   window.Admin.saveTrainers();
   await until(() => !$('veil').classList.contains('open'));
   await sleep(300);
-  const cleared = await (await fetch(`${BASE}/api/admin/schedules`, {
-    headers: { 'x-admin-token': TOKEN },
-  })).json();
-  check('the usual number clears the days back', !(weekStart in cleared.trainerDays),
-    JSON.stringify(cleared.trainerDays));
+  const saved = await trainerDaysNow();
+  check('and saves it', Object.values(saved).length >= 1 && Object.values(saved).every((n) => n === 2),
+    JSON.stringify(saved));
+  await fetch(`${BASE}/api/admin/trainers`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: JSON.stringify({ days: Object.keys(saved), trainers: null }),
+  });
 
   console.log('\ntime off');
 
@@ -547,7 +536,7 @@ async function until(fn, timeoutMs = 4000) {
   await sleep(200);
 
   // The day's visits show under its row: time, then where to drive.
-  const visitList = [...doc.querySelectorAll('#rows tr.visits-row')]
+  const visitList = [...doc.querySelectorAll('#rows .visits-row')]
     .map((r) => r.textContent.replace(/\s+/g, ' ')).find((t) => t.includes('Person a')) || '';
   check('booked visits are listed under their day', visitList.includes('Hillsboro'),
     visitList.slice(0, 200));
@@ -555,7 +544,7 @@ async function until(fn, timeoutMs = 4000) {
     visitList.slice(0, 200));
   check('and the zone', visitList.includes('Zone 1'), visitList.slice(0, 200));
   check('the next visit is marked',
-    !!doc.querySelector('#rows tr.visits-row li.next'));
+    !!doc.querySelector('#rows .visits-row li.next'));
   window.Admin.roster(small.classId);
 
   check('the run sheet lists people',
