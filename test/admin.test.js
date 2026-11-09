@@ -324,10 +324,12 @@ async function until(fn, timeoutMs = 4000) {
   await window.Admin.refresh();
   check('the usual trainers default to 1', $('trainersDefault').value === '1');
   const line = () => doc.querySelector('.trainer-line');
-  check('each week says who is working in words',
-    (line()?.textContent || '').includes('1 trainer each day'), line()?.textContent);
+  const boxes = () => [...line().querySelectorAll('.tday')];
+  check('each week shows a box per day with its trainers',
+    boxes().length >= 1 && boxes().every((b) => b.querySelector('b').textContent === '1'),
+    boxes().map((b) => b.textContent.replace(/\s+/g, ' ')).join(' | '));
 
-  const changeBtn = line().querySelector('button');
+  const changeBtn = line().querySelector('button[data-week]');
   const weekStart = changeBtn.dataset.week;
   changeBtn.click();
   await sleep(150);
@@ -356,10 +358,12 @@ async function until(fn, timeoutMs = 4000) {
   })).json();
   check('the changed days are saved', sched.trainerDays[weekStart] === 2,
     JSON.stringify(sched.trainerDays));
-  check('the week heading lists the exceptions',
-    /except .*: 2/.test(doc.querySelector(`.trainer-line button[data-week="${weekStart}"]`)
-      ?.closest('.trainer-line')?.textContent.replace(/\s+/g, ' ') || ''),
-    doc.querySelector(`.trainer-line button[data-week="${weekStart}"]`)?.closest('.trainer-line')?.textContent);
+  const changedBox = doc.querySelector(`.tday[data-day="${weekStart}"]`);
+  check('a changed day stands out in the week heading',
+    changedBox?.classList.contains('more') && changedBox.querySelector('b').textContent === '2',
+    changedBox?.outerHTML.slice(0, 120));
+  check('and a day with nobody is marked red',
+    !second || doc.querySelector(`.tday[data-day="${second.dataset.day}"]`)?.classList.contains('none'));
 
   doc.querySelector(`.trainer-line button[data-week="${weekStart}"]`).click();
   await sleep(150);
