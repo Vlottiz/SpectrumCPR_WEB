@@ -136,40 +136,100 @@ whole system — keep it in a password manager, not on a note by the desk.</p>
 
 <p>Closing the browser tab signs you out.</p>
 
-<h2>Setting up a day you're available</h2>
+<div class="box note">
+  <b>New to the admin page?</b>
+  <p>Press <b>Tour</b> at the top right for a one-minute walkthrough of every
+  part of the page. It runs by itself the first time you sign in. The
+  <b>Add days</b> window has its own: press <b>Show me how</b> at the top.</p>
+</div>
+
+<h2>Setting up the days you're available</h2>
 
 <p>You publish <b>days</b>, not classes. A day is: the date, which course, the
 hours you're willing to work, how many people you'll train that day, and the
 price per person.</p>
 
 <ol>
-  <li>Click <b>Add a day</b></li>
+  <li>Click <b>Add days</b></li>
   <li>Course name and type — CPR / AED, Heartsaver, or Babysitter Safety</li>
-  <li><b>Day opens</b> and <b>Day closes</b> — the hours you'll work, say 8:00 AM to 6:00 PM</li>
+  <li>Your open hours — either <b>Weekly hours</b> or <b>One day</b> (below)</li>
   <li><b>People you'll train that day</b> — your limit across every visit,
       based on manikins, cards and how much you want to do in one day</li>
   <li>Base price per person, and the group price bands (below)</li>
-  <li>The ZIP codes you'll travel to that day, if you want to limit it</li>
+  <li>How many trips you'll make into each travel zone per day (below)</li>
 </ol>
 
-<p>Customers then book four-hour sessions inside those hours, at their address.</p>
+<p>Customers then book four-hour sessions inside those hours, at their address.
+They only ever see start times that fall inside your open hours — closed days
+and closed hours never appear.</p>
 
-<h3>Choosing where you'll travel</h3>
+<h3>Set your hours once: the repeating schedule</h3>
 
-<p>Each day has a <b>service area</b> — the ZIP codes you're willing to drive
-to. Type a ZIP into the box on the day's form and it becomes a chip; click the
-× to remove one. Leave it empty and you'll travel anywhere.</p>
+<p>In <b>Add days</b>, tick the courses you'll teach and set each one's price,
+then tick the days you're open and set the hours — say Monday to Friday 9:00 to
+5:00. Leave <b>For how long</b> on <b>Keep repeating</b> and choose how far
+ahead to keep open (8 weeks is a good start). That's it: new days are added by
+themselves every day, so the calendar never runs out.</p>
 
-<p>Customers see the area before they book, and get told as they type their ZIP
-whether you cover it. Someone outside is shown other days that do reach them,
-so an out-of-area enquiry turns into a booking on a different date rather than
-a dead end.</p>
+<p>The schedule shows in the <b>Repeating schedule</b> box at the top of the
+admin page, where you can edit, pause or delete it. Editing rebuilds the
+upcoming days nobody has booked; booked days keep the hours and price the
+customer booked. Want Babysitter Safety on Saturdays only? Add a second
+schedule just for that.</p>
 
-<div class="box note">
-  <b>Empty means everywhere</b>
-  <p>A day with no ZIP codes listed is unrestricted, not unbookable. If you
-  want to limit a day, you have to add the codes.</p>
-</div>
+<p>For a one-off, choose <b>One day</b>, or a set number of weeks in <b>For how
+long</b>.</p>
+
+<h3>Trainers</h3>
+
+<p>Each trainer can do one visit at a time, whatever the course. Set how many
+trainers you have on a normal day under <b>Booking rules</b>. Each week in the
+list of days shows each date down the left with its trainers underneath: use
+− and + right there to change that day. To set a whole week at once, use
+<b>Trainers for the week</b> at the top of that week. Set a day to <b>0</b> and it takes no
+new bookings. If you lower a day below what's already booked, you're told which
+day so you can move or cancel a visit.</p>
+
+<h3>Course prices</h3>
+
+<p>Each course has one price per person, set under <b>Course prices</b>. It's
+the same every week: change it and every upcoming day of that course changes
+at once, and the booking page shows the new price straight away. Customers
+who already booked keep the price they paid.</p>
+
+<h3>Time off</h3>
+
+<p>Use <b>Add time off</b> for vacations, sick days or anything else. Nothing
+is offered on those dates. Days already there with nobody booked are removed;
+if someone has booked, you're told who so you can contact them.</p>
+
+<h3>Booking notice</h3>
+
+<p>Set how far ahead customers must book (24 hours to start). Times sooner
+than that aren't offered, so nobody books tomorrow 8am at 11pm tonight.</p>
+
+<h3>Travel zones</h3>
+
+<p>Distance is measured in a straight line from ZIP 97116 (Forest Grove) to
+the customer's ZIP, and sets their zone and travel charge:</p>
+
+<table>
+  <tr><th>Zone</th><th>Distance</th><th>Travel charge</th></tr>
+  <tr><td>Zone 1</td><td>0 – 25 miles</td><td>None</td></tr>
+  <tr><td>Zone 2</td><td>25.01 – 50 miles</td><td>$50</td></tr>
+  <tr><td>Zone 3</td><td>50.01 – 90 miles</td><td>$100</td></tr>
+</table>
+
+<p>Beyond 90 miles the customer is told they're outside the area and asked to
+call. The charge is once per visit, not per person, and is added to the total
+before they pay.</p>
+
+<p>On each day you can set <b>trips per zone</b> — for example 1 for Zone 3, so
+you're never sent to opposite edges of Zone 3 on the same day. Leave a zone
+blank for no limit, or put 0 to skip that zone that day. The limit is per
+calendar date: if two days fall on the same date, their trips count together.
+A customer in a zone that's used up for the day sees no times and is shown
+other days that can still reach them.</p>
 
 <h3>Group pricing</h3>
 
@@ -227,7 +287,7 @@ visits.</p>
 
 <div class="box note">
   <b>Two things run out separately</b>
-  <p><b>Times</b> — how many two-hour slots are left in the day.<br>
+  <p><b>Times</b> — how many four-hour sessions can still start that day.<br>
   <b>People</b> — the headcount you set for that day.</p>
   <p>A day with hours free can still turn away a group of eight if only four
   places remain. The admin table shows both.</p>
@@ -289,11 +349,12 @@ your clipboard, ready to paste into a message.</p>
 <ol>
   <li>They pick a day from your schedule</li>
   <li>Choose how many people</li>
-  <li>Pick an arrival time — booked times show crossed out</li>
+  <li>Enter the address you're coming to — as soon as they type the ZIP they
+      see their zone and travel charge</li>
+  <li>Pick an arrival time — only open times are shown</li>
   <li>Enter each person's name (everyone needs their own, for their card)</li>
-  <li>Enter the address you're coming to — the ZIP is checked against your
-      service area as they type</li>
-  <li>Pay — one payment covers the whole group</li>
+  <li>Check the total — classes plus travel, itemised</li>
+  <li>Pay — one payment covers the whole group and the trip</li>
   <li>Get a confirmation with a reference and an <b>Add to calendar</b> button</li>
 </ol>
 
@@ -318,10 +379,13 @@ six names are one stop rather than six.</p>
   <tr><td>Hold time</td><td>20 minutes to finish paying before a slot is released</td></tr>
   <tr><td>Waitlist offer</td><td>24 hours to claim a freed slot</td></tr>
   <tr><td>Session length</td><td>4 hours teaching</td></tr>
-  <tr><td>Travel buffer</td><td>90 minutes after each booking</td></tr>
+  <tr><td>Travel time</td><td>1 hour between visits; change it under Booking rules</td></tr>
   <tr><td>Largest group</td><td>12 people in one booking</td></tr>
   <tr><td>Courses</td><td>CPR / AED, Heartsaver, Babysitter Safety</td></tr>
-  <tr><td>Service area</td><td>Set per day by ZIP; empty means anywhere</td></tr>
+  <tr><td>Travel zones</td><td>From 97116: Zone 1 free, Zone 2 $50, Zone 3 $100, up to 90 miles</td></tr>
+  <tr><td>Zone trips</td><td>Set per day; blank means no limit</td></tr>
+  <tr><td>Booking notice</td><td>24 hours unless changed on the admin page</td></tr>
+  <tr><td>Trainers</td><td>1 a day unless changed; set per day in the week headings</td></tr>
   <tr><td>Time zone</td><td>Pacific — customers see their own local time</td></tr>
 </table>
 

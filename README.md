@@ -29,13 +29,15 @@ the other suites already cover from the inside, so skipping it on Windows
 costs little.
 
 ```bash
-npm run test:all        # everything that runs on Node — 249 checks
+npm run test:all        # everything that runs on Node — 431 checks
 npm test                # holds, payment, waitlist, groups (32)
-npm run test:slots      # the slot calendar and blocking (33)
+npm run test:slots      # the slot calendar and blocking (39)
 npm run test:pricing    # group bands, rounding, fallbacks (22)
+npm run test:zones      # travel zones, charges, trips per day (29)
+npm run test:schedule   # schedules, time off, notice, trainers, prices, travel (38)
 npm run test:address    # address parsing, ZIP lookup, outages (19)
-npm run test:fe         # booking page in a headless DOM (109)
-npm run test:admin      # admin page and its API (34)
+npm run test:fe         # booking page in a headless DOM (140)
+npm run test:admin      # admin page and its API (122)
 
 npm run test:e2e        # full API flow over HTTP (37) — needs bash
 ```
@@ -54,8 +56,11 @@ decline a fake payment.
 | `PORT` | `3000` | |
 | `DB_PATH` | `./data/booking.db` | SQLite file |
 | `HOLD_MINUTES` | `20` | seat reservation window |
-| `SESSION_MINUTES` | `120` | how long the instructor is on site |
-| `BUFFER_MINUTES` | `30` | pack-up and travel, added to the block |
+| `SESSION_MINUTES` | `240` | how long the instructor is on site |
+| `BUFFER_MINUTES` | `60` | travel between visits until it's set on the admin page |
+| `BUSINESS_TZ` | `America/Los_Angeles` | whose calendar date "per day" zone limits count by |
+| `HOME_ZIP` | `97116` | where travel distances are measured from |
+| `MIN_NOTICE_HOURS` | `24` | booking notice until it's set on the admin page |
 | `SLOT_STEP_MINUTES` | `30` | spacing of offered start times |
 | `ADDRESS_PROVIDER` | `photon` | `photon`, `census` or `google` |
 | `GOOGLE_PLACES_KEY` | *(unset)* | switches address lookup to Google Places |
@@ -81,6 +86,13 @@ inside that window at their own address.
   the day doesn't need to be inside working hours.
 - A booking is **exclusive**: one van, one address, one time. Unlike a
   classroom, nobody else can join a booked slot.
+- **Starts that would waste the day aren't offered.** A visit holds a
+  trainer for the session plus travel (5 hours with the default hour, set
+  under Booking rules on the admin page), so a start in
+  the middle of the day can leave too little room either side for anyone
+  else. A time is only offered if booking it still leaves room for as many
+  visits as the day could otherwise take (`wastesDay()` in `seats.js`). On a
+  day that only fits one visit anyway, every time is offered.
 - `capacity` on a day is how many people the instructor will train that day in
   total, across every visit. A party of six draws six from it.
 
@@ -93,6 +105,77 @@ The customer is offered both a waitlist and other days. Alternatives come from
 days running the same course with room for the party, ordered so that a day
 offering **the time they asked for** comes first even if it's later — somebody
 who wanted 9am usually wants 9am more than they want that particular Tuesday.
+
+### Trainers, shared across courses
+
+Each trainer can run one visit at a time, whatever the course. With one
+trainer, a CPR visit at 9:00 blocks Heartsaver and Babysitter at 9:00 that date
+too (plus the travel buffer); with two, two visits can overlap. Headcount
+stays per course and day.
+
+The usual number is `settings.default_trainers` (1 to start); a date can
+differ via `trainer_days` — more for a new hire, fewer or 0 for a call-out.
+0 means that date takes no new bookings. Lowering it below what's already
+booked is allowed, and the admin page lists the clashing dates.
+
+### One price per course
+
+Each course has one per-person price (`settings.course_prices`, defaults in
+`seats.js`). Changing it updates every day of that course that hasn't
+finished, so no week differs from another, and the booking page picks it up
+(`GET /api/courses`). Bookings keep the price stamped on them when they were
+made. Prices sent with a day or schedule are ignored for a known course.
+
+### Repeating schedules, time off and notice
+
+- **Repeating schedule** (`schedules` table, `src/schedule.js`): weekly hours,
+  the courses taught in them with a price each, and how many weeks ahead to
+  keep open. It creates one day per course per open date and tops the
+  calendar up at startup and on every sweep, so new days appear by themselves.
+  Editing one rebuilds its unfinished days that nobody has booked; booked days
+  keep their hours and price. A day from a schedule that's cancelled and
+  cleared is remembered (`schedule_skips`) so it isn't recreated.
+  Schedule hours are wall-clock times in `BUSINESS_TZ`.
+- **Time off** (`time_off`): no schedule fills those dates, empty days already
+  there are removed, and days with bookings are kept and listed for staff to
+  contact. Those days take no new bookings. Removing time off refills them.
+- **Booking notice** (`settings.min_notice_hours`, default 24): start times
+  sooner than that aren't offered, and a day with nothing left past the
+  notice drops off the booking page.
+
+### Travel zones
+
+The instructor drives out from ZIP **97116** (Forest Grove). The straight-line
+distance from there to the centre of the customer's ZIP sets their zone and
+the travel charge:
+
+| Zone | Distance | Travel charge |
+|---|---|---|
+| 1 | 0 – 25 miles | none |
+| 2 | 25.01 – 50 miles | $50 |
+| 3 | 50.01 – 90 miles | $100 |
+
+Past 90 miles the booking is refused and the customer is asked to call.
+
+- The charge is **per visit**, not per person, and is added to the total
+  before payment. It's stored on the organiser's seat (`travel_cents`); every
+  seat records the zone and distance.
+- The booking page shows the zone table up front, names the customer's zone
+  and charge as soon as they type a ZIP, and itemises classes, travel and the
+  total on the form and the payment step.
+- **Trips per zone per day.** Each day can cap how many visits go into each
+  zone (`classes.zone_limits`, e.g. `{"3": 1}`). Blank is no limit, 0 closes
+  the zone. The cap is per **calendar date** in `BUSINESS_TZ`, not per day row
+  or time slot — two days on the same date share it, and the stricter limit
+  wins. It's checked inside the booking transaction, so two customers can't
+  both take the last Zone 3 trip.
+- A customer whose zone is used up for a day sees no times for it and is
+  offered other days that can still reach them.
+
+Distances need no maps service: `src/zip-centroids.json` holds every ZIP
+within 100 miles of 97116 (from the BSD-licensed `zipcodes` package), and a ZIP
+not in it is further than that. `scripts/build-zip-table.js` rebuilds it if the
+home ZIP or zone edges change. The zones themselves are in `src/zones.js`.
 
 ### Addresses
 
@@ -227,8 +310,21 @@ still display — they fall back to a neutral colour rather than breaking.
 
 `http://localhost:3000/admin.html` — sign in with `ADMIN_TOKEN`.
 
-- add training days: date, course, the hours you'll work, headcount, base price
-  and the group price bands, with a live preview of what 1/2/3/5/8 people pay
+- a **Tour** button (top right) for a step-by-step walkthrough of the page;
+  it also runs once the first time someone signs in on a device. The Add
+  days form has its own walkthrough (**Show me how**), also run once by itself
+- a **repeating schedule** panel (edit, pause, delete), **time off** (add a
+  date range with a note, remove it) and the **booking notice**
+- add training days for one or more courses at once, each course with its
+  own price: as a repeating schedule (the default), a fixed run of weeks, or
+  one day
+- add training days one at a time, or as **weekly hours**: tick the weekdays
+  you're open, set each one's hours, choose a start date and 1–12 weeks, and
+  every open day is created at once (`POST /api/admin/classes/bulk`, all or
+  nothing). Customers only ever see start times inside those hours
+- each day carries course, headcount, base price, group price bands (with a
+  live preview of what 1/2/3/5/8 people pay) and trips allowed per travel zone
+- the day list is grouped by week, and shows zone trips used against each limit
 - change hours, headcount and prices (headcount can't go below what's booked)
 - a **run sheet** per day: each visit as its own block with the arrival time,
   the address as a Google Maps link, access notes, who's coming and what they
@@ -258,9 +354,14 @@ src/
   db.js             schema and migrations
   address.js        address lookup providers
   calendar.js       .ics and Google Calendar links
+  zones.js          travel zones and charges
+  schedule.js       repeating schedules and time off
+  zip-centroids.json  ZIP locations within 100 miles of 97116
   seed.js           sample training days
   payments/         mock now, Converge later
-test/               five suites
+scripts/
+  build-zip-table.js  rebuilds zip-centroids.json
+test/               the suites
 Dockerfile          }
 docker-compose.yml  } NAS / server deployment
 .dockerignore       }
@@ -323,6 +424,9 @@ GET  /api/classes/:id
 GET  /api/classes/:id/slots?partySize=N       bookable times for that party
 GET  /api/classes/:id/quote?partySize=N       what that party pays, and why
 GET  /api/classes/:id/alternatives            other days that could take it
+GET  /api/zones                               the zones and their charges
+GET  /api/courses                             each course and its price
+GET  /api/zones/lookup?zip=97123&classId=N    a ZIP's zone, miles and charge
 GET  /api/address/suggest?q=...               address completions
 GET  /api/address/zip?zip=97123               city and state for a ZIP
 GET  /api/address/details?placeId=...         components for a Google pick
@@ -340,6 +444,15 @@ POST /api/registrations/:ref/accept-offer
 ```
 GET  /api/admin/classes/:id/roster
 POST /api/admin/classes
+POST /api/admin/classes/bulk                  many days at once, from weekly hours
+GET  /api/admin/schedules                     schedules, time off and the notice
+POST /api/admin/schedules                     start a repeating schedule
+POST /api/admin/schedules/:id/update|pause|resume|delete
+POST /api/admin/time-off                      {startsOn, endsOn, note}
+POST /api/admin/time-off/:id/delete
+POST /api/admin/settings                      {minNoticeHours, defaultTrainers}
+POST /api/admin/trainers                      {days: ['2026-11-16'], trainers: 2 | null}
+POST /api/admin/courses/:code/price           {priceCents}
 POST /api/admin/classes/:id/cancel
 GET  /api/admin/outbox
 POST /api/admin/sweep
@@ -408,7 +521,9 @@ that request takes a few days.
 ## The booking page
 
 `index.html` renders its schedule from `/api/classes` rather than hardcoded
-rows, so class dates live in one place. Register opens a modal: details →
+rows, so class dates live in one place. It's grouped by week, then by date,
+with each date listed once and whatever runs that day beneath it. The time
+picker only lists start times that can actually be booked. Register opens a modal: details →
 20-minute hold with a live countdown → payment → confirmation.
 
 Times are stored UTC and rendered in the visitor's own timezone. A class stored

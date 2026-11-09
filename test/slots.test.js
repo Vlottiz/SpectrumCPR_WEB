@@ -38,10 +38,13 @@ function test(label, fn) {
 }
 
 /** A working day, given as UTC hours so the assertions read plainly. */
+// Each test day gets its own date unless a test asks otherwise: one
+// instructor means days sharing a date share her time.
+let nextOffset = 7;
 function makeDay({ openHour = 16, closeHour = 26, capacity = 20, price = 8500,
-                   code = 'BLS', title = 'BLS Provider', dayOffset = 7 } = {}) {
+                   code = 'BLS', title = 'BLS Provider', dayOffset = null } = {}) {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() + dayOffset);
+  d.setUTCDate(d.getUTCDate() + (dayOffset ?? nextOffset++));
   d.setUTCHours(0, 0, 0, 0);
   const open = new Date(d.getTime() + openHour * 3600_000).toISOString();
   const close = new Date(d.getTime() + closeHour * 3600_000).toISOString();
@@ -370,6 +373,50 @@ test('a waitlist entry keeps the time they wanted', () => {
   assert.strictEqual(w.ok, true);
   assert.ok(w.registration.notes.includes('09:00'));
   assert.ok(w.registration.notes.includes('party of 3'));
+});
+
+console.log('\nnot wasting the day');
+
+// A visit holds the trainer for 4h + 1.5h travel = 5.5h. Times are UTC hours
+// after the day's midnight, as makeDay takes them.
+const openStarts = (day) => seats.daySlots(day.id).slots.filter((x) => x.available).map((x) => x.start);
+const h = (day, hours) => at(day, hours - 16);   // openHour 16 is the day's first start
+
+test('a 13 hour day hides the mid-day starts that would leave room for only one visit', () => {
+  const day = makeDay({ openHour: 16, closeHour: 29 });   // 13 hours, last start at +9h
+  const starts = openStarts(day);
+  // 2 visits fit: one starting by +3.5h and one from +5.5h.
+  assert.ok(starts.includes(h(day, 16)) && starts.includes(h(day, 19.5)), 'early starts offered');
+  assert.ok(starts.includes(h(day, 21.5)) && starts.includes(h(day, 25)), 'late starts offered');
+  for (const mid of [20, 20.5, 21]) assert.ok(!starts.includes(h(day, mid)), `+${mid - 16}h hidden`);
+});
+
+test('and a booking at one of those times is refused', () => {
+  const day = makeDay({ openHour: 16, closeHour: 29 });
+  assert.strictEqual(book(day, h(day, 21)).reason, 'slot_taken');
+  assert.strictEqual(seats.availability(day.id).taken, 0);
+});
+
+test('after an early booking, the later visit still fits', () => {
+  const day = makeDay({ openHour: 16, closeHour: 29 });
+  assert.strictEqual(book(day, h(day, 17)).ok, true);
+  const starts = openStarts(day);
+  assert.ok(starts.length > 0, 'room for a second visit');
+  assert.ok(starts.every((x) => x >= h(day, 22.5)), 'only after the first visit and its travel');
+});
+
+test('a day that only fits one visit offers every time', () => {
+  const day = makeDay({ openHour: 16, closeHour: 24 });   // 8 hours
+  assert.strictEqual(openStarts(day).length, seats.slotGrid(seats.getClass(day.id)).length);
+});
+
+test('with two trainers, a second visit can take the same early time', () => {
+  const day = makeDay({ openHour: 16, closeHour: 29 });
+  seats.setTrainers([seats.localDate(day.open)], 2);
+  assert.strictEqual(book(day, h(day, 16)).ok, true);
+  assert.ok(openStarts(day).includes(h(day, 16)), 'the other trainer is free at the same time');
+  assert.ok(!openStarts(day).includes(h(day, 20.5)), 'mid-day still wastes a trainer');
+  seats.setTrainers([seats.localDate(day.open)], null);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

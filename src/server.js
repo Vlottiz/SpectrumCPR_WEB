@@ -7,6 +7,8 @@ const seats_ = seats; // alias used by the admin routes below
 const calendar = require('./calendar');
 const address = require('./address');
 const payments = require('./payments');
+const zones = require('./zones');
+const schedule = require('./schedule');
 const { getDb } = require('./db');
 
 const app = express();
@@ -85,6 +87,10 @@ function publicRegistration(reg) {
 function publicClass(c) {
   const day = seats.daySlots(c.id);
   return {
+    // False once every time is past, inside the booking notice, on time off
+    // or with no trainer — nothing left to offer, not even a waitlist.
+    stillBookable: Boolean(day && day.slots.some((s) =>
+      !['past', 'too_soon', 'time_off', 'no_trainer'].includes(s.reason))),
     id: c.id,
     courseCode: c.course_code,
     title: c.title,
@@ -95,7 +101,6 @@ function publicClass(c) {
     endsAt: c.ends_at,
     priceCents: c.price_cents,
     pricingTiers: seats.priceLadder(c),
-    serviceZips: seats.serviceZipsFor(c),
     seatsAvailable: c.seats.available,
     capacity: c.seats.capacity,
     waitlistCount: c.seats.waitlist,
@@ -157,29 +162,43 @@ function validateTiers(tiers) {
   return null;
 }
 
-/** Five digits, de-duplicated, sorted — so the stored list is predictable. */
-function normaliseZips(zips) {
-  return [...new Set((zips || [])
-    .map((z) => String(z).trim().slice(0, 5))
-    .filter((z) => /^\d{5}$/.test(z)))].sort();
+/**
+ * Trips per zone per day, as sent by the admin form: { "1": null, "2": 3 }.
+ *
+ * Blank or null means no limit. Returns the cleaned object, or an error
+ * string for anything that isn't a whole number of trips.
+ */
+function cleanZoneLimits(limits) {
+  if (limits === undefined) return { value: undefined };
+  if (limits === null) return { value: null };
+  if (typeof limits !== 'object' || Array.isArray(limits)) {
+    return { error: 'Zone limits must be set per zone.' };
+  }
+  const out = {};
+  for (const z of zones.ZONES) {
+    const raw = limits[z.zone] ?? limits[String(z.zone)];
+    if (raw === null || raw === undefined || raw === '') { out[z.zone] = null; continue; }
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 0 || n > 50) {
+      return { error: `Zone ${z.zone}: enter a whole number of trips, or leave it blank for no limit.` };
+    }
+    out[z.zone] = n;
+  }
+  return { value: out };
 }
 
-/**
- * An empty list is allowed and means "anywhere". What isn't allowed is a list
- * of things that aren't ZIP codes, which would silently serve nowhere.
- */
-function validateZips(zips) {
-  if (zips === undefined || zips === null) return null;
-  if (!Array.isArray(zips)) return 'Service area must be a list of ZIP codes.';
-  if (!zips.length) return null;
+const storeZoneLimits = (v) =>
+  (v && Object.values(v).some((n) => n !== null) ? JSON.stringify(v) : null);
 
-  const bad = zips
-    .map((z) => String(z).trim())
-    .filter((z) => z && !/^\d{5}(-\d{4})?$/.test(z));
-  if (bad.length) return `Not a ZIP code: ${bad.slice(0, 3).join(', ')}`;
-
-  if (!normaliseZips(zips).length) {
-    return 'None of those are usable ZIP codes.';
+/** Opening and closing must make a day someone could actually book. */
+function dayHoursProblem(startsAt, endsAt) {
+  const open = new Date(startsAt).getTime();
+  const close = new Date(endsAt).getTime();
+  if (Number.isNaN(open) || Number.isNaN(close)) return 'Those hours are not valid times.';
+  if (close <= open) return 'Closing time must be after opening.';
+  if (close - open < seats.SESSION_MINUTES * 60_000) {
+    const hours = seats.SESSION_MINUTES / 60;
+    return `Open at least ${hours} hour${hours === 1 ? '' : 's'} — one full session.`;
   }
   return null;
 }
@@ -199,8 +218,10 @@ function requireAdmin(req, res, next) {
 
 app.get('/api/classes', (req, res) => {
   const includeFull = req.query.includeFull !== 'false';
-  const classes = seats.listUpcomingClasses({ includeFull }).map(publicClass);
-  res.json({ ok: true, classes });
+  const classes = seats.listUpcomingClasses({ includeFull })
+    .map(publicClass)
+    .filter((c) => c.stillBookable);
+  res.json({ ok: true, classes, minNoticeHours: seats.minNoticeHours() });
 });
 
 app.get('/api/classes/:id', (req, res) => {
@@ -227,7 +248,10 @@ app.get('/api/classes/:id/slots', (req, res) => {
   const classId = Number(req.params.id);
   const partySize = Math.max(1, Number(req.query.partySize) || 1);
 
-  const day = seats.daySlots(classId, { partySize });
+  // With a ZIP, times are checked against that zone's trips for the day too.
+  const where = req.query.zip ? zones.zoneForZip(req.query.zip) : null;
+
+  const day = seats.daySlots(classId, { partySize, zone: where && where.ok ? where.zone : null });
   if (!day) return bad(res, 404, 'no_such_class');
 
   const cls = seats.getClass(classId);
@@ -257,6 +281,41 @@ app.get('/api/classes/:id/alternatives', (req, res) => {
     ok: true,
     alternatives: seats.suggestAlternatives({ classId, preferredTime, partySize, zip }),
   });
+});
+
+/** The zone table and the travel charge for each, for the booking page. */
+app.get('/api/zones', (req, res) => {
+  res.json({ ok: true, homeZip: zones.HOME_ZIP, zones: zones.describeZones() });
+});
+
+/**
+ * Which zone a ZIP is in, what the trip costs, and — given a day — whether
+ * that day still has a trip left into the zone.
+ */
+app.get('/api/zones/lookup', (req, res) => {
+  const where = zones.zoneForZip(req.query.zip);
+  if (!where.ok) {
+    return res.json({
+      ok: false,
+      reason: where.reason,
+      zip: where.zip || null,
+      miles: where.miles ?? null,
+      maxMiles: zones.MAX_MILES,
+      message: where.reason === 'zip_invalid'
+        ? 'Enter a five digit ZIP code.'
+        : `${where.zip} is outside our travel area — we go up to ${zones.MAX_MILES} miles ` +
+          `from Forest Grove. Call us and we'll see what we can do.`,
+    });
+  }
+
+  const out = { ok: true, ...where };
+  const classId = Number(req.query.classId);
+  if (classId && seats.getClass(classId)) {
+    const trips = seats.zoneTripsLeft(classId, where.zone);
+    out.dayHasRoom = trips.left !== 0;
+    out.tripsLeft = trips.left;
+  }
+  res.json(out);
 });
 
 /**
@@ -346,15 +405,18 @@ app.post('/api/classes/:id/hold', async (req, res) => {
     });
   }
 
-  const day = seats.getClass(classId);
-  if (day && !seats.servesZip(day, zip)) {
-    return bad(res, 409, 'outside_service_area', {
-      serviceZips: seats.serviceZipsFor(day),
-      zip: String(zip).trim().slice(0, 5) || null,
-      message: String(zip).trim()
-        ? `We don't travel to ${String(zip).trim().slice(0, 5)} on this day.`
-        : 'Please enter the ZIP code so we can check we cover it.',
-    });
+  // The ZIP sets the travel zone, and so whether we go and what it costs.
+  const zipUsed = (String(zip || '').trim() || seats.zipFromAddress(address)).slice(0, 5);
+  const where = zones.zoneForZip(zipUsed);
+  if (!where.ok) {
+    return bad(res, where.reason === 'zip_invalid' ? 400 : 409,
+      where.reason === 'zip_invalid' ? 'zip_required' : 'outside_service_area', {
+        zip: zipUsed || null,
+        message: where.reason === 'zip_invalid'
+          ? 'Please enter the ZIP code so we can work out your travel zone.'
+          : `${zipUsed} is outside our travel area (more than ${zones.MAX_MILES} miles from ` +
+            `Forest Grove). Please call us and we'll see what we can do.`,
+      });
   }
 
   const result = seats.holdSeats({
@@ -367,15 +429,15 @@ app.post('/api/classes/:id/hold', async (req, res) => {
     slotStart: String(slotStart),
     address: String(address).trim(),
     addressNotes: String(addressNotes).trim(),
-    zip: String(zip).trim().slice(0, 5),
+    zip: zipUsed,
   });
 
   if (!result.ok) {
-    const conflict = ['full', 'not_enough_seats', 'slot_taken'].includes(result.reason);
+    const conflict = ['full', 'not_enough_seats', 'slot_taken', 'zone_full'].includes(result.reason);
     const status = conflict ? 409 : 400;
     return bad(res, status, result.reason, {
       canJoinWaitlist: ['full', 'slot_taken', 'not_enough_seats'].includes(result.reason),
-      serviceZips: result.serviceZips,
+      zone: result.zone,
       available: result.available,
       requested: result.requested,
       max: result.max,
@@ -385,9 +447,15 @@ app.post('/api/classes/:id/hold', async (req, res) => {
                           `left that day — you asked for ${result.requested}.`,
         slot_taken: 'Someone just booked that time. Please pick another.',
         slot_in_past: 'That time has already passed. Please pick another.',
+        slot_too_soon: `Bookings need at least ${result.noticeHours} hours' notice. ` +
+                       'Please pick a later time.',
+        day_off: 'Sorry, that day is no longer available. Please pick another.',
         slot_not_offered: 'That time is not available on this day.',
         full: 'This day is fully booked.',
-        outside_service_area: `We don't travel to that ZIP code on this day.`,
+        outside_service_area: `That ZIP code is outside our travel area.`,
+        zip_required: 'Please enter the ZIP code so we can work out your travel zone.',
+        zone_full: `We're already booked for Zone ${result.zone} trips on this day. ` +
+                   `Please pick another day.`,
       }[result.reason],
       detail: result.reason,
     });
@@ -425,6 +493,9 @@ app.post('/api/classes/:id/hold', async (req, res) => {
     })),
     groupRef: result.groupRef,
     seats: result.seats,
+    seatsCents: result.seatsCents,
+    travelCents: result.travelCents,
+    travel: result.travel,
     totalCents: result.totalCents,
     slotStart: result.slotStart,
     slotEnd: result.slotEnd,
@@ -586,42 +657,287 @@ app.get('/api/admin/classes/:id/roster', requireAdmin, (req, res) => {
   });
 });
 
-app.post('/api/admin/classes', requireAdmin, (req, res) => {
+/**
+ * Check the settings shared by every day in a create request. Returns the
+ * values ready to store, or { error, message }.
+ */
+function readDaySettings(body) {
   const {
-    courseCode, title, startsAt, endsAt,
-    location = '', capacity, priceCents, pricingTiers, serviceZips,
-  } = req.body || {};
+    courseCode, title, location = '', capacity, priceCents, pricingTiers, zoneLimits,
+  } = body || {};
 
-  if (!courseCode || !title || !startsAt || !endsAt) {
-    return bad(res, 400, 'courseCode, title, startsAt and endsAt are required');
-  }
-  if (!Number.isInteger(capacity) || capacity < 1) return bad(res, 400, 'capacity_invalid');
-  if (!Number.isInteger(priceCents) || priceCents < 0) return bad(res, 400, 'priceCents_invalid');
+  if (!courseCode || !title) return { error: 'courseCode and title are required' };
+  if (!Number.isInteger(capacity) || capacity < 1) return { error: 'capacity_invalid' };
+  // A known course always takes its one current price, so no week can differ.
+  const price = seats.coursePrice(courseCode) ?? priceCents;
+  if (!Number.isInteger(price) || price < 0) return { error: 'priceCents_invalid' };
 
   const tierError = validateTiers(pricingTiers);
-  if (tierError) return bad(res, 400, 'pricing_invalid', { message: tierError });
+  if (tierError) return { error: 'pricing_invalid', message: tierError };
 
-  const zipError = validateZips(serviceZips);
-  if (zipError) return bad(res, 400, 'service_area_invalid', { message: zipError });
+  const limits = cleanZoneLimits(zoneLimits);
+  if (limits.error) return { error: 'zone_limits_invalid', message: limits.error };
 
+  return {
+    values: {
+      courseCode, title, location, capacity, priceCents: price,
+      pricingTiers: pricingTiers ? JSON.stringify(pricingTiers) : null,
+      zoneLimits: storeZoneLimits(limits.value),
+    },
+  };
+}
+
+function insertDay(v, startsAt, endsAt) {
   const info = getDb()
     .prepare(
       `INSERT INTO classes
          (course_code, title, starts_at, ends_at, location, capacity, price_cents,
-          pricing_tiers, service_zips)
+          pricing_tiers, zone_limits)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(courseCode, title, startsAt, endsAt, location, capacity, priceCents,
-         pricingTiers ? JSON.stringify(pricingTiers) : null,
-         serviceZips && serviceZips.length ? JSON.stringify(normaliseZips(serviceZips)) : null);
+    .run(v.courseCode, v.title, startsAt, endsAt, v.location, v.capacity, v.priceCents,
+         v.pricingTiers, v.zoneLimits);
+  return Number(info.lastInsertRowid);
+}
 
-  res.status(201).json({ ok: true, classId: info.lastInsertRowid });
+app.post('/api/admin/classes', requireAdmin, (req, res) => {
+  const { startsAt, endsAt } = req.body || {};
+  if (!startsAt || !endsAt) {
+    return bad(res, 400, 'courseCode, title, startsAt and endsAt are required');
+  }
+
+  const settings = readDaySettings(req.body);
+  if (settings.error) return bad(res, 400, settings.error, { message: settings.message });
+
+  const hoursError = dayHoursProblem(startsAt, endsAt);
+  if (hoursError) return bad(res, 400, 'hours_invalid', { message: hoursError });
+  if (seats.isTimeOff(seats.localDate(startsAt))) {
+    return bad(res, 400, 'time_off', {
+      message: 'That date is marked as time off. Remove the time off first.',
+    });
+  }
+
+  const classId = insertDay(settings.values, startsAt, endsAt);
+  res.status(201).json({ ok: true, classId });
+});
+
+/**
+ * Add many days at once — a week of opening hours, or several weeks.
+ *
+ * The admin page works out the dates from the weekly hours in the staff
+ * member's own timezone (so daylight saving lands correctly) and sends each
+ * day's open and close as UTC. Every day shares the course, headcount, price,
+ * bands and zone limits. All or nothing: one bad day saves none.
+ */
+const MAX_BULK_DAYS = 200;
+
+app.post('/api/admin/classes/bulk', requireAdmin, (req, res) => {
+  const { days } = req.body || {};
+  if (!Array.isArray(days) || !days.length) {
+    return bad(res, 400, 'days_required', { message: 'Pick at least one open day.' });
+  }
+  if (days.length > MAX_BULK_DAYS) {
+    return bad(res, 400, 'too_many_days', {
+      message: `That's ${days.length} days — add at most ${MAX_BULK_DAYS} at a time.`,
+    });
+  }
+
+  // One course, or several: each open day gets a row per course, and the
+  // instructor's time is shared between them.
+  const courseList = Array.isArray(req.body.courses) && req.body.courses.length
+    ? req.body.courses
+    : [{ code: req.body.courseCode, title: req.body.title, priceCents: req.body.priceCents }];
+
+  const perCourse = [];
+  for (const c of courseList) {
+    const settings = readDaySettings({
+      ...req.body, courseCode: c.code, title: c.title, priceCents: c.priceCents,
+    });
+    if (settings.error) return bad(res, 400, settings.error, { message: settings.message });
+    perCourse.push(settings.values);
+  }
+
+  for (const [i, d] of days.entries()) {
+    const problem = d && d.startsAt && d.endsAt
+      ? dayHoursProblem(d.startsAt, d.endsAt)
+      : 'Each day needs opening and closing times.';
+    if (problem) {
+      return bad(res, 400, 'hours_invalid', { day: i + 1, message: `Day ${i + 1}: ${problem}` });
+    }
+  }
+
+  // Dates marked as time off are left out rather than refusing the batch.
+  const open = days.filter((d) => !seats.isTimeOff(seats.localDate(d.startsAt)));
+
+  const ids = getDb().transaction(() =>
+    open.flatMap((d) => perCourse.map((v) => insertDay(v, d.startsAt, d.endsAt))))();
+
+  res.status(201).json({
+    ok: true, created: ids.length, classIds: ids, skippedTimeOff: days.length - open.length,
+  });
 });
 
 app.post('/api/admin/classes/:id/cancel', requireAdmin, (req, res) => {
   const classId = Number(req.params.id);
   getDb().prepare(`UPDATE classes SET status = 'cancelled' WHERE id = ?`).run(classId);
+  // Nobody on it means nothing to follow up, so it goes straight away.
+  const deleted = seats.purgeEmptyCancelledDays().includes(classId);
+  res.json({ ok: true, deleted });
+});
+
+// ---------------------------------------------- schedules, time off, notice
+
+/** The courses and their one price each, for the booking page. */
+app.get('/api/courses', (req, res) => {
+  res.json({ ok: true, courses: seats.courses() });
+});
+
+/** Everything the admin page's schedule panel shows. */
+app.get('/api/admin/schedules', requireAdmin, (req, res) => {
+  res.json({
+    ok: true,
+    schedules: schedule.listSchedules(),
+    timeOff: schedule.listTimeOff(),
+    courses: seats.courses(),
+    defaultTrainers: seats.defaultTrainers(),
+    // Dates with a different number of trainers from the usual.
+    trainerDays: Object.fromEntries(getDb()
+      .prepare('SELECT day, trainers FROM trainer_days WHERE day >= ?')
+      .all(seats.localDate(new Date(Date.now() - 86400_000).toISOString()))
+      .map((r) => [r.day, r.trainers])),
+    minNoticeHours: seats.minNoticeHours(),
+    bufferMinutes: seats.bufferMinutes(),
+    sessionMinutes: seats.SESSION_MINUTES,
+    maxWeeksAhead: schedule.MAX_WEEKS_AHEAD,
+  });
+});
+
+/** Tiers and zone limits for a schedule, checked the same way as for a day. */
+function scheduleExtras(body) {
+  const tierError = validateTiers(body.pricingTiers);
+  if (tierError) return { error: 'pricing_invalid', message: tierError };
+  const limits = cleanZoneLimits(body.zoneLimits);
+  if (limits.error) return { error: 'zone_limits_invalid', message: limits.error };
+  return {
+    value: {
+      pricingTiers: body.pricingTiers ? JSON.stringify(body.pricingTiers) : null,
+      zoneLimits: storeZoneLimits(limits.value),
+    },
+  };
+}
+
+app.post('/api/admin/schedules', requireAdmin, (req, res) => {
+  const v = schedule.cleanSchedule(req.body, { sessionMinutes: seats.SESSION_MINUTES });
+  if (v.error) return bad(res, 400, 'schedule_invalid', { message: v.error });
+  const extras = scheduleExtras(req.body || {});
+  if (extras.error) return bad(res, 400, extras.error, { message: extras.message });
+
+  const out = schedule.createSchedule(v.value, extras.value);
+  res.status(201).json({ ok: true, scheduleId: out.id, created: out.created });
+});
+
+app.post('/api/admin/schedules/:id/update', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!schedule.getSchedule(id)) return bad(res, 404, 'no_such_schedule');
+  const v = schedule.cleanSchedule(req.body, { sessionMinutes: seats.SESSION_MINUTES });
+  if (v.error) return bad(res, 400, 'schedule_invalid', { message: v.error });
+  const extras = scheduleExtras(req.body || {});
+  if (extras.error) return bad(res, 400, extras.error, { message: extras.message });
+
+  res.json({ ok: true, ...schedule.updateSchedule(id, v.value, extras.value) });
+});
+
+app.post('/api/admin/schedules/:id/pause', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!schedule.getSchedule(id)) return bad(res, 404, 'no_such_schedule');
+  schedule.setScheduleActive(id, false);
   res.json({ ok: true });
+});
+
+app.post('/api/admin/schedules/:id/resume', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!schedule.getSchedule(id)) return bad(res, 404, 'no_such_schedule');
+  res.json({ ok: true, created: schedule.setScheduleActive(id, true) });
+});
+
+app.post('/api/admin/schedules/:id/delete', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!schedule.getSchedule(id)) return bad(res, 404, 'no_such_schedule');
+  res.json({ ok: true, ...schedule.deleteSchedule(id) });
+});
+
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+
+app.post('/api/admin/time-off', requireAdmin, (req, res) => {
+  const { startsOn, endsOn = startsOn, note = '' } = req.body || {};
+  if (!YMD.test(String(startsOn || '')) || !YMD.test(String(endsOn || ''))) {
+    return bad(res, 400, 'dates_invalid', { message: 'Pick the first and last day off.' });
+  }
+  if (endsOn < startsOn) {
+    return bad(res, 400, 'dates_invalid', { message: 'The last day off is before the first.' });
+  }
+  res.status(201).json({ ok: true, ...schedule.addTimeOff({ startsOn, endsOn, note }) });
+});
+
+app.post('/api/admin/time-off/:id/delete', requireAdmin, (req, res) => {
+  res.json({ ok: true, created: schedule.removeTimeOff(Number(req.params.id)) });
+});
+
+/**
+ * Change a course's price. Every day of it that hasn't finished moves at
+ * once, so the price is the same every week; bookings keep what they paid.
+ */
+app.post('/api/admin/courses/:code/price', requireAdmin, (req, res) => {
+  const priceCents = Number(req.body?.priceCents);
+  if (!Number.isInteger(priceCents) || priceCents < 0 || priceCents > 1_000_000) {
+    return bad(res, 400, 'price_invalid', { message: 'Enter a valid price.' });
+  }
+  const r = seats.setCoursePrice(req.params.code, priceCents);
+  if (!r.ok) return bad(res, 404, r.reason);
+  res.json({ ok: true, daysUpdated: r.daysUpdated, courses: seats.courses() });
+});
+
+/**
+ * Trainers working on some dates: { days: ['2026-11-16', ...], trainers: 2 }.
+ * trainers null puts the dates back to the usual number. Answers with any
+ * date where visits already booked now overlap more than the trainers.
+ */
+app.post('/api/admin/trainers', requireAdmin, (req, res) => {
+  const { days, trainers } = req.body || {};
+  if (!Array.isArray(days) || !days.length || !days.every((d) => YMD.test(String(d)))) {
+    return bad(res, 400, 'days_invalid', { message: 'Pick the dates.' });
+  }
+  if (trainers !== null && (!Number.isInteger(trainers) || trainers < 0 || trainers > 20)) {
+    return bad(res, 400, 'trainers_invalid', { message: 'Enter 0 to 20 trainers.' });
+  }
+  res.json({ ok: true, overbooked: seats.setTrainers(days, trainers) });
+});
+
+app.post('/api/admin/settings', requireAdmin, (req, res) => {
+  const { minNoticeHours, defaultTrainers, bufferMinutes } = req.body || {};
+  if (bufferMinutes !== undefined) {
+    const n = Number(bufferMinutes);
+    if (!Number.isInteger(n) || n < 0 || n > 240) {
+      return bad(res, 400, 'buffer_invalid', { message: 'Pick a travel time.' });
+    }
+    seats.setSetting('buffer_minutes', n);
+  }
+  if (defaultTrainers !== undefined) {
+    const n = Number(defaultTrainers);
+    if (!Number.isInteger(n) || n < 0 || n > 20) {
+      return bad(res, 400, 'trainers_invalid', { message: 'Enter 0 to 20 trainers.' });
+    }
+    seats.setSetting('default_trainers', n);
+  }
+  if (minNoticeHours !== undefined) {
+    const n = Number(minNoticeHours);
+    if (!Number.isFinite(n) || n < 0 || n > 24 * 30) {
+      return bad(res, 400, 'notice_invalid', { message: 'Pick a notice period.' });
+    }
+    seats.setSetting('min_notice_hours', n);
+  }
+  res.json({ ok: true, minNoticeHours: seats.minNoticeHours(),
+             defaultTrainers: seats.defaultTrainers(), bufferMinutes: seats.bufferMinutes() });
 });
 
 /** What would have been emailed. Replace with a real mail provider later. */
@@ -643,6 +959,10 @@ app.get('/api/admin/classes', requireAdmin, (req, res) => {
   // the same place on both screens. Days that have already happened sit below
   // the upcoming ones rather than burying them at the top.
   const now = new Date().toISOString();
+
+  // A cancelled day leaves the list once its last customer has been removed.
+  seats_.purgeEmptyCancelledDays(now);
+
   const rows = getDb()
     .prepare(`SELECT * FROM classes
                ORDER BY (ends_at < ?) ASC, starts_at ASC`)
@@ -650,6 +970,7 @@ app.get('/api/admin/classes', requireAdmin, (req, res) => {
 
   res.json({
     ok: true,
+    sessionMinutes: seats_.SESSION_MINUTES,
     classes: rows.map((c) => {
       const seats = seats_.availability(c.id);
       return {
@@ -663,7 +984,17 @@ app.get('/api/admin/classes', requireAdmin, (req, res) => {
         priceCents: c.price_cents,
         status: c.status,
         pricingTiers: seats_.tiersFor(c),
-        serviceZips: seats_.serviceZipsFor(c),
+        zoneLimits: seats_.zoneLimitsFor(c),
+        scheduleId: c.schedule_id || null,
+        day: seats_.localDate(c.starts_at),
+        trainers: seats_.trainersOn(seats_.localDate(c.starts_at)),
+        // Where and when the instructor is going that day, for the list view.
+        visits: seats_.dayVisits(c.id),
+        // Trips already taken into each zone on this day's date.
+        zoneTrips: Object.fromEntries(zones.ZONES.map((z) => {
+          const t = seats_.zoneTripsLeft(c.id, z.zone);
+          return [z.zone, { used: t.used, limit: t.limit }];
+        })),
         taken: seats.taken,
         available: seats.available,
         waitlist: seats.waitlist,
@@ -700,7 +1031,7 @@ app.post('/api/admin/classes/:id/update', requireAdmin, (req, res) => {
   if (!cls) return bad(res, 404, 'no_such_class');
 
   const { title, courseCode, startsAt, endsAt, location, capacity, priceCents, status,
-          pricingTiers, serviceZips } = req.body || {};
+          pricingTiers, zoneLimits } = req.body || {};
 
   if (capacity !== undefined) {
     if (!Number.isInteger(capacity) || capacity < 1) return bad(res, 400, 'capacity_invalid');
@@ -717,26 +1048,33 @@ app.post('/api/admin/classes/:id/update', requireAdmin, (req, res) => {
   if (priceCents !== undefined && (!Number.isInteger(priceCents) || priceCents < 0)) {
     return bad(res, 400, 'price_invalid');
   }
+  // One price per course: a day's price follows its course, set in the
+  // Course prices panel, and can't be changed on its own.
+  const coursePriceNow = seats.coursePrice(courseCode || cls.course_code);
   if (status !== undefined && !['open', 'cancelled'].includes(status)) {
     return bad(res, 400, 'status_invalid');
   }
-  if (startsAt && endsAt && new Date(endsAt) <= new Date(startsAt)) {
-    return bad(res, 400, 'end_before_start');
+  if (startsAt || endsAt) {
+    const hoursError = dayHoursProblem(startsAt || cls.starts_at, endsAt || cls.ends_at);
+    if (hoursError) {
+      return bad(res, 400, hoursError.includes('after opening') ? 'end_before_start' : 'hours_invalid',
+        { message: hoursError });
+    }
   }
 
   const tierError = validateTiers(pricingTiers);
   if (tierError) return bad(res, 400, 'pricing_invalid', { message: tierError });
 
-  const zipError = validateZips(serviceZips);
-  if (zipError) return bad(res, 400, 'service_area_invalid', { message: zipError });
+  const limits = cleanZoneLimits(zoneLimits);
+  if (limits.error) return bad(res, 400, 'zone_limits_invalid', { message: limits.error });
 
   const fields = {
     title, course_code: courseCode, starts_at: startsAt, ends_at: endsAt,
-    location, capacity, price_cents: priceCents, status,
+    location, capacity,
+    price_cents: coursePriceNow ?? priceCents,
+    status,
     pricing_tiers: pricingTiers === undefined ? undefined : JSON.stringify(pricingTiers),
-    service_zips: serviceZips === undefined
-      ? undefined
-      : (serviceZips && serviceZips.length ? JSON.stringify(normaliseZips(serviceZips)) : null),
+    zone_limits: limits.value === undefined ? undefined : storeZoneLimits(limits.value),
   };
 
   const setters = [];
@@ -810,7 +1148,7 @@ app.get('/api/admin/summary', requireAdmin, (req, res) => {
                WHERE r.status='waitlist' AND c.ends_at >= ?`)
     .get(now).n;
   const revenue = db
-    .prepare(`SELECT COALESCE(SUM(r.amount_cents),0) AS c FROM registrations r
+    .prepare(`SELECT COALESCE(SUM(r.amount_cents + r.travel_cents),0) AS c FROM registrations r
                 JOIN classes c ON c.id = r.class_id
                WHERE r.status='confirmed' AND c.ends_at >= ?`)
     .get(now).c;
@@ -900,7 +1238,8 @@ if (payments.isMock) {
     const reg = seats.findByRef(String(req.query.ref || ''));
     if (!reg) return res.status(404).send('Unknown registration.');
     const cls = seats.getClass(reg.class_id);
-    const amount = (reg.amount_cents / 100).toFixed(2);
+    // The whole booking — every seat plus the trip — not just this one row.
+    const amount = (seats.bookingTotals(reg).totalCents / 100).toFixed(2);
 
     res.type('html').send(`<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
@@ -950,7 +1289,7 @@ async function done(outcome){
  * a server from different builds announce themselves instead of failing with
  * a confusing error halfway through a booking.
  */
-const FEATURES = ['calendar', 'admin', 'groups', 'attendee-contacts', 'slots', 'travel', 'address-lookup', 'group-pricing', 'service-area'];
+const FEATURES = ['calendar', 'admin', 'groups', 'attendee-contacts', 'slots', 'travel', 'address-lookup', 'group-pricing', 'zones', 'bulk-days', 'schedules'];
 
 app.get('/health', (req, res) => {
   res.json({
@@ -1024,10 +1363,16 @@ if (require.main === module) {
   getDb();
   checkBuild();
 
+  // Repeating schedules: top the calendar up now, then on every sweep.
+  const filled = schedule.fillSchedules();
+  if (filled) console.log(`[schedules] added ${filled} days`);
+
   // Housekeeping: expire lapsed holds and move the waitlist along.
   const sweepMs = Number(process.env.SWEEP_INTERVAL_MS || 60_000);
   setInterval(() => {
     try {
+      const added = schedule.fillSchedules();
+      if (added) console.log(`[schedules] added ${added} days`);
       const r = seats.sweepExpired();
       if (r.expiredHolds || r.expiredOffers || r.promoted) {
         console.log('[sweep]', r);

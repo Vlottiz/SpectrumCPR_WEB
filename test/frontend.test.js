@@ -46,6 +46,7 @@ async function until(fn, timeoutMs = 4000) {
   process.env.PORT = String(PORT);
   process.env.PAYMENT_PROVIDER = 'mock';
   process.env.ADMIN_TOKEN = 'fe-test';
+  process.env.BUFFER_MINUTES = '90';   // the suite's figures assume 1.5h travel
 
   // Fresh database with the sample classes.
   for (const f of [process.env.DB_PATH, `${process.env.DB_PATH}-wal`, `${process.env.DB_PATH}-shm`]) {
@@ -83,22 +84,40 @@ async function until(fn, timeoutMs = 4000) {
 
   console.log('\nschedule rendering');
 
-  const loaded = await until(() => {
-    const rows = doc.querySelectorAll('#scheduleRows tr');
-    return rows.length > 1 || (rows[0] && !rows[0].textContent.includes('Loading'));
-  });
+  const loaded = await until(() => doc.querySelectorAll('#scheduleRows .sched-class').length > 0);
   check('the schedule loads from the API', loaded, `page errors: ${pageErrors.join('; ')}`);
 
-  const rows = doc.querySelectorAll('#scheduleRows tr');
+  const rows = doc.querySelectorAll('#scheduleRows .sched-class');
   check('four seeded days render', rows.length === 4, `got ${rows.length}`);
+
+  check('each date gets its own block',
+    doc.querySelectorAll('#scheduleRows .sched-day').length === 4,
+    `${doc.querySelectorAll('#scheduleRows .sched-day').length} day blocks`);
+  const weekHeads = [...doc.querySelectorAll('#scheduleRows .sched-week h3')].map((h) => h.textContent);
+  check('days are grouped under week headings',
+    weekHeads.length >= 2 && weekHeads.every((h) => /week/i.test(h)), weekHeads.join(' | '));
+  const dayBlock = doc.querySelector('#scheduleRows .sched-day .day-date')?.textContent || '';
+  check('a day block names the weekday',
+    /(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)/.test(dayBlock), dayBlock);
 
   const firstRow = rows[0]?.textContent || '';
   check('a course title appears', firstRow.includes('CPR / AED'), firstRow.slice(0, 80));
-  check('availability appears', /\d+ times? · \d+ places?/.test(firstRow.replace(/\s+/g, ' ')),
+  check('availability appears',
+    /\d+ time slots? available · \d+ seats? available/.test(firstRow.replace(/\s+/g, ' ')),
     firstRow.replace(/\s+/g, ' ').slice(0, 100));
 
   check('times render in local form, not raw UTC',
     !firstRow.includes('T16:00:00'), firstRow.slice(0, 80));
+
+  const filterButtons = doc.querySelectorAll('#courseFilter button');
+  check('a course filter is offered', filterButtons.length === 4, `${filterButtons.length} buttons`);
+  window.Booking.showCourse('HEARTSAVER');
+  const filtered = [...doc.querySelectorAll('#scheduleRows .sched-class')].map((r) => r.textContent);
+  check('filtering shows only that course',
+    filtered.length === 1 && filtered[0].includes('Heartsaver'), filtered.join(' | ').slice(0, 120));
+  window.Booking.showCourse(null);
+  check('and All brings the rest back',
+    doc.querySelectorAll('#scheduleRows .sched-class').length === 4);
 
   const nextPanel = doc.getElementById('nextClasses')?.textContent || '';
   check('the home panel fills in', nextPanel.includes('CPR / AED'), nextPanel.slice(0, 80));
@@ -109,6 +128,12 @@ async function until(fn, timeoutMs = 4000) {
   await sleep(400);
 
   check('the modal opens', doc.getElementById('bookVeil').classList.contains('open'));
+
+  doc.getElementById('bookVeil').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await sleep(100);
+  check('a click outside or Escape does not close it',
+    doc.getElementById('bookVeil').classList.contains('open'));
   check('it names the course', doc.getElementById('bookTitle').textContent === 'CPR / AED');
   check('the price shows', (doc.getElementById('bookBody').textContent || '').includes('85.00'));
   check('a solo booking is told about the surcharge',
@@ -120,8 +145,10 @@ async function until(fn, timeoutMs = 4000) {
 
   check('times load', await until(() => doc.querySelectorAll('.slot-btn').length > 0),
     doc.getElementById('slotArea')?.textContent);
-  check('a ten hour day offers 13 starts',
-    doc.querySelectorAll('.slot-btn').length === 13,
+  // 13 half-hour starts fit in ten hours, but a visit holds the trainer for
+  // 5.5: only the starts that leave room for a second visit are offered.
+  check('a ten hour day offers the 4 starts that fit two visits',
+    doc.querySelectorAll('.slot-btn').length === 4,
     `${doc.querySelectorAll('.slot-btn').length} buttons`);
   check('an address field is asked for', !!doc.getElementById('fAddress'));
 
@@ -255,7 +282,7 @@ async function until(fn, timeoutMs = 4000) {
     headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
     body: JSON.stringify({
       courseCode: 'CPR', title: 'Tiny day',
-      startsAt: '2026-11-14T16:00:00Z', endsAt: '2026-11-15T02:00:00Z',
+      startsAt: '2027-05-04T16:00:00Z', endsAt: '2027-05-05T02:00:00Z',
       capacity: 1, priceCents: 8500,
     }),
   })).json();
@@ -267,7 +294,7 @@ async function until(fn, timeoutMs = 4000) {
     body: JSON.stringify({
       name: 'Someone Else', email: 'else@example.com',
       slotStart: madeSlots.slots.find((s) => s.available).start,
-      address: '900 NE Oak St, Hillsboro OR',
+      address: '900 NE Oak St, Hillsboro OR 97124',
     }),
   });
 
@@ -636,6 +663,20 @@ async function until(fn, timeoutMs = 4000) {
   check('and the city', doc.getElementById('fCity').value === 'Hillsboro');
   check('and the state', doc.getElementById('fState').value === 'OR');
   check('and the ZIP', doc.getElementById('fZip').value === '97123');
+  check('an autofilled address shows its zone',
+    await until(() => (doc.getElementById('addrHint').textContent || '').includes('Zone 1')),
+    doc.getElementById('addrHint').textContent);
+  check('and the travel line fills in',
+    (doc.getElementById('totalLine').textContent || '').includes('Zone 1'),
+    doc.getElementById('totalLine').textContent);
+
+  // The browser's own autofill may fill the field and fire only "change".
+  const autoZip = doc.getElementById('fZip');
+  autoZip.value = '97301';
+  autoZip.dispatchEvent(new window.Event('change', { bubbles: true }));
+  check('a browser-autofilled ZIP shows its zone too',
+    await until(() => (doc.getElementById('addrHint').textContent || '').includes('Zone 2')),
+    doc.getElementById('addrHint').textContent);
 
   doc.getElementById('fAddress').value = '12';
   window.Booking._queryAddress(doc.getElementById('fAddress'));
@@ -678,95 +719,171 @@ async function until(fn, timeoutMs = 4000) {
   window.fetch = zipRealFetch;
 
 
-  console.log('\nservice area');
-
-  const geo = await (await fetch(`${BASE}/api/admin/classes`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
-    body: JSON.stringify({
-      courseCode: 'CPR', title: 'Hillsboro only',
-      startsAt: '2027-02-10T16:00:00Z', endsAt: '2027-02-11T02:00:00Z',
-      capacity: 10, priceCents: 8500,
-      serviceZips: ['97123', '97124', '97006', '97005', '97229'],
-    }),
-  })).json();
-  check('a day can be given a service area', geo.ok === true, JSON.stringify(geo));
+  console.log('\ntravel zones');
 
   window.Booking.close();
   await window.Booking.load();
   await sleep(200);
-  window.Booking.open(geo.classId);
+  window.Booking.open(1);
   await sleep(400);
 
   const areaText = doc.getElementById('areaBox')?.textContent || '';
-  check('the area is shown before booking', areaText.includes('97123'), areaText.slice(0, 120));
-  check('a long list is summarised', areaText.includes('more'), areaText.slice(0, 120));
+  check('the zone charges are shown before booking',
+    areaText.includes('Zone 3') && areaText.includes('100') && areaText.includes('50'),
+    areaText.slice(0, 160));
+  check('the total says travel waits on the ZIP',
+    (doc.getElementById('totalLine').textContent || '').includes('enter your ZIP'),
+    doc.getElementById('totalLine').textContent);
 
-  window.Booking.toggleArea();
-  await sleep(100);
-  check('the full list can be opened',
-    (doc.getElementById('areaBox').textContent || '').includes('97229'));
+  // Looked up each time: reopening the modal redraws the field.
+  const typeZip = async (zip) => {
+    const zoneZip = doc.getElementById('fZip');
+    zoneZip.value = zip;
+    zoneZip.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await sleep(500);
+  };
+  const hint = () => doc.getElementById('addrHint').textContent || '';
 
-  // A ZIP inside the area is confirmed as they type.
-  const areaZip = doc.getElementById('fZip');
-  areaZip.value = '97123';
-  areaZip.dispatchEvent(new window.Event('input', { bubbles: true }));
-  await sleep(150);
-  check('an in-area ZIP is confirmed',
-    (doc.getElementById('addrHint').textContent || '').includes('in our area'),
-    doc.getElementById('addrHint').textContent);
+  await typeZip('97113');
+  check('a nearby ZIP is told it is Zone 1 and free',
+    hint().includes('Zone 1') && hint().includes('no travel charge'), hint());
 
-  // One outside is caught immediately, not at the payment step.
-  areaZip.value = '10001';
-  areaZip.dispatchEvent(new window.Event('input', { bubbles: true }));
-  await sleep(150);
+  await typeZip('97301');
+  check('Salem is told Zone 2 and $50', hint().includes('Zone 2') && hint().includes('$50'), hint());
+  check('the travel charge joins the total',
+    (doc.getElementById('totalLine').textContent || '').includes('Zone 2')
+    && (doc.getElementById('totalLine').textContent || '').includes('143.50'),
+    doc.getElementById('totalLine').textContent);
+  check('their zone is picked out in the table',
+    (doc.querySelector('#areaBox tr.mine')?.textContent || '').includes('Zone 2'));
+
+  await typeZip('10001');
   check('an out-of-area ZIP is flagged while typing',
-    (doc.getElementById('addrHint').textContent || '').includes("don't travel"),
-    doc.getElementById('addrHint').textContent);
-  check('and it is marked as a problem',
-    doc.getElementById('addrHint').classList.contains('bad'));
+    hint().includes('outside our travel area'), hint());
+  check('and it is marked as a problem', doc.getElementById('addrHint').classList.contains('bad'));
 
   // ...and refused on submit.
-  await until(() => doc.querySelectorAll('.slot-btn:not([disabled])').length > 0);
-  doc.querySelector('.slot-btn:not([disabled])').click();
+  await until(() => doc.querySelectorAll('.slot-btn').length > 0);
+  doc.querySelector('.slot-btn').click();
   await sleep(80);
   doc.getElementById('fName0').value = 'Out Of Area';
   doc.getElementById('fEmail').value = 'out@example.com';
   doc.getElementById('fAddress').value = '1 Times Square';
   doc.getElementById('fCity').value = 'New York';
   doc.getElementById('fState').value = 'NY';
-  doc.getElementById('fZip').value = '10001';
   window.Booking.hold();
   await sleep(300);
   check('booking outside the area is refused',
-    (doc.getElementById('bookErr').textContent || '').includes("don't travel"),
+    (doc.getElementById('bookErr').textContent || '').includes('outside our travel area'),
     doc.getElementById('bookErr').textContent);
 
-  const stillFree = await (await fetch(`${BASE}/api/classes/${geo.classId}/slots`)).json();
-  check('and nothing was reserved',
-    stillFree.slots.every((s) => s.available || s.reason === 'past'),
-    'a slot was held for a refused booking');
-
-  // The same booking inside the area works.
-  doc.getElementById('fZip').value = '97123';
-  doc.getElementById('fCity').value = 'Hillsboro';
+  // A Zone 3 booking pays $100 on top, once.
+  await typeZip('97031');
+  doc.getElementById('fCity').value = 'Hood River';
   doc.getElementById('fState').value = 'OR';
-  doc.getElementById('fAddress').value = '1200 SW Main St';
+  doc.getElementById('fAddress').value = '100 Oak St';
+  await until(() => doc.querySelectorAll('.slot-btn').length > 0);
+  doc.querySelector('.slot-btn').click();
+  await sleep(80);
   window.Booking.hold();
-  check('an in-area booking goes through',
+  check('a Zone 3 booking goes through',
     await until(() => doc.getElementById('holdClock')),
     doc.getElementById('bookErr')?.textContent);
+  const payStep = doc.getElementById('bookBody').textContent || '';
+  check('the payment step itemises the travel charge',
+    payStep.includes('Zone 3') && payStep.includes('$100.00'), payStep.slice(0, 300));
+  // 85.00 + 10% solo rate = 93.50, plus 100 travel.
+  check('and charges it in the total', payStep.includes('$193.50'), payStep.slice(0, 300));
 
-  console.log('\nunrestricted days');
+  console.log('\ntrips per zone per day');
+
+  // A day that only goes into Zone 3 once.
+  const limited = await (await fetch(`${BASE}/api/admin/classes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
+    body: JSON.stringify({
+      courseCode: 'CPR', title: 'One coast trip',
+      startsAt: '2027-02-10T16:00:00Z', endsAt: '2027-02-11T02:00:00Z',
+      capacity: 10, priceCents: 8500, zoneLimits: { 3: 1 },
+    }),
+  })).json();
+  // And another CPR day it can point them to instead.
+  await fetch(`${BASE}/api/admin/classes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
+    body: JSON.stringify({
+      courseCode: 'CPR', title: 'CPR / AED',
+      startsAt: '2027-02-12T16:00:00Z', endsAt: '2027-02-13T02:00:00Z',
+      capacity: 10, priceCents: 8500, zoneLimits: { 3: 1 },
+    }),
+  });
+  const limitedSlots = await (await fetch(`${BASE}/api/classes/${limited.classId}/slots`)).json();
+  const first = await (await fetch(`${BASE}/api/classes/${limited.classId}/hold`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Coast One', email: 'coast@example.com',
+      slotStart: limitedSlots.slots[0].start,
+      address: '1 Beach Rd, Otis, OR 97368', zip: '97368',
+    }),
+  })).json();
+  check('the first Zone 3 trip books', first.ok === true, JSON.stringify(first).slice(0, 120));
 
   window.Booking.close();
   await window.Booking.load();
   await sleep(200);
-  window.Booking.open(1);           // seeded day, no ZIP list
+  window.Booking.open(limited.classId);
   await sleep(400);
-  check('a day with no list says it travels anywhere',
-    (doc.getElementById('areaBox').textContent || '').includes('anywhere'),
-    doc.getElementById('areaBox').textContent);
+  await typeZip('97031');
+
+  check('a second Zone 3 customer is told the day is taken for their zone',
+    hint().includes('already booked for Zone 3'), hint());
+  check('no times are offered to them',
+    await until(() => doc.querySelectorAll('.slot-btn').length === 0)
+    && (doc.getElementById('slotArea').textContent || '').includes('Zone 3'),
+    doc.getElementById('slotArea').textContent.slice(0, 120));
+  check('other days are suggested',
+    await until(() => (doc.getElementById('slotArea').textContent || '').includes('Other days we can come to')),
+    doc.getElementById('slotArea').textContent.slice(0, 200));
+
+  await typeZip('97113');
+  check('a Zone 1 customer still sees times that day',
+    await until(() => doc.querySelectorAll('.slot-btn').length > 0),
+    doc.getElementById('slotArea').textContent.slice(0, 120));
+
+  const direct = await (await fetch(`${BASE}/api/classes/${limited.classId}/hold`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Coast Two', email: 'coast2@example.com',
+      slotStart: limitedSlots.slots[12].start,
+      address: '5 River Rd, Hood River, OR 97031', zip: '97031',
+    }),
+  })).json();
+  check('the server refuses a second Zone 3 trip too', direct.reason === 'zone_full',
+    JSON.stringify(direct).slice(0, 120));
+
+  console.log('\nonly open times are shown');
+
+  const halfBooked = await (await fetch(`${BASE}/api/classes/${limited.classId}/slots`)).json();
+  const openCount = halfBooked.slots.filter((s) => s.available).length;
+  check('booked times are left out, not crossed out',
+    doc.querySelectorAll('.slot-btn').length === openCount
+    && doc.querySelectorAll('.slot-btn[disabled]').length === 0,
+    `${doc.querySelectorAll('.slot-btn').length} buttons for ${openCount} open times`);
+
+  console.log('\ncourse prices');
+
+  await fetch(`${BASE}/api/admin/courses/CPR/price`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
+    body: JSON.stringify({ priceCents: 9900 }),
+  });
+  await window.Booking.load();
+  check('a price change shows on the courses page',
+    await until(() => [...doc.querySelectorAll('[data-price="CPR"]')].every((el) => el.textContent === '$99')),
+    [...doc.querySelectorAll('[data-price="CPR"]')].map((el) => el.textContent).join(','));
+  check('and in the schedule data', (await (await fetch(`${BASE}/api/classes`)).json())
+    .classes.filter((c) => c.courseCode === 'CPR').every((c) => c.priceCents === 9900));
 
   console.log(`\n${passed} passed, ${failed} failed`);
   if (pageErrors.length) console.log(`page errors: ${pageErrors.join('; ')}`);

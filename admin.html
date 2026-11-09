@@ -29,7 +29,7 @@
   .brand{font-family:var(--cond);font-weight:700;font-size:23px;margin-right:auto;letter-spacing:.01em}
   .brand span{display:block;font-family:var(--sans);font-size:10.5px;font-weight:600;letter-spacing:.2em;color:var(--ink-soft)}
 
-  .btn{font:inherit;font-weight:600;font-size:14.5px;padding:9px 16px;border:0;border-radius:2px;cursor:pointer;background:var(--red);color:#fff;font-family:var(--sans)}
+  .btn{font:inherit;font-weight:600;font-size:14.5px;padding:9px 16px;border:0;border-radius:2px;cursor:pointer;background:var(--red);color:#fff;font-family:var(--sans);white-space:nowrap}
   .btn:hover{background:var(--red-dark)}
   .btn:disabled{opacity:.5;cursor:not-allowed}
   .btn-ghost{background:none;border:1.5px solid var(--ink);color:var(--ink)}
@@ -107,19 +107,162 @@
   .tier-preview{font-size:13px;color:var(--ink-soft);margin:0 0 14px}
   .tier-preview b{color:var(--ink);font-family:var(--cond);font-size:15px}
 
-  /* service area */
-  .zip-box{border:1.5px solid var(--rule);padding:11px 12px;margin:0 0 6px;
-    display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:46px;
-    background:var(--paper)}
-  .zip-chip{background:var(--paper-2);border:1px solid var(--rule);border-radius:2px;
-    padding:3px 7px;font-size:13.5px;font-family:ui-monospace,Menlo,Consolas,monospace;
-    display:inline-flex;align-items:center;gap:5px}
-  .zip-chip button{background:none;border:0;cursor:pointer;color:var(--ink-soft);
-    font-size:15px;line-height:1;padding:0}
-  .zip-chip button:hover{color:var(--red)}
-  .zip-box input{border:0;outline:0;margin:0;padding:3px 2px;width:96px;
-    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;background:none}
-  .zip-note{font-size:12.5px;color:var(--ink-soft);margin:0 0 14px}
+  /* travel zones */
+  .zones{border:1.5px solid var(--rule);margin:0 0 6px}
+  .zone-row{display:grid;grid-template-columns:1fr 110px;gap:0 12px;align-items:center;
+    padding:9px 12px;border-bottom:1px solid var(--rule)}
+  .zone-row:last-child{border-bottom:0}
+  .zone-row b{font-family:var(--cond);font-size:16px}
+  .zone-row span{display:block;font-size:12.5px;color:var(--ink-soft)}
+  .zone-row input{margin:0;padding:7px 8px;font-size:14px}
+  .zone-note{font-size:12.5px;color:var(--ink-soft);margin:0 0 14px}
+
+  /* schedule, time off and notice panels */
+  .panels{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:14px;margin:0 0 30px}
+  .price-row{display:grid;grid-template-columns:1fr 92px;gap:8px;align-items:center;
+    padding:5px 0;font-size:13.5px}
+  .price-row input{margin:0;padding:7px 8px}
+  /* trainers per day, in each week heading */
+  /* ---- training days, laid out like the customer's schedule ---- */
+  .days{margin-top:6px}
+  .a-week{margin:0 0 34px}
+  .week-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+    padding-bottom:8px;border-bottom:1.5px solid var(--ink);margin:0 0 4px}
+  .week-head h3{font-family:var(--sans);font-size:14px;font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-soft);margin:0}
+  .week-head .btn{padding:5px 12px;font-size:13px}
+  .a-day{display:grid;grid-template-columns:120px 1fr;gap:0 22px;padding:16px 0;
+    border-bottom:1px solid var(--rule)}
+  .a-date b{display:block;font-family:var(--cond);font-size:15px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);line-height:1.15}
+  .a-date .big{display:block;font-family:var(--cond);font-size:28px;font-weight:700;line-height:1.1}
+  .a-date.past{opacity:.55}
+
+  /* trainers, right under the date */
+  .tday{margin-top:10px;padding:7px 8px;border:1.5px solid var(--rule);border-radius:3px;
+    background:var(--paper);width:max-content;min-width:104px}
+  .tday small{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--ink-soft)}
+  .tday .mini{display:flex;align-items:center;gap:2px;margin-top:3px}
+  .tday .mini button{background:none;border:1.5px solid var(--rule);border-radius:2px;width:30px;height:30px;
+    font:inherit;font-size:18px;font-weight:700;line-height:1;color:var(--ink);cursor:pointer;padding:0}
+  .tday .mini button:hover:not(:disabled){border-color:var(--ink)}
+  .tday .mini button:disabled{opacity:.3;cursor:not-allowed}
+  .tday b{font-family:var(--cond);font-size:24px;font-weight:700;min-width:30px;text-align:center;line-height:1}
+  .tday em{display:block;font-style:normal;font-size:11.5px;font-weight:600;margin-top:4px}
+  .tday.more{border-color:var(--blue);background:color-mix(in srgb, var(--blue) 12%, var(--paper))}
+  .tday.more b, .tday.more em{color:var(--blue)}
+  .tday.none{border-color:var(--red);background:color-mix(in srgb, var(--red) 10%, var(--paper))}
+  .tday.none b, .tday.none em{color:var(--red)}
+
+  /* one course on a day */
+  .day-row{border-left:4px solid var(--rule);padding:6px 0 6px 14px;margin:0 0 14px}
+  .day-row:last-child{margin-bottom:0}
+  .day-row.cancelled .what, .day-row.cancelled .avail{text-decoration:line-through;opacity:.55}
+  .day-row.past{opacity:.55}
+  .day-top{display:grid;grid-template-columns:1fr auto auto;gap:6px 20px;align-items:center}
+  .day-top .what b{font-size:16px;font-weight:600}
+  .day-top .hours{display:block;font-size:14px;color:var(--ink-soft);margin-top:2px}
+  .day-top .avail{text-align:right;font-size:14px;font-weight:600}
+  .day-top .avail .sub{display:block;font-size:12.5px;font-weight:400;color:var(--ink-soft);margin-top:2px}
+  .day-top .acts{display:flex;gap:6px}
+  .day-row .visit-list{margin-top:12px}
+  @media (max-width:700px){
+    .a-day{grid-template-columns:1fr;gap:10px}
+    .a-date{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .a-date .big{font-size:24px}
+    .tday{margin:0 0 0 auto;display:flex;align-items:center;gap:8px}
+    .tday .mini{margin:0}
+    .tday em{margin:0}
+    .day-top{grid-template-columns:1fr}
+    .day-top .avail{text-align:left}
+    .day-top .acts .btn{flex:1;padding:9px}
+  }
+
+  /* the week's trainers, one stepper per day */
+  .steps{border:1.5px solid var(--rule);margin:0 0 14px}
+  .step-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;
+    padding:9px 12px;border-bottom:1px solid var(--rule)}
+  .step-row:last-child{border-bottom:0}
+  .step-row.all{background:var(--paper-2)}
+  .step-row .day b{display:block;font-size:15px}
+  .step-row .day span{font-size:12.5px;color:var(--ink-soft)}
+  .step-row .day span.none{color:var(--red);font-weight:600}
+  .step-row .day span.more{color:var(--blue);font-weight:600}
+  .stepper{display:flex;align-items:center;border:1.5px solid var(--rule);border-radius:2px}
+  .stepper button{background:none;border:0;font:inherit;font-size:20px;font-weight:600;
+    width:40px;height:38px;cursor:pointer;color:var(--ink);line-height:1}
+  .stepper button:disabled{opacity:.3;cursor:not-allowed}
+  .stepper output{font-family:var(--cond);font-size:20px;font-weight:700;min-width:34px;
+    text-align:center;border-left:1px solid var(--rule);border-right:1px solid var(--rule);line-height:38px}
+  .panel{border:1px solid var(--rule);padding:15px 17px}
+  .panel h3{font-family:var(--cond);font-size:19px;margin:0 0 8px}
+  .panel p{margin:0}
+  .panel select{margin:0}
+  .sched-item{border-left:4px solid var(--green);padding:4px 0 4px 11px;margin:0 0 12px}
+  .sched-item:last-child{margin-bottom:0}
+  .sched-item.paused{border-left-color:var(--rule);opacity:.7}
+  .sched-item b{display:block;font-size:14.5px}
+  .sched-item span{display:block;font-size:13px;color:var(--ink-soft)}
+  .row-btns{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+  .off-item{display:flex;justify-content:space-between;align-items:center;gap:8px;
+    padding:6px 0;border-bottom:1px solid var(--rule);font-size:14px}
+  .off-item:last-child{border-bottom:0}
+  .off-item .x{font-size:20px}
+  .repeat-tag{font-size:11px;color:var(--ink-soft);white-space:nowrap}
+  .wk-row.crs-row{grid-template-columns:1fr 1fr 110px}
+  @media (max-width:1100px){ .panels{grid-template-columns:1fr 1fr} }
+  @media (max-width:600px){ .panels{grid-template-columns:1fr} }
+
+  /* one day or weekly hours */
+  .mode{display:flex;gap:0;margin:0 0 16px;border:1.5px solid var(--ink);width:max-content}
+  .mode button{font:inherit;font-weight:600;font-size:14px;padding:8px 14px;border:0;
+    background:none;color:var(--ink);cursor:pointer}
+  .mode button.on{background:var(--ink);color:var(--paper)}
+  .week{border:1.5px solid var(--rule);margin:0 0 8px}
+  .wk-row{display:grid;grid-template-columns:110px 1fr 1fr;gap:0 10px;align-items:center;
+    padding:7px 11px;border-bottom:1px solid var(--rule)}
+  .wk-row:last-child{border-bottom:0}
+  .wk-row label{margin:0;display:flex;gap:8px;align-items:center;font-size:14.5px;cursor:pointer}
+  .wk-row label input{width:auto;margin:0}
+  .wk-row input[type=time]{margin:0;padding:6px 8px;font-size:14px}
+  .wk-row.off input[type=time]{opacity:.35}
+  .wk-preview{font-size:13px;color:var(--ink-soft);margin:0 0 16px}
+  .wk-preview b{color:var(--ink)}
+
+  /* week headings in the day table */
+  /* the day's visits, listed under its row */
+  .visit-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .visit-list li{display:grid;grid-template-columns:150px 1fr auto;gap:4px 16px;align-items:center;
+    background:var(--paper-2);border:1px solid var(--rule);border-left:5px solid var(--blue);
+    padding:11px 14px;border-radius:3px}
+  .visit-list li.next{border-left-color:var(--green);
+    box-shadow:0 0 0 1px color-mix(in srgb, var(--green) 45%, transparent)}
+  .visit-list .when{font-family:var(--cond);font-size:20px;font-weight:700;line-height:1.1;white-space:nowrap}
+  .visit-list .when small{display:block;font-family:var(--sans);font-size:11px;font-weight:700;
+    letter-spacing:.08em;color:var(--ink-soft);margin-bottom:2px}
+  .visit-list li.next .when small{color:var(--green)}
+  .visit-list .where{font-size:15.5px;font-weight:600;line-height:1.3}
+  .visit-list .where a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule);
+    text-underline-offset:3px}
+  .visit-list .where a:hover{text-decoration-color:var(--ink)}
+  .visit-list .who{display:block;font-size:13.5px;color:var(--ink-soft);margin-top:3px}
+  .visit-list .tags{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .vtag{font-size:12px;font-weight:700;padding:3px 8px;border-radius:2px;white-space:nowrap;color:#fff}
+  .vtag.z1{background:var(--green)}
+  .vtag.z2{background:var(--amber);color:#2d2400}
+  .vtag.z3{background:var(--red)}
+  .vtag.paid{background:none;color:var(--green);border:1.5px solid var(--green)}
+  .vtag.unpaid{background:none;color:var(--amber);border:1.5px solid var(--amber)}
+  @media (max-width:820px){
+    .visit-list li{grid-template-columns:1fr}
+    .visit-list .tags{justify-content:flex-start}
+  }
+
+  @media (max-width:700px){
+    .head-row{flex-wrap:wrap}
+    .head-row .btn{width:100%}
+  }
 
   .roster-row{display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--rule);font-size:14px}
   .roster-row:last-child{border-bottom:0}
@@ -150,6 +293,8 @@
   .visit .roster-row{padding:8px 13px;border-bottom:1px solid var(--rule)}
   .visit .roster-row:last-child{border-bottom:0}
   .visit-meta{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
+  .zone-tag{font-size:11px;font-weight:600;padding:1px 6px;border-radius:2px;
+    background:var(--blue);color:#fff;margin-right:4px}
 
   .pill{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:2px;white-space:nowrap}
   .p-confirmed{background:var(--green);color:#fff}
@@ -157,6 +302,20 @@
   .p-offered{background:var(--blue);color:#fff}
   .p-waitlist{background:var(--paper-2);color:var(--ink-soft);border:1px solid var(--rule)}
 
+  /* guided tour */
+  .tour{position:fixed;inset:0;z-index:90}
+  .tour[hidden]{display:none}
+  .tour-spot{position:fixed;border-radius:4px;pointer-events:none;
+    box-shadow:0 0 0 3px var(--red), 0 0 0 9999px rgba(8,10,14,.68);transition:all .25s ease}
+  .tour-spot.none{box-shadow:0 0 0 9999px rgba(8,10,14,.68);width:0;height:0}
+  .tour-card{position:fixed;width:min(380px, calc(100vw - 24px));background:var(--paper);
+    border:1.5px solid var(--ink);padding:16px 18px;box-shadow:0 10px 30px rgba(0,0,0,.35);
+    transition:top .25s ease, left .25s ease}
+  .tour-card h3{font-family:var(--cond);font-size:21px;margin:2px 0 6px}
+  .tour-card p{margin:0 0 14px;font-size:14.5px;line-height:1.5}
+  .tour-step{font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--red);text-transform:uppercase}
+  .tour-btns{display:flex;gap:8px;align-items:center}
+  @media (prefers-reduced-motion:reduce){ .tour-spot,.tour-card{transition:none} }
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);
     color:var(--paper);padding:11px 20px;border-radius:2px;font-size:14.5px;font-weight:600;
     z-index:80;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -166,6 +325,22 @@
     .stats{grid-template-columns:repeat(2,1fr)}
     .two{grid-template-columns:1fr}
     .hide-sm{display:none}
+    .wk-row{grid-template-columns:76px 1fr 1fr;padding:7px 9px;gap:0 7px}
+    .wrap{padding:0 16px}
+    .bar{gap:10px}
+    .stat{padding:12px 14px}
+    .stat b{font-size:26px}
+    .veil{padding:12px 8px}
+    .box-body{padding:16px}
+    .tier,.tier-head{grid-template-columns:44px 44px 56px 1fr 24px;gap:0 6px;padding-left:8px;padding-right:8px}
+    /* The reason gets its own full-width line instead of a sliver. */
+    .tier{grid-template-columns:1fr 1fr 1fr 28px;gap:6px}
+    .tier textarea{grid-column:1 / -1;grid-row:2}
+    .tier-head{grid-template-columns:1fr 1fr 1fr 28px}
+    .tier-head span:nth-child(4){display:none}
+    .zone-row{grid-template-columns:1fr 92px}
+    /* 16px or larger stops iPhones zooming the page when a field is tapped. */
+    input,select,textarea,.tier input,.tier textarea,.zone-row input,.wk-row input[type=time]{font-size:16px}
   }
 </style>
 </head>
@@ -190,6 +365,7 @@
 <header id="topbar" style="display:none">
   <div class="wrap bar">
     <div class="brand">SPECTRUM<span>ADMIN</span></div>
+    <button class="btn btn-ghost btn-sm" id="tourBtn" onclick="Admin.tour()">Tour</button>
     <button class="btn btn-ghost btn-sm" onclick="Admin.toggleTheme()">Theme</button>
     <button class="btn btn-ghost btn-sm" onclick="Admin.logout()">Sign out</button>
   </div>
@@ -199,31 +375,53 @@
   <div class="wrap">
     <div class="stats" id="stats"></div>
 
+    <div class="panels">
+      <section class="panel" id="panelSchedule">
+        <h3>Repeating schedule</h3>
+        <div id="schedList"><p class="muted">Loading…</p></div>
+      </section>
+      <section class="panel" id="panelTimeOff">
+        <h3>Time off</h3>
+        <div id="offList"><p class="muted">Loading…</p></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="Admin.newTimeOff()">Add time off</button>
+      </section>
+      <section class="panel" id="panelRules">
+        <h3>Booking rules</h3>
+        <label for="notice" style="font-weight:400;color:var(--ink-soft)">How far ahead customers must book</label>
+        <select id="notice" aria-label="Minimum booking notice" onchange="Admin.setNotice(this.value)"></select>
+        <label for="travel" style="font-weight:400;color:var(--ink-soft);margin-top:12px">
+          Travel time between visits</label>
+        <select id="travel" onchange="Admin.setTravel(this.value)"></select>
+        <label for="trainersDefault" style="font-weight:400;color:var(--ink-soft);margin-top:12px">
+          Trainers on a normal day</label>
+        <select id="trainersDefault" onchange="Admin.setDefaultTrainers(this.value)"></select>
+        <p class="muted" style="font-size:12.5px;margin-top:6px">Someone joining or calling
+          out? Use <b>−</b> and <b>+</b> under that date below.</p>
+      </section>
+      <section class="panel" id="panelPrices">
+        <h3>Course prices</h3>
+        <p class="muted" style="font-size:13px;margin-bottom:8px">Per person, the same every
+          week. A change applies to every upcoming day at once; people already
+          booked keep what they paid.</p>
+        <div id="priceList"></div>
+      </section>
+    </div>
+
     <div class="head-row">
       <div>
         <h2>Training days</h2>
         <p class="sub">Each row is a day you're available and the hours you'll work.
-          Customers book two-hour sessions inside that window at their own address.</p>
+          Customers can only pick start times inside those hours.</p>
       </div>
-      <button class="btn" onclick="Admin.newClass()">Add a day</button>
+      <button class="btn" id="addDaysBtn" onclick="Admin.newClass()">Add days</button>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th><th>Course</th><th class="hide-sm">Hours</th>
-          <th>Booked</th><th class="hide-sm">People</th><th class="hide-sm">Waitlist</th>
-          <th class="hide-sm">Area</th><th class="hide-sm">Price</th><th></th>
-        </tr>
-      </thead>
-      <tbody id="rows">
-        <tr><td colspan="9" class="muted">Loading…</td></tr>
-      </tbody>
-    </table>
+    <div id="rows" class="days"><p class="muted">Loading…</p></div>
   </div>
 </main>
 
-<div class="veil" id="veil" onclick="if(event.target.id==='veil')Admin.closeBox()">
+<!-- Closes only from its × button, so a stray click outside can't lose a half-filled form. -->
+<div class="veil" id="veil">
   <div class="box">
     <div class="box-head">
       <h3 id="boxTitle">—</h3>
@@ -235,11 +433,36 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- guided tour: a spotlight on one part of the page and a card explaining it -->
+<div id="tour" class="tour" hidden>
+  <div class="tour-spot" id="tourSpot"></div>
+  <div class="tour-card" id="tourCard" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+    <div class="tour-step" id="tourStep"></div>
+    <h3 id="tourTitle"></h3>
+    <p id="tourText"></p>
+    <div class="tour-btns">
+      <button class="btn btn-ghost btn-sm" id="tourSkip" onclick="Admin.endTour()">Skip tour</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-ghost btn-sm" id="tourBack" onclick="Admin.tourStep(-1)">Back</button>
+      <button class="btn btn-sm" id="tourNext" onclick="Admin.tourStep(1)">Next</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const Admin = (() => {
   const API = window.BOOKING_API_BASE || '';
   let token = null;
   let classes = [];
+  let sessionMinutes = 240;   // replaced by the server's figure once the list loads
+
+  // Matches ZONES in src/zones.js.
+  const ZONES = [
+    { zone: 1, label: '0 – 25 miles',      fee: 'no travel charge' },
+    { zone: 2, label: '25.01 – 50 miles',  fee: '$50 travel charge' },
+    { zone: 3, label: '50.01 – 90 miles',  fee: '$100 travel charge' },
+  ];
+  const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   // ------------------------------------------------------------- utilities
 
@@ -335,7 +558,197 @@ const Admin = (() => {
     $('gate').style.display = 'none';
     $('topbar').style.display = '';
     $('app').classList.add('on');
-    refresh();
+    refresh().then(() => {
+      let seen = true;
+      try { seen = Boolean(localStorage.getItem(TOUR_SEEN)); } catch { /* private window */ }
+      if (!seen) tour();
+    });
+  }
+
+  // ---------------------------------------------------------------- tour
+
+  /**
+   * A short guided tour of the page. Each step points at one part of it and
+   * says, in plain words, what it's for. Steps whose part isn't on the page
+   * (no days yet, say) are skipped.
+   */
+  const TOUR = [
+    { el: null, title: 'Welcome',
+      text: 'This quick tour shows where everything is. It takes about a minute. '
+          + 'You can run it again any time with the Tour button at the top.' },
+    { el: '#stats', title: 'Your numbers',
+      text: 'Upcoming days, people booked, people waiting, and the money expected from upcoming classes.' },
+    { el: '#addDaysBtn', title: 'Add days',
+      text: 'Set your hours and courses here. Choose "Keep repeating" and the calendar fills itself '
+          + 'every week — you only come back to change something.' },
+    { el: '#panelSchedule', title: 'Repeating schedule',
+      text: 'Your weekly hours, once set. Edit them, pause them for a while, or delete them here.' },
+    { el: '#panelTimeOff', title: 'Time off',
+      text: 'Vacation or a day off? Add the dates. Nothing can be booked on them, and anyone already '
+          + 'booked is listed so you can contact them.' },
+    { el: '#panelRules', title: 'Booking rules',
+      text: 'How far ahead customers must book, how long you need to drive between visits, '
+          + 'and how many trainers work on a normal day.' },
+    { el: '#panelPrices', title: 'Course prices',
+      text: 'One price per person for each course, the same every week. Change it here and every '
+          + 'upcoming day updates. People already booked keep what they paid.' },
+    { el: '.a-day', title: 'Your days',
+      text: 'Each date is listed with the classes that run on it, just like customers see it.' },
+    { el: '.tday[data-day]', title: 'Trainers that day',
+      text: 'How many people are teaching that date. Use − and + if someone joins or calls out. '
+          + 'Set it to 0 and the day stops taking bookings.' },
+    { el: '.week-head button[data-week]', title: 'A whole week at once',
+      text: 'Change the trainers for every day of that week in one go.' },
+    { el: '.day-row .acts', title: 'Roster and Edit',
+      text: 'Roster shows who’s booked, where to drive and who has paid — and lets you mark cash '
+          + 'payments or remove someone. Edit changes that day’s hours or cancels it.' },
+    { el: '.visit-list li', title: 'Booked visits',
+      text: 'Each booking: when, the address (tap it for directions), the travel zone and whether '
+          + 'it’s paid. The next one is marked NEXT UP in green.' },
+    { el: '#tourBtn', title: 'That’s it',
+      text: 'Most weeks you’ll only glance at your days and adjust trainers. '
+          + 'Press Tour any time to see this again.' },
+  ];
+  const TOUR_SEEN = 'spectrum_admin_tour_seen';
+
+  /** The Add days form, one choice at a time. */
+  const FORM_TOUR = [
+    { el: null, title: 'Adding your days',
+      text: 'Four choices: which courses, which days and hours, for how long, and how many '
+          + 'people. This walks through each one — about a minute.' },
+    { el: '#courseList', title: 'Which courses',
+      text: 'Tick every course you’ll teach in these hours. Prices come from Course prices on '
+          + 'the main page, so every week is the same.' },
+    { el: '.box .mode', title: 'Weekly hours or one day',
+      text: 'Weekly hours is for your regular week. One day is for a one-off date — '
+          + 'just pick the date and the hours.' },
+    { el: '#weekWhen', title: 'Starting, and for how long',
+      text: 'Pick the first day. "Keep repeating" is the hands-off choice: new days are added by '
+          + 'themselves every week. Or choose a set number of weeks.' },
+    { el: '#aheadRow', title: 'How far ahead people can book',
+      text: 'How many weeks of days stay open for booking. 8 weeks is a good start.' },
+    { el: '#week', title: 'Your open hours',
+      text: 'Tick the days you work and set the hours. A day needs at least 4 hours for one class. '
+          + 'Customers never see times outside these hours.' },
+    { el: '#wkPreview', title: 'Check before saving',
+      text: 'This line says exactly what will be added, so you can catch a mistake first.' },
+    { el: '#capRow', title: 'How many people',
+      text: 'The most people you’ll take for each course on one day — think manikins, cards and energy.' },
+    { el: '#tiers', title: 'Group prices',
+      text: 'Smaller groups pay a bit more, bigger groups a bit less. Leave these as they are unless '
+          + 'you want to change the discounts. Customers see the reason you write.' },
+    { el: '.box .zones', title: 'Trips per zone',
+      text: 'Optional. For example 1 in Zone 3, so you’re never sent to two far-apart Zone 3 '
+          + 'visits on the same day. Leave blank for no limit.' },
+    { el: '#saveBtn', title: 'Save',
+      text: 'That’s it. With "Keep repeating" this starts your schedule — you can edit or pause it '
+          + 'later from Repeating schedule on the main page.' },
+  ];
+  const FORM_TOUR_SEEN = 'spectrum_admin_adddays_tour_seen';
+  let tourSeenKey = TOUR_SEEN;
+
+  let tourSteps = [];
+  let tourAt = 0;
+
+  /** The steps whose part is actually on the page right now. */
+  const visible = (sel) => {
+    if (!sel) return true;
+    const el = document.querySelector(sel);
+    if (!el || el.closest('[hidden]')) return false;
+    // Inside a part switched off on the form (weekly fields in One day mode).
+    if (el.closest('[style*="display:none"], [style*="display: none"]')) return false;
+    // No layout at all (a test harness): being on the page is enough.
+    if (!document.body.getClientRects().length) return true;
+    return el.getClientRects().length > 0;
+  };
+
+  function tour(){
+    closeBox();
+    runTour(TOUR, TOUR_SEEN);
+  }
+
+  /** The Add days tour, over the open form. */
+  function formTour(){
+    runTour(FORM_TOUR, FORM_TOUR_SEEN);
+  }
+
+  function runTour(steps, seenKey){
+    tourSteps = steps.filter((t) => visible(t.el));
+    tourSeenKey = seenKey;
+    tourAt = 0;
+    $('tour').hidden = false;
+    document.addEventListener('keydown', tourKeys);
+    window.addEventListener('resize', placeTour);
+    window.addEventListener('scroll', placeTour, true);
+    showTourStep();
+  }
+
+  function endTour(){
+    $('tour').hidden = true;
+    document.removeEventListener('keydown', tourKeys);
+    window.removeEventListener('resize', placeTour);
+    window.removeEventListener('scroll', placeTour, true);
+    try { localStorage.setItem(tourSeenKey, '1'); } catch { /* private window */ }
+  }
+
+  function tourStep(delta){
+    const next = tourAt + delta;
+    if (next >= tourSteps.length) return endTour();
+    tourAt = Math.max(0, next);
+    showTourStep();
+  }
+
+  function tourKeys(e){
+    if (e.key === 'Escape') endTour();
+    else if (e.key === 'ArrowRight') tourStep(1);
+    else if (e.key === 'ArrowLeft') tourStep(-1);
+  }
+
+  function showTourStep(){
+    const step = tourSteps[tourAt];
+    $('tourStep').textContent = `Step ${tourAt + 1} of ${tourSteps.length}`;
+    $('tourTitle').textContent = step.title;
+    $('tourText').textContent = step.text;
+    $('tourBack').style.visibility = tourAt === 0 ? 'hidden' : '';
+    $('tourNext').textContent = tourAt === tourSteps.length - 1 ? 'Done' : 'Next';
+    $('tourSkip').style.visibility = tourAt === tourSteps.length - 1 ? 'hidden' : '';
+    const el = step.el && document.querySelector(step.el);
+    if (el) el.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    // Let the scroll settle before measuring.
+    setTimeout(placeTour, el ? 320 : 0);
+    $('tourNext').focus?.();
+  }
+
+  /** Put the spotlight round the step's part and the card beside it. */
+  function placeTour(){
+    if ($('tour').hidden) return;
+    const step = tourSteps[tourAt];
+    const spot = $('tourSpot');
+    const card = $('tourCard');
+    const el = step && step.el && document.querySelector(step.el);
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const cw = card.offsetWidth || 360, ch = card.offsetHeight || 180;
+
+    if (!el){
+      spot.className = 'tour-spot none';
+      spot.style.cssText = `left:${vw / 2}px;top:${vh / 2}px`;
+      card.style.left = `${Math.max(12, (vw - cw) / 2)}px`;
+      card.style.top = `${Math.max(12, (vh - ch) / 2)}px`;
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    const pad = 6;
+    spot.className = 'tour-spot';
+    spot.style.cssText = `left:${r.left - pad}px;top:${r.top - pad}px;`
+      + `width:${r.width + pad * 2}px;height:${r.height + pad * 2}px`;
+
+    // Below the part if it fits, otherwise above, otherwise pinned to the bottom.
+    let top = r.bottom + pad + 12;
+    if (top + ch > vh - 12) top = r.top - pad - 12 - ch;
+    if (top < 12) top = vh - ch - 12;
+    const left = Math.min(Math.max(12, r.left), vw - cw - 12);
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
   }
 
   // ------------------------------------------------------------- dashboard
@@ -344,6 +757,7 @@ const Admin = (() => {
     const [{ data: sum }, { data: list }] = await Promise.all([
       api('/api/admin/summary'),
       api('/api/admin/classes'),
+      loadSchedules(),
     ]);
 
     if (sum.ok){
@@ -356,47 +770,308 @@ const Admin = (() => {
 
     if (!list.ok){
       $('rows').innerHTML =
-        '<tr><td colspan="9" class="muted">Could not load classes. ' +
-        'The server may need updating — restart it with the latest src/server.js.</td></tr>';
+        '<p class="muted">Could not load classes. ' +
+        'The server may need updating — restart it with the latest src/server.js.</p>';
       return;
     }
     classes = list.classes;
+    if (list.sessionMinutes) sessionMinutes = list.sessionMinutes;
     const now = Date.now();
 
-    $('rows').innerHTML = classes.length ? classes.map((c) => {
-      const past = new Date(c.endsAt).getTime() < now;
-      const cls = c.status === 'cancelled' ? 'cancelled' : (past ? 'past' : '');
-      const seatClass = c.available === 0 ? 'low' : 'ok';
+    $('rows').innerHTML = classes.length ? renderDays(classes, now)
+      : '<p class="muted">No training days yet. Use <b>Add days</b> to get started.</p>';
+  }
+
+  /** "This week · Nov 9 – Nov 15", "Next week · …", or "Week of …". */
+  function weekLabel(monday){
+    const d = new Date();
+    const thisMonday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+    const weeks = Math.round((monday - thisMonday) / (7 * 86400000));
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    const md = (x) => x.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+    const span = `${md(monday)} – ${md(sunday)}`;
+    if (weeks === 0) return `This week · ${span}`;
+    if (weeks === 1) return `Next week · ${span}`;
+    if (weeks < 0) return `Past · week of ${span}`;
+    return `Week of ${span}`;
+  }
+
+  /**
+   * The days, grouped like the booking page: a section per week, a block per
+   * date with the date and its trainers down the left, and each course that
+   * runs that date beside it.
+   */
+  function renderDays(list, now){
+    const weeks = new Map();
+    for (const c of list){
+      const d = new Date(c.startsAt);
+      const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+      const wk = ymdOf(monday);
+      if (!weeks.has(wk)) weeks.set(wk, { monday, days: new Map() });
+      const day = ymdOf(d);
+      const w = weeks.get(wk);
+      if (!w.days.has(day)) w.days.set(day, []);
+      w.days.get(day).push(c);
+    }
+    const today = ymdOf(new Date());
+    return [...weeks.values()].map(({ monday, days }) => {
+      const sunday = ymdOf(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6));
       return `
-        <tr class="${cls}">
-          <td class="nowrap">${fmtDate(c.startsAt)}</td>
-          <td>
+      <section class="a-week">
+        <div class="week-head">
+          <h3>${weekLabel(monday)}</h3>
+          ${sunday >= today ? `<button class="btn btn-ghost btn-sm" data-week="${ymdOf(monday)}"
+              onclick="Admin.editTrainers('${monday.toISOString()}')">Trainers for the week</button>` : ''}
+        </div>
+        ${[...days.entries()].map(([ymd, cs]) => {
+          const d = new Date(cs[0].startsAt);
+          const past = ymd < today;
+          return `
+          <div class="a-day">
+            <div class="a-date ${past ? 'past' : ''}">
+              <b>${d.toLocaleDateString(undefined, {weekday:'long'})}</b>
+              <span class="big">${d.toLocaleDateString(undefined, {month:'short', day:'numeric'})}</span>
+              ${past ? '' : trainerBox(ymd)}
+            </div>
+            <div class="a-classes">
+              ${cs.map((c) => dayRow(c, now)).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </section>`;
+    }).join('');
+  }
+
+  /** The trainers working a date, with − and + to change it on the spot. */
+  function trainerBox(ymd){
+    const n = trainersOn(ymd);
+    const kind = n === 0 ? 'none' : n !== defaultTrainers ? 'more' : '';
+    return `
+      <div class="tday ${kind}" data-day="${ymd}">
+        <small>Trainers</small>
+        <div class="mini">
+          <button type="button" aria-label="One fewer trainer" ${n <= 0 ? 'disabled' : ''}
+                  onclick="Admin.bumpTrainers('${ymd}', -1)">−</button>
+          <b>${n}</b>
+          <button type="button" aria-label="One more trainer" ${n >= MAX_TRAINERS ? 'disabled' : ''}
+                  onclick="Admin.bumpTrainers('${ymd}', 1)">+</button>
+        </div>
+        ${n === 0 ? '<em>Nobody — no bookings</em>' : kind === 'more' ? '<em>Not the usual</em>' : ''}
+      </div>`;
+  }
+
+  const ymdOf = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  /** Trainers working a date: its own number, or the usual one. */
+  const trainersOn = (ymd) => trainerDays[ymd] ?? defaultTrainers;
+
+  const MAX_TRAINERS = 10;
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  /** The Monday-to-Sunday dates of the week an instant falls in, from today on. */
+  function weekDates(iso){
+    const d = new Date(iso);
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+    const today = ymdOf(new Date());
+    return Array.from({ length: 7 }, (_, i) =>
+      new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i))
+      .filter((x) => ymdOf(x) >= today);
+  }
+
+  /**
+   * One line per week: who's working, in words, and a button to change it.
+   * "1 trainer each day", or "1 trainer each day, except Wed: 2 · Thu: nobody".
+   */
+  // The week open in the trainers editor: [{ ymd, date, n }]
+  let trainerEdit = [];
+
+  /** A simple editor: the whole week at once, or day by day, with + and −. */
+  function editTrainers(iso){
+    trainerEdit = weekDates(iso).map((x) => ({ ymd: ymdOf(x), date: x, n: trainersOn(ymdOf(x)) }));
+    openBox(`Trainers — week of ${weekOf(iso)}`, `
+      <div class="err" id="fErr"></div>
+      <p class="sub" style="margin:-4px 0 14px">How many people are teaching each
+        day. Each trainer can do one visit at a time. Set a day to 0 if nobody's
+        available — it stops taking bookings.</p>
+      <div class="steps" id="steps"></div>
+      <button class="btn" style="width:100%" onclick="Admin.saveTrainers()">Save</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:9px"
+              onclick="Admin.resetTrainers()">Back to the usual (${plural(defaultTrainers, 'trainer')})</button>`);
+    renderSteps();
+  }
+
+  function renderSteps(){
+    const box = $('steps');
+    if (!box) return;
+    const same = trainerEdit.every((x) => x.n === trainerEdit[0].n);
+    const stepper = (n, onMinus, onPlus, label) => `
+      <div class="stepper" role="group" aria-label="${label}">
+        <button type="button" onclick="${onMinus}" ${n <= 0 ? 'disabled' : ''} aria-label="One fewer">−</button>
+        <output>${n}</output>
+        <button type="button" onclick="${onPlus}" ${n >= MAX_TRAINERS ? 'disabled' : ''} aria-label="One more">+</button>
+      </div>`;
+    const note = (n) => n === 0 ? '<span class="none">Nobody — no bookings</span>'
+      : n !== defaultTrainers ? `<span class="more">${n > defaultTrainers ? 'More' : 'Fewer'} than usual</span>`
+      : '<span>Usual</span>';
+    const all = same ? trainerEdit[0].n : null;
+    box.innerHTML = `
+      <div class="step-row all">
+        <div class="day"><b>Every day this week</b>
+          <span>${same ? 'Change them all at once' : 'Days differ — set them all the same'}</span></div>
+        ${stepper(all ?? '–', `Admin.stepTrainers(-1, -1)`, `Admin.stepTrainers(-1, 1)`, 'Every day')}
+      </div>
+      ${trainerEdit.map((x, i) => `
+        <div class="step-row" data-day="${x.ymd}">
+          <div class="day"><b>${x.date.toLocaleDateString(undefined, {weekday:'long', month:'short', day:'numeric'})}</b>
+            ${note(x.n)}</div>
+          ${stepper(x.n, `Admin.stepTrainers(${i}, -1)`, `Admin.stepTrainers(${i}, 1)`, `Trainers on ${x.ymd}`)}
+        </div>`).join('')}`;
+  }
+
+  /** i = -1 changes every day; otherwise just that one. */
+  function stepTrainers(i, delta){
+    const clamp = (n) => Math.max(0, Math.min(MAX_TRAINERS, n));
+    if (i < 0){
+      const base = trainerEdit.every((x) => x.n === trainerEdit[0].n)
+        ? trainerEdit[0].n : Math.max(...trainerEdit.map((x) => x.n));
+      trainerEdit.forEach((x) => { x.n = clamp(base + delta); });
+    } else {
+      trainerEdit[i].n = clamp(trainerEdit[i].n + delta);
+    }
+    renderSteps();
+  }
+
+  /** − / + under a date: save straight away, no window. */
+  async function bumpTrainers(ymd, delta){
+    const n = Math.max(0, Math.min(MAX_TRAINERS, trainersOn(ymd) + delta));
+    const { data } = await api('/api/admin/trainers', {method:'POST',
+      body: JSON.stringify({ days: [ymd], trainers: n === defaultTrainers ? null : n })});
+    if (!data.ok){ toast(data.message || 'Could not save'); return; }
+    if (data.overbooked && data.overbooked.length){
+      const o = data.overbooked[0];
+      alert(`Saved — but ${o.mostAtOnce} visits are already booked at the same time that day, `
+        + `with ${plural(o.trainers, 'trainer')}. Open the Roster to move or cancel one.`);
+    } else {
+      toast(n === 0 ? 'Nobody working that day — no new bookings' : `${plural(n, 'trainer')} that day`);
+    }
+    refresh();
+  }
+
+  function resetTrainers(){
+    trainerEdit.forEach((x) => { x.n = defaultTrainers; });
+    renderSteps();
+  }
+
+  async function saveTrainers(){
+    // One request per distinct number; the usual number clears the day back.
+    const groups = new Map();
+    for (const x of trainerEdit){
+      const key = x.n === defaultTrainers ? 'usual' : x.n;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(x.ymd);
+    }
+    const over = [];
+    for (const [key, days] of groups){
+      const { data } = await api('/api/admin/trainers', {method:'POST',
+        body: JSON.stringify({ days, trainers: key === 'usual' ? null : key })});
+      if (!data.ok) return formErr(data.message || 'Could not save.');
+      over.push(...(data.overbooked || []));
+    }
+    closeBox();
+    if (over.length){
+      alert('Saved — but on these days more visits are already booked at the same time '
+        + 'than there are trainers:\n\n'
+        + over.map((o) => `• ${fmtYmd(o.day, {weekday:'long', month:'short', day:'numeric'})}: `
+          + `${o.mostAtOnce} at once, ${plural(o.trainers, 'trainer')}`).join('\n')
+        + '\n\nOpen that day\'s Roster to move or cancel a visit.');
+    } else {
+      toast('Trainers saved');
+    }
+    refresh();
+  }
+
+  /** "Mon, Nov 16" — the Monday starting the week a date falls in. */
+  function weekOf(iso){
+    const d = new Date(iso);
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+    return monday.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'});
+  }
+
+  /** "Z3 1/1 · Z2 0/3", only for zones with a limit set. */
+  function zoneSummary(c){
+    const parts = ZONES
+      .filter((z) => c.zoneLimits && c.zoneLimits[z.zone] !== null && c.zoneLimits[z.zone] !== undefined)
+      .map((z) => {
+        const used = (c.zoneTrips && c.zoneTrips[z.zone] && c.zoneTrips[z.zone].used) || 0;
+        const limit = c.zoneLimits[z.zone];
+        return `<span class="${used >= limit ? 'low' : ''}">Z${z.zone} ${used}/${limit}</span>`;
+      });
+    return parts.length ? parts.join(' · ') : '<span class="muted">no limits</span>';
+  }
+
+  /**
+   * The day's booked visits as a short list under its row — time, then the
+   * address to drive to — so the whole run of travel is visible without
+   * opening each run sheet. The first visit still to come is marked NEXT.
+   */
+  function visitRows(c, now){
+    const visits = c.visits || [];
+    if (!visits.length) return '';
+    const next = visits.find((v) => new Date(v.slotEnd).getTime() > now);
+    return `
+        <ul class="visit-list visits-row">
+          ${visits.map((v) => `
+            <li class="${v === next ? 'next' : ''}">
+              <span class="when"><small>${v === next ? 'NEXT UP' : 'VISIT'}</small>${
+                fmtTime(v.slotStart)} – ${fmtTime(v.slotEnd)}</span>
+              <span>
+                <span class="where">${v.address
+                  ? `<a href="https://www.google.com/maps/search/?api=1&query=${
+                      encodeURIComponent(v.address)}" target="_blank" rel="noopener">${esc(v.address)}</a>`
+                  : '<span class="muted">No address on file</span>'}</span>
+                <span class="who">${esc(v.contact) || 'Customer'}${
+                  v.people > 1 ? ` + ${v.people - 1} more · ${v.people} people` : ' · 1 person'}</span>
+              </span>
+              <span class="tags">
+                ${v.zone ? `<span class="vtag z${v.zone}">Zone ${v.zone}${
+                  v.miles != null ? ` · ${Math.round(v.miles)} mi` : ''}</span>` : ''}
+                <span class="vtag ${v.paid ? 'paid' : 'unpaid'}">${v.paid ? 'Paid' : 'Unpaid'}</span>
+              </span>
+            </li>`).join('')}
+        </ul>`;
+  }
+
+  function dayRow(c, now){
+    const past = new Date(c.endsAt).getTime() < now;
+    const cls = c.status === 'cancelled' ? 'cancelled' : (past ? 'past' : '');
+    const slots = c.availableSlots || 0;
+    const tight = slots === 0 || c.available === 0;
+    const zones = zoneSummary(c);
+    return `
+      <div class="day-row ${cls}" style="border-left-color:${swatch(c.courseCode)}">
+        <div class="day-top">
+          <div class="what">
             <span class="tag" style="background:${swatch(c.courseCode)}">${esc(c.courseCode)}</span>
-            ${esc(c.title)}
+            <b>${esc(c.title)}</b>
+            ${c.scheduleId ? '<span class="repeat-tag" title="Made by the repeating schedule">· repeats</span>' : ''}
             ${c.status === 'cancelled' ? ' <span class="muted">(cancelled)</span>' : ''}
-          </td>
-          <td class="hide-sm nowrap">${fmtTime(c.startsAt)} – ${fmtTime(c.endsAt)}</td>
-          <td class="nowrap">
-            <span class="num ${c.availableSlots === 0 ? 'low' : 'ok'}">${c.bookedSlots || 0}</span>
-            <span class="muted">of ${(c.bookedSlots || 0) + (c.availableSlots || 0)} times</span>
-          </td>
-          <td class="hide-sm nowrap">
-            <span class="num ${seatClass}">${c.taken}/${c.capacity}</span>
-            <span class="muted">(${c.confirmed} paid)</span>
-          </td>
-          <td class="hide-sm">${c.waitlist || '—'}</td>
-          <td class="hide-sm" title="${(c.serviceZips || []).join(', ')}">
-            ${c.serviceZips && c.serviceZips.length
-              ? `${c.serviceZips.length} ZIP${c.serviceZips.length === 1 ? '' : 's'}`
-              : '<span class="muted">anywhere</span>'}
-          </td>
-          <td class="hide-sm nowrap">${money(c.priceCents)}</td>
-          <td class="nowrap">
+            <span class="hours">Open ${fmtTime(c.startsAt)} – ${fmtTime(c.endsAt)} · ${money(c.priceCents)} per person</span>
+          </div>
+          <div class="avail ${tight ? 'low' : 'ok'}">
+            ${slots} time slot${slots === 1 ? '' : 's'} available ·
+            ${c.available} seat${c.available === 1 ? '' : 's'} available
+            <span class="sub">${c.taken}/${c.capacity} taken · ${c.confirmed} paid${
+              c.waitlist ? ` · ${c.waitlist} waiting` : ''}${
+              zones.includes('no limits') ? '' : ` · zone trips ${zones}`}</span>
+          </div>
+          <div class="acts">
             <button class="btn btn-ghost btn-sm" onclick="Admin.roster(${c.id})">Roster</button>
             <button class="btn btn-ghost btn-sm" onclick="Admin.edit(${c.id})">Edit</button>
-          </td>
-        </tr>`;
-    }).join('') : '<tr><td colspan="9" class="muted">No training days yet. Add one to get started.</td></tr>';
+          </div>
+        </div>
+        ${visitRows(c, now)}
+      </div>`;
   }
 
   // ------------------------------------------------------------ class form
@@ -408,53 +1083,289 @@ const Admin = (() => {
   };
   const closeBox = () => $('veil').classList.remove('open');
 
+  // Course code, name, and the starting price for a new day.
   const COURSES = [
-    ['CPR',        'CPR / AED'],
-    ['HEARTSAVER', 'Heartsaver CPR / AED / First Aid'],
-    ['BABYSIT',    'Babysitter Safety'],
+    ['CPR',        'CPR / AED',                          85],
+    ['HEARTSAVER', 'Heartsaver CPR / AED / First Aid',   95],
+    ['BABYSIT',    'Babysitter Safety',                  55],
   ];
 
+  // Local "YYYY-MM-DD" and "HH:MM" pieces of a UTC instant.
+  const datePart = (iso) => toLocalInput(iso).slice(0, 10);
+  const timePart = (iso) => toLocalInput(iso).slice(11, 16);
+
+  // Weekly hours being edited: one row per weekday, Sunday first.
+  let weekRows = [];
+  let formMode = 'week';
+  let editingSchedule = null;   // the schedule open in the form, when editing one
+
+  const STARTER_WEEK = () => WEEKDAYS.map((_, i) => ({
+    on: i >= 1 && i <= 5, open: '09:00', close: '17:00',
+  }));
+
+  const WEEKS_AHEAD = [4, 6, 8, 12, 16, 26];
+
+  function hoursFields(c){
+    if (c) {
+      // Editing one existing day: just its date and hours.
+      return `
+        <label for="fDate">Date</label>
+        <input id="fDate" type="date" value="${datePart(c.startsAt)}">
+        <div class="two">
+          <div><label for="fOpen">Opens</label>
+            <input id="fOpen" type="time" step="900" value="${timePart(c.startsAt)}"></div>
+          <div><label for="fClose">Closes</label>
+            <input id="fClose" type="time" step="900" value="${timePart(c.endsAt)}"></div>
+        </div>`;
+    }
+    const today = toLocalInput(new Date().toISOString()).slice(0, 10);
+    const s = editingSchedule;
+    return `
+      <div class="mode" role="tablist" style="${s ? 'display:none' : ''}">
+        <button type="button" id="modeWeek" class="${formMode === 'week' ? 'on' : ''}"
+                onclick="Admin.setMode('week')">Weekly hours</button>
+        <button type="button" id="modeDay" class="${formMode === 'day' ? 'on' : ''}"
+                onclick="Admin.setMode('day')">One day</button>
+      </div>
+
+      <div id="dayFields" style="${formMode === 'day' ? '' : 'display:none'}">
+        <label for="fDate">Date</label>
+        <input id="fDate" type="date" value="${today}">
+        <div class="two">
+          <div><label for="fOpen">Opens</label>
+            <input id="fOpen" type="time" step="900" value="09:00"></div>
+          <div><label for="fClose">Closes</label>
+            <input id="fClose" type="time" step="900" value="17:00"></div>
+        </div>
+      </div>
+
+      <div id="weekFields" style="${formMode === 'week' ? '' : 'display:none'}">
+        <div class="two" id="weekWhen">
+          <div><label for="fFrom">Starting</label>
+            <input id="fFrom" type="date" value="${s ? s.startsOn : today}" onchange="Admin.previewWeek()"></div>
+          <div><label for="fWeeks">For how long</label>
+            <select id="fWeeks" onchange="Admin.previewWeek()" ${s ? 'disabled' : ''}>
+              <option value="repeat">Keep repeating</option>
+              ${[1,2,3,4,5,6,8,10,12].map((n) =>
+                `<option value="${n}">${n} week${n === 1 ? '' : 's'} only</option>`).join('')}
+            </select></div>
+        </div>
+        <div id="aheadRow">
+          <label for="fAhead">Keep this far ahead open for booking</label>
+          <select id="fAhead" onchange="Admin.previewWeek()">
+            ${WEEKS_AHEAD.map((n) => `<option value="${n}" ${n === (s ? s.weeksAhead : 8) ? 'selected' : ''}>
+              ${n} weeks</option>`).join('')}
+          </select>
+        </div>
+        <label>Open hours</label>
+        <p class="sub" style="margin:-4px 0 8px;font-size:13px">
+          Tick the days you're open and set the hours. Customers only see start
+          times inside these hours — closed days and hours never appear.
+        </p>
+        <div class="week" id="week"></div>
+        <p class="wk-preview" id="wkPreview"></p>
+      </div>`;
+  }
+
+  function renderWeek(){
+    const box = $('week');
+    if (!box) return;
+    // Monday first, the way staff read a week.
+    const order = [1, 2, 3, 4, 5, 6, 0];
+    box.innerHTML = order.map((i) => {
+      const r = weekRows[i];
+      return `
+        <div class="wk-row ${r.on ? '' : 'off'}">
+          <label><input type="checkbox" id="wkOn${i}" ${r.on ? 'checked' : ''}
+                        onchange="Admin.editWeek(${i},'on',this.checked)"> ${WEEKDAYS[i]}</label>
+          <input type="time" step="900" id="wkOpen${i}" value="${r.open}" aria-label="${WEEKDAYS[i]} opens"
+                 oninput="Admin.editWeek(${i},'open',this.value)">
+          <input type="time" step="900" id="wkClose${i}" value="${r.close}" aria-label="${WEEKDAYS[i]} closes"
+                 oninput="Admin.editWeek(${i},'close',this.value)">
+        </div>`;
+    }).join('');
+    previewWeek();
+  }
+
+  function editWeek(i, field, value){
+    weekRows[i][field] = value;
+    if (field === 'on') renderWeek(); else previewWeek();
+  }
+
+  const repeating = () => formMode === 'week' && ($('fWeeks')?.value === 'repeat');
+
+  function saveLabel(){
+    if (editingSchedule) return 'Save schedule';
+    if (formMode === 'day') return 'Add the day';
+    return repeating() ? 'Start this schedule' : 'Add these days';
+  }
+
+  function setMode(mode){
+    formMode = mode;
+    $('modeWeek').classList.toggle('on', mode === 'week');
+    $('modeDay').classList.toggle('on', mode === 'day');
+    $('weekFields').style.display = mode === 'week' ? '' : 'none';
+    $('dayFields').style.display = mode === 'day' ? '' : 'none';
+    previewWeek();
+  }
+
+  /**
+   * Every open day the weekly hours produce, as UTC open/close pairs.
+   *
+   * Built from local dates and times in this browser, so a run of weeks that
+   * crosses a daylight saving change still opens at 9:00 on both sides of it.
+   */
+  function weekDays(weeksOverride){
+    const from = $('fFrom')?.value;
+    const weeks = weeksOverride || parseInt($('fWeeks')?.value, 10) || 1;
+    if (!from) return [];
+    const [y, m, d] = from.split('-').map(Number);
+    const out = [];
+    for (let n = 0; n < weeks * 7; n++){
+      const day = new Date(y, m - 1, d + n);
+      const r = weekRows[day.getDay()];
+      if (!r || !r.on) continue;
+      const ymd = toLocalInput(day.toISOString()).slice(0, 10);
+      out.push({
+        label: day.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'}),
+        weekday: day.getDay(),
+        open: r.open, close: r.close,
+        startsAt: r.open ? fromLocalInput(`${ymd}T${r.open}`) : null,
+        endsAt: r.close ? fromLocalInput(`${ymd}T${r.close}`) : null,
+      });
+    }
+    return out;
+  }
+
+  function previewWeek(){
+    const btn = $('saveBtn');
+    if (btn) btn.textContent = saveLabel();
+    const ahead = $('aheadRow');
+    if (ahead) ahead.style.display = repeating() ? '' : 'none';
+
+    const el = $('wkPreview');
+    if (!el) return;
+    const open = WEEKDAYS.filter((_, i) => weekRows[i] && weekRows[i].on);
+    const courses = checkedCourses().length || 1;
+    if (!open.length){ el.innerHTML = 'No open days picked yet.'; return; }
+
+    if (repeating()){
+      const weeks = parseInt($('fAhead')?.value, 10) || 8;
+      el.innerHTML = `Open <b>${open.join(', ')}</b>, always <b>${weeks} weeks</b> ahead. ` +
+        `New days are added by themselves each day — nothing to redo.`;
+      return;
+    }
+    const days = weekDays();
+    const shown = days.slice(0, 8).map((x) => x.label).join(', ');
+    el.innerHTML = `Adds <b>${days.length} day${days.length === 1 ? '' : 's'}</b>` +
+      (courses > 1 ? ` × ${courses} courses` : '') + `: ${shown}` +
+      (days.length > 8 ? ` and ${days.length - 8} more` : '') + '.';
+  }
+
+  /** Which courses a new day or schedule offers, with each one's price. */
+  function courseFields(selected){
+    const chosen = new Map((selected || []).map((c) => [c.code, c]));
+    const fresh = !selected;
+    return `
+      <label>Courses offered</label>
+      <p class="sub" style="margin:-4px 0 8px;font-size:13px">
+        Tick every course you'll teach in these hours. There's one of you, so a
+        booking for any course blocks that time for the others.
+      </p>
+      <div class="week" id="courseList">
+        ${COURSES.map(([code, label, price]) => {
+          const on = fresh ? code === 'CPR' : chosen.has(code);
+          return `
+          <div class="wk-row crs-row ${on ? '' : 'off'}">
+            <label style="grid-column:span 2"><input type="checkbox" id="crsOn_${code}" ${on ? 'checked' : ''}
+                   onchange="this.closest('.crs-row').classList.toggle('off', !this.checked);Admin.previewWeek();Admin.previewTiers()">
+              ${label}</label>
+            <span class="muted" style="text-align:right">${money(priceOf(code))}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <p class="zone-note">Prices per person are set once for each course, under
+        <b>Course prices</b>, so every week matches.</p>`;
+  }
+
+  function checkedCourses(){
+    return COURSES
+      .filter(([code]) => $(`crsOn_${code}`)?.checked)
+      .map(([code, title]) => ({ code, title, priceCents: priceOf(code) }));
+  }
+
+  /** A course's one current price, in cents. */
+  const priceOf = (code) =>
+    (coursePrices.find((c) => c.code === code) || {}).priceCents
+    ?? (COURSES.find(([c]) => c === code) || [, , 0])[2] * 100;
+
+  function zoneFields(c){
+    const limits = (c && c.zoneLimits) || {};
+    return `
+      <label>Trips per zone, per day</label>
+      <p class="sub" style="margin:-4px 0 8px;font-size:13px">
+        Distance is from 97116. Set how many visits you'll make into each zone
+        on a day — e.g. 1 for Zone 3 stops you being sent to opposite edges of
+        it. Leave blank for no limit, or 0 to skip that zone. Counted across
+        every class on the same date.
+      </p>
+      <div class="zones">
+        ${ZONES.map((z) => `
+          <div class="zone-row">
+            <div><b>Zone ${z.zone}</b><span>${z.label} · ${z.fee}</span></div>
+            <input id="fZone${z.zone}" type="number" min="0" max="50" step="1"
+                   placeholder="No limit" aria-label="Zone ${z.zone} trips per day"
+                   value="${limits[z.zone] ?? ''}">
+          </div>`).join('')}
+      </div>
+      <p class="zone-note">Customers see their zone and its travel charge as
+        soon as they enter their ZIP, and it's added to their total.</p>`;
+  }
+
+  /**
+   * The add / edit form.
+   *
+   * c is an existing day being edited (one course, one date); without it the
+   * form adds days — one, a fixed run of weeks, or a repeating schedule —
+   * for one or more courses.
+   */
   function classForm(c){
-    const start = c ? toLocalInput(c.startsAt) : '';
-    const end   = c ? toLocalInput(c.endsAt)   : '';
+    const s = editingSchedule;
     return `
       <div class="err" id="fErr"></div>
+      ${c ? '' : `<button type="button" class="btn btn-ghost btn-sm" id="formTourBtn"
+          style="float:right;margin:-2px 0 8px 12px" onclick="Admin.formTour()">Show me how</button>`}
       <p class="sub" style="margin:-4px 0 16px">
         You travel to the customer, so set the hours you're willing to work.
-        Sessions are booked inside that window.
+        Sessions are booked inside those hours.
       </p>
 
-      <label for="fTitle">Course name</label>
-      <input id="fTitle" value="${esc(c?.title || '')}" placeholder="BLS Provider">
+      ${c ? `
+        <label for="fTitle">Course name</label>
+        <input id="fTitle" value="${esc(c.title)}" placeholder="CPR / AED">
 
-      <label for="fCode">Course type</label>
-      <select id="fCode">
-        ${COURSES.map(([code,label]) =>
-          `<option value="${code}" ${c?.courseCode===code?'selected':''}>${label}</option>`).join('')}
-      </select>
+        <label for="fCode">Course type</label>
+        <select id="fCode">
+          ${COURSES.map(([code,label]) =>
+            `<option value="${code}" ${c.courseCode===code?'selected':''}>${label}</option>`).join('')}
+        </select>` : courseFields(s ? s.courses : null)}
 
-      <div class="two">
-        <div><label for="fStart">Day opens</label>
-          <input id="fStart" type="datetime-local" value="${start}"></div>
-        <div><label for="fEnd">Day closes</label>
-          <input id="fEnd" type="datetime-local" value="${end}"></div>
-      </div>
+      ${hoursFields(c)}
 
       <input id="fLoc" type="hidden" value="">
 
-      <div class="two">
+      <div class="two" id="capRow">
         <div>
-          <label for="fCap">People you'll train that day</label>
-          <input id="fCap" type="number" min="1" value="${c?.capacity ?? 20}">
+          <label for="fCap">People per course, per day</label>
+          <input id="fCap" type="number" min="1" value="${c?.capacity ?? s?.capacity ?? 20}">
           ${c && c.taken ? `<p class="sub" style="margin-top:-8px;font-size:13px">
             ${c.taken} already booked — cannot go below this.</p>` : ''}
         </div>
-        <div>
-          <label for="fPrice">Base price per person</label>
-          <input id="fPrice" type="number" min="0" step="0.01"
-                 oninput="Admin.previewTiers()"
-                 value="${c ? (c.priceCents/100).toFixed(2) : '85.00'}">
-        </div>
+        ${c ? `<div>
+          <label>Price per person</label>
+          <p style="margin:6px 0 0"><b>${money(c.priceCents)}</b>
+            <span class="muted" style="font-size:13px">— set under Course prices</span></p>
+        </div>` : ''}
       </div>
 
       <label>Group price bands</label>
@@ -468,13 +1379,15 @@ const Admin = (() => {
               onclick="Admin.addTier()">Add a band</button>
       <div class="tier-preview" id="tierPreview"></div>
 
-      <label>Where you'll travel on this day</label>
-      <div class="zip-box" id="zipBox" onclick="document.getElementById('zipInput')?.focus()"></div>
-      <p class="zip-note" id="zipNote"></p>
+      ${zoneFields(c || s)}
 
-      <button class="btn" style="width:100%" onclick="Admin.save(${c ? c.id : 'null'})">
-        ${c ? 'Save changes' : 'Add the day'}
+      <button class="btn" id="saveBtn" style="width:100%" onclick="Admin.save(${c ? c.id : 'null'})">
+        ${c ? 'Save changes' : saveLabel()}
       </button>
+
+      ${s ? `<p class="zone-note" style="margin-top:10px">Saving rebuilds this
+        schedule's upcoming days that nobody has booked. Booked days keep their
+        hours and price.</p>` : ''}
 
       ${c && c.status === 'open' ? `
         <button class="btn btn-ghost" style="width:100%;margin-top:9px"
@@ -495,60 +1408,124 @@ const Admin = (() => {
       reason: 'Our best rate — one visit, more people trained, less cost each.' },
   ];
 
-  function newClass(){
+  function newClass(mode = 'week'){
     tierRows = JSON.parse(JSON.stringify(STARTER_TIERS));
-    zipRows = [];
-    openBox('Add a training day', classForm(null));
+    weekRows = STARTER_WEEK();
+    formMode = mode;
+    editingSchedule = null;
+    openBox('Add training days', classForm(null));
     renderTiers();
-    renderZips();
+    renderWeek();
+    let seen = true;
+    try { seen = Boolean(localStorage.getItem(FORM_TOUR_SEEN)); } catch { /* private window */ }
+    if (!seen && $('tour').hidden) setTimeout(formTour, 150);
   }
 
   function edit(id){
     const c = classes.find((x) => x.id === id);
     if (!c) return;
+    editingSchedule = null;
     tierRows = c.pricingTiers && c.pricingTiers.length
       ? JSON.parse(JSON.stringify(c.pricingTiers))
       : JSON.parse(JSON.stringify(STARTER_TIERS));
-    zipRows = [...(c.serviceZips || [])];
     openBox(`Edit — ${fmtDate(c.startsAt)}`, classForm(c));
     renderTiers();
-    renderZips();
+  }
+
+  function editSchedule(id){
+    const s = schedules.find((x) => x.id === id);
+    if (!s) return;
+    editingSchedule = s;
+    formMode = 'week';
+    weekRows = JSON.parse(JSON.stringify(s.week));
+    tierRows = s.pricingTiers && s.pricingTiers.length
+      ? JSON.parse(JSON.stringify(s.pricingTiers))
+      : JSON.parse(JSON.stringify(STARTER_TIERS));
+    openBox('Edit repeating schedule', classForm(null));
+    renderTiers();
+    renderWeek();
   }
 
   function formErr(msg){
     $('fErr').textContent = msg;
     $('fErr').classList.add('show');
+    $('fErr').scrollIntoView?.({ block: 'nearest' });
+  }
+
+  /** Trips per zone from the form; blank is no limit. Null when one is invalid. */
+  function readZoneLimits(){
+    const out = {};
+    for (const z of ZONES){
+      const raw = ($(`fZone${z.zone}`)?.value || '').trim();
+      if (raw === '') { out[z.zone] = null; continue; }
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 0) return null;
+      out[z.zone] = n;
+    }
+    return out;
+  }
+
+  /** What's wrong with one day's hours, or null. */
+  function hoursProblem(startsAt, endsAt, prefix = ''){
+    if (!startsAt || !endsAt) return `${prefix}Set the hours you'll be working.`;
+    if (new Date(endsAt) <= new Date(startsAt)) return `${prefix}Closing time must be after opening.`;
+    // Below one session length there is nothing anyone could book.
+    if (new Date(endsAt) - new Date(startsAt) < sessionMinutes * 60000) {
+      const h = sessionMinutes / 60;
+      return `${prefix}Open at least ${h} hour${h === 1 ? '' : 's'} — one full session.`;
+    }
+    return null;
   }
 
   async function save(id){
-    const title = $('fTitle').value.trim();
-    const startsAt = $('fStart').value;
-    const endsAt = $('fEnd').value;
     const capacity = parseInt($('fCap').value, 10);
-    const price = parseFloat($('fPrice').value);
 
-    if (title.length < 2) return formErr('Give the course a name.');
-    if (!startsAt || !endsAt) return formErr('Set the hours you\'ll be working.');
-    if (new Date(endsAt) <= new Date(startsAt)) return formErr('Closing time must be after opening.');
-    // Below one session length there is nothing anyone could book.
-    if (new Date(endsAt) - new Date(startsAt) < 240 * 60000) {
-      return formErr('The day needs to be at least four hours — one session.');
+    // Editing one existing day keeps its single course; anything new offers
+    // whichever courses are ticked.
+    let courses = null;
+    if (id){
+      if ($('fTitle').value.trim().length < 2) return formErr('Give the course a name.');
+    } else {
+      courses = checkedCourses();
+      if (!courses.length) return formErr('Tick at least one course.');
     }
+
+    // One day (new or edited), a fixed run of weeks, or a repeating schedule.
+    const schedule = !id && (editingSchedule || repeating());
+    const weekly = !id && formMode === 'week';
+    let days = [];
+    if (weekly){
+      if (!WEEKDAYS.some((_, i) => weekRows[i].on)) return formErr('Tick at least one open day.');
+      // Check one of each open weekday's hours, whatever the run length.
+      for (const x of weekDays(1)){
+        const problem = hoursProblem(x.startsAt, x.endsAt, `${WEEKDAYS[x.weekday]}: `);
+        if (problem) return formErr(problem);
+      }
+      if (!schedule) days = weekDays();
+    } else {
+      const date = $('fDate').value;
+      const open = $('fOpen').value;
+      const close = $('fClose').value;
+      if (!date || !open || !close) return formErr('Set the date and the hours you\'ll be working.');
+      const startsAt = fromLocalInput(`${date}T${open}`);
+      const endsAt = fromLocalInput(`${date}T${close}`);
+      const problem = hoursProblem(startsAt, endsAt);
+      if (problem) return formErr(problem);
+      days = [{ startsAt, endsAt }];
+    }
+
     if (!Number.isInteger(capacity) || capacity < 1) return formErr('Set at least one place.');
-    if (!(price >= 0)) return formErr('Enter a valid price.');
 
     const bandProblem = tierProblem();
     if (bandProblem) return formErr(bandProblem);
 
-    const payload = {
-      title,
-      courseCode: $('fCode').value,
-      startsAt: fromLocalInput(startsAt),
-      endsAt: fromLocalInput(endsAt),
+    const zoneLimits = readZoneLimits();
+    if (!zoneLimits) return formErr('Zone trips must be whole numbers, or blank for no limit.');
+
+    const shared = {
       location: $('fLoc').value.trim(),
       capacity,
-      priceCents: Math.round(price * 100),
-      serviceZips: [...zipRows],
+      zoneLimits,
       pricingTiers: tierRows.map((t) => ({
         minSize: t.minSize ?? 1,
         maxSize: t.maxSize ?? null,
@@ -557,23 +1534,240 @@ const Admin = (() => {
         reason: String(t.reason || '').trim(),
       })),
     };
+    const courseList = courses && courses.map(({ code, title, priceCents }) => ({ code, title, priceCents }));
 
-    const { data } = id
-      ? await api(`/api/admin/classes/${id}/update`, {method:'POST', body:JSON.stringify(payload)})
-      : await api('/api/admin/classes', {method:'POST', body:JSON.stringify(payload)});
+    const post = (path, body) => api(path, {method:'POST', body:JSON.stringify(body)});
+    let data;
+    if (id){
+      ({ data } = await post(`/api/admin/classes/${id}/update`, {
+        ...shared, ...days[0],
+        title: $('fTitle').value.trim(),
+        courseCode: $('fCode').value,
+      }));
+    } else if (schedule){
+      const body = {
+        ...shared, courses: courseList, week: weekRows,
+        weeksAhead: parseInt($('fAhead').value, 10) || 8,
+        startsOn: $('fFrom').value,
+      };
+      ({ data } = editingSchedule
+        ? await post(`/api/admin/schedules/${editingSchedule.id}/update`, body)
+        : await post('/api/admin/schedules', body));
+    } else {
+      ({ data } = await post('/api/admin/classes/bulk', {
+        ...shared, courses: courseList,
+        days: days.map(({ startsAt, endsAt }) => ({ startsAt, endsAt })),
+      }));
+    }
 
     if (!data.ok) return formErr(data.message || `Could not save (${data.reason}).`);
 
     closeBox();
-    toast(id ? 'Day updated' : 'Day added');
+    if (id) toast('Day updated');
+    else if (editingSchedule) toast('Schedule saved — upcoming days rebuilt');
+    else if (schedule) toast(`Schedule started — ${data.created} days open for booking`);
+    else toast(`${data.created} day${data.created === 1 ? '' : 's'} added` +
+               (data.skippedTimeOff ? ` (${data.skippedTimeOff} skipped as time off)` : ''));
     if (data.promoted) toast(`${data.promoted} waitlisted student offered a seat`);
+    editingSchedule = null;
     refresh();
   }
 
+  // ----------------------------------------------- schedules, time off, notice
+
+  let schedules = [];
+  let timeOff = [];
+  let coursePrices = [];
+  let defaultTrainers = 1;
+  let trainerDays = {};
+
+  const NOTICE = [[0, 'No minimum'], [2, '2 hours'], [12, '12 hours'], [24, '24 hours'],
+                  [48, '2 days'], [72, '3 days'], [168, '1 week']];
+
+  const fmtHHMM = (hhmm) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
+  };
+  const fmtYmd = (ymd, opts = {month:'short', day:'numeric'}) => {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, opts);
+  };
+
+  /** "Mon–Fri 9:00 AM – 5:00 PM · Sat 8:00 AM – 12:00 PM" */
+  function weekSummary(week){
+    const order = [1, 2, 3, 4, 5, 6, 0];
+    const runs = [];
+    for (const i of order){
+      const d = week[i];
+      if (!d.on) continue;
+      const hours = `${fmtHHMM(d.open)} – ${fmtHHMM(d.close)}`;
+      const last = runs[runs.length - 1];
+      if (last && last.hours === hours && order.indexOf(last.to) === order.indexOf(i) - 1) last.to = i;
+      else runs.push({ from: i, to: i, hours });
+    }
+    return runs.map((r) =>
+      `${WEEKDAYS[r.from]}${r.to !== r.from ? `–${WEEKDAYS[r.to]}` : ''} ${r.hours}`).join(' · ');
+  }
+
+  async function loadSchedules(){
+    const { data } = await api('/api/admin/schedules');
+    if (!data.ok) return;
+    schedules = data.schedules;
+    timeOff = data.timeOff;
+    coursePrices = data.courses || [];
+    defaultTrainers = data.defaultTrainers ?? 1;
+    trainerDays = data.trainerDays || {};
+
+    $('priceList').innerHTML = coursePrices.map((c) => `
+      <div class="price-row">
+        <label for="price_${c.code}" style="margin:0;font-weight:500">${esc(c.title)}</label>
+        <input id="price_${c.code}" type="number" min="0" step="0.01" inputmode="decimal"
+               value="${(c.priceCents / 100).toFixed(2)}"
+               onchange="Admin.setPrice('${c.code}', this.value)">
+      </div>`).join('');
+
+    const travel = data.bufferMinutes ?? 60;
+    const TRAVEL = [[30, '30 minutes'], [45, '45 minutes'], [60, '1 hour'], [75, '1¼ hours'],
+                    [90, '1½ hours'], [120, '2 hours']];
+    $('travel').innerHTML = TRAVEL.map(([m, label]) =>
+      `<option value="${m}" ${m === travel ? 'selected' : ''}>${label}</option>`).join('') +
+      (TRAVEL.some(([m]) => m === travel) ? '' : `<option value="${travel}" selected>${travel} minutes</option>`);
+
+    $('trainersDefault').innerHTML = Array.from({ length: 11 }, (_, i) =>
+      `<option value="${i}" ${i === defaultTrainers ? 'selected' : ''}>${i}</option>`).join('');
+
+    $('schedList').innerHTML = schedules.length ? schedules.map((s) => `
+      <div class="sched-item ${s.active ? '' : 'paused'}">
+        <b>${esc(weekSummary(s.week))}</b>
+        <span>${s.courses.map((c) => `${esc(c.title)} ${money(c.priceCents)}`).join(' · ')}</span>
+        <span>${s.active ? `Keeps ${s.weeksAhead} weeks open — new days add themselves`
+                         : 'Paused — no new days are being added'}</span>
+        <div class="row-btns">
+          <button class="btn btn-ghost btn-sm" onclick="Admin.editSchedule(${s.id})">Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="Admin.toggleSchedule(${s.id}, ${!s.active})">
+            ${s.active ? 'Pause' : 'Resume'}</button>
+          <button class="btn btn-ghost btn-sm" onclick="Admin.deleteSchedule(${s.id})">Delete</button>
+        </div>
+      </div>`).join('')
+      : `<p class="muted">None yet. Use <b>Add days → Weekly hours → Keep repeating</b>
+           and the calendar fills itself.</p>`;
+
+    $('offList').innerHTML = timeOff.length ? timeOff.map((t) => `
+      <div class="off-item">
+        <span><b>${fmtYmd(t.startsOn)}${t.endsOn !== t.startsOn ? ` – ${fmtYmd(t.endsOn)}` : ''}</b>
+          ${t.note ? `<span class="muted"> · ${esc(t.note)}</span>` : ''}</span>
+        <button class="x" title="Remove this time off" aria-label="Remove this time off"
+                onclick="Admin.removeTimeOff(${t.id})">&times;</button>
+      </div>`).join('') : '<p class="muted">No time off booked.</p>';
+
+    $('notice').innerHTML = NOTICE.map(([h, label]) =>
+      `<option value="${h}" ${h === data.minNoticeHours ? 'selected' : ''}>${label}</option>`).join('') +
+      (NOTICE.some(([h]) => h === data.minNoticeHours) ? ''
+        : `<option value="${data.minNoticeHours}" selected>${data.minNoticeHours} hours</option>`);
+  }
+
+  async function toggleSchedule(id, active){
+    await api(`/api/admin/schedules/${id}/${active ? 'resume' : 'pause'}`, {method:'POST', body:'{}'});
+    toast(active ? 'Schedule resumed' : 'Schedule paused — existing days stay');
+    refresh();
+  }
+
+  async function deleteSchedule(id){
+    if (!confirm('Delete this schedule? Its upcoming days that nobody has booked are removed. '
+               + 'Booked days stay.')) return;
+    const { data } = await api(`/api/admin/schedules/${id}/delete`, {method:'POST', body:'{}'});
+    toast(`Schedule deleted — ${data.removed || 0} empty days removed`);
+    refresh();
+  }
+
+  function newTimeOff(){
+    const today = toLocalInput(new Date().toISOString()).slice(0, 10);
+    openBox('Add time off', `
+      <div class="err" id="fErr"></div>
+      <p class="sub" style="margin:-4px 0 16px">No classes are offered on these dates.
+        Days already there with nobody booked are removed; days with bookings
+        stay so you can contact those customers.</p>
+      <div class="two">
+        <div><label for="offFrom">First day off</label>
+          <input id="offFrom" type="date" value="${today}"
+                 onchange="const to=document.getElementById('offTo'); if (to.value < this.value) to.value = this.value"></div>
+        <div><label for="offTo">Last day off</label>
+          <input id="offTo" type="date" value="${today}"></div>
+      </div>
+      <label for="offNote">Note <span class="muted" style="font-weight:400">(optional)</span></label>
+      <input id="offNote" maxlength="120" placeholder="Vacation, conference, …">
+      <button class="btn" style="width:100%" onclick="Admin.saveTimeOff()">Add time off</button>`);
+  }
+
+  async function saveTimeOff(){
+    const startsOn = $('offFrom').value;
+    const endsOn = $('offTo').value || startsOn;
+    if (!startsOn) return formErr('Pick the first day off.');
+    if (endsOn < startsOn) return formErr('The last day off is before the first.');
+    const { data } = await api('/api/admin/time-off', {method:'POST',
+      body: JSON.stringify({ startsOn, endsOn, note: $('offNote').value.trim() })});
+    if (!data.ok) return formErr(data.message || 'Could not save.');
+    closeBox();
+    if (data.kept && data.kept.length){
+      alert(`Time off saved. ${data.kept.length} day${data.kept.length === 1 ? ' has' : 's have'} `
+        + 'bookings and were kept — contact those customers, then cancel the day:\n\n'
+        + data.kept.map((k) => `• ${fmtDate(k.startsAt)} — ${k.title} (${k.people} ${k.people === 1 ? 'person' : 'people'})`).join('\n'));
+    } else {
+      toast(`Time off saved${data.removed ? ` — ${data.removed} day${data.removed === 1 ? '' : 's'} removed` : ''}`);
+    }
+    refresh();
+  }
+
+  async function removeTimeOff(id){
+    if (!confirm('Remove this time off? Repeating schedules will fill those dates again.')) return;
+    await api(`/api/admin/time-off/${id}/delete`, {method:'POST', body:'{}'});
+    toast('Time off removed');
+    refresh();
+  }
+
+  async function setPrice(code, value){
+    const cents = Math.round(parseFloat(value) * 100);
+    const c = coursePrices.find((x) => x.code === code);
+    if (!(cents >= 0)) { toast('Enter a valid price'); return refresh(); }
+    if (c && cents === c.priceCents) return;
+    if (!confirm(`Change ${c ? c.title : code} to ${money(cents)} per person?\n\n`
+      + 'Every upcoming day of this course changes at once and the booking page shows the '
+      + 'new price straight away. People who already booked keep what they paid.')) return refresh();
+    const { data } = await api(`/api/admin/courses/${code}/price`, {method:'POST',
+      body: JSON.stringify({ priceCents: cents })});
+    toast(data.ok ? `Price saved — ${data.daysUpdated} upcoming day${data.daysUpdated === 1 ? '' : 's'} updated`
+                  : (data.message || 'Could not save the price'));
+    refresh();
+  }
+
+  async function setTravel(value){
+    const { data } = await api('/api/admin/settings', {method:'POST',
+      body: JSON.stringify({ bufferMinutes: Number(value) })});
+    toast(data.ok ? 'Travel time saved — open times updated' : (data.message || 'Could not save'));
+    refresh();
+  }
+
+  async function setDefaultTrainers(value){
+    const { data } = await api('/api/admin/settings', {method:'POST',
+      body: JSON.stringify({ defaultTrainers: Number(value) })});
+    toast(data.ok ? `${data.defaultTrainers} trainer${data.defaultTrainers === 1 ? '' : 's'} on a normal day`
+                  : (data.message || 'Could not save'));
+    refresh();
+  }
+
+  async function setNotice(hours){
+    const { data } = await api('/api/admin/settings', {method:'POST',
+      body: JSON.stringify({ minNoticeHours: Number(hours) })});
+    toast(data.ok ? 'Booking notice saved' : 'Could not save the notice');
+  }
+
   async function cancelClass(id){
-    if (!confirm('Cancel this day? Existing bookings stay — contact those customers yourself.')) return;
-    await api(`/api/admin/classes/${id}/cancel`, {method:'POST', body:'{}'});
-    closeBox(); toast('Day cancelled'); refresh();
+    if (!confirm('Cancel this day? If nobody is booked it is deleted. Otherwise it stays, '
+               + 'crossed out, until you have removed everyone on it — contact them yourself.')) return;
+    const { data } = await api(`/api/admin/classes/${id}/cancel`, {method:'POST', body:'{}'});
+    closeBox();
+    toast(data.deleted ? 'Day cancelled and removed' : 'Day cancelled — remove its customers to clear it');
+    refresh();
   }
 
   async function reopen(id){
@@ -583,68 +1777,6 @@ const Admin = (() => {
   }
 
 
-
-  // ------------------------------------------------------ service area
-
-  let zipRows = [];
-
-  /**
-   * ZIP codes this day will drive to.
-   *
-   * An empty list means anywhere, which is also the right default — a day with
-   * no stated area should be bookable, not unreachable.
-   */
-  function renderZips(){
-    const box = $('zipBox');
-    if (!box) return;
-
-    box.innerHTML = zipRows.map((z, i) => `
-      <span class="zip-chip">${z}
-        <button type="button" title="Remove" onclick="Admin.dropZip(${i});event.stopPropagation()">&times;</button>
-      </span>`).join('') +
-      `<input id="zipInput" inputmode="numeric" maxlength="5"
-              placeholder="${zipRows.length ? 'add ZIP' : 'any ZIP'}"
-              oninput="Admin.zipTyped(this)"
-              onkeydown="Admin.zipKey(event)">`;
-
-    $('zipNote').textContent = zipRows.length
-      ? `${zipRows.length} ZIP code${zipRows.length === 1 ? '' : 's'}. ` +
-        `Customers outside these are told so before they book, and are offered other days.`
-      : 'Empty means you will travel anywhere. Add ZIP codes to limit this day.';
-  }
-
-  /** Five digits is a complete ZIP, so commit it without waiting for Enter. */
-  function zipTyped(input){
-    input.value = input.value.replace(/\D/g, '').slice(0, 5);
-    if (input.value.length === 5) commitZip(input);
-  }
-
-  function zipKey(e){
-    const input = e.target;
-    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
-      e.preventDefault();
-      commitZip(input);
-    } else if (e.key === 'Backspace' && !input.value && zipRows.length) {
-      // Backspace on an empty box removes the chip before it.
-      e.preventDefault();
-      dropZip(zipRows.length - 1);
-    }
-  }
-
-  function commitZip(input){
-    const z = input.value.trim();
-    if (!/^\d{5}$/.test(z)) return;
-    if (!zipRows.includes(z)) zipRows.push(z);
-    zipRows.sort();
-    renderZips();
-    $('zipInput')?.focus();
-  }
-
-  function dropZip(i){
-    zipRows.splice(i, 1);
-    renderZips();
-    $('zipInput')?.focus();
-  }
 
   // ------------------------------------------------------- price bands
 
@@ -712,7 +1844,9 @@ const Admin = (() => {
     const el = $('tierPreview');
     if (!el) return;
 
-    const base = Math.round((parseFloat($('fPrice')?.value) || 0) * 100);
+    // An existing day's own price, or the first ticked course's.
+    // The course's one price: the day being edited, or the first ticked.
+    const base = $('fCode') ? priceOf($('fCode').value) : (checkedCourses()[0]?.priceCents || 0);
     if (!base || !tierRows.length) { el.innerHTML = ''; return; }
 
     const priceAt = (n) => {
@@ -799,8 +1933,9 @@ const Admin = (() => {
         const lead = rows[0];
         const paid = rows.filter((r) => r.status === 'confirmed').length;
         const value = rows.reduce((sum, r) =>
-          sum + (r.status === 'confirmed' ? r.amount_cents : 0), 0);
-        const end = new Date(new Date(slotStart).getTime() + 240 * 60000).toISOString();
+          sum + (r.status === 'confirmed' ? r.amount_cents + (r.travel_cents || 0) : 0), 0);
+        const travel = rows.reduce((sum, r) => sum + (r.travel_cents || 0), 0);
+        const end = new Date(new Date(slotStart).getTime() + sessionMinutes * 60000).toISOString();
 
         return `
           <div class="visit">
@@ -814,6 +1949,9 @@ const Admin = (() => {
               </div>
               ${lead.address_notes ? `<div class="visit-notes">${esc(lead.address_notes)}</div>` : ''}
               <div class="visit-meta">
+                ${lead.travel_zone ? `<span class="zone-tag">Zone ${lead.travel_zone}</span>
+                  ${lead.travel_miles != null ? `${lead.travel_miles} mi · ` : ''}
+                  ${travel ? `${money(travel)} travel` : 'no travel charge'} · ` : ''}
                 ${rows.length} ${rows.length === 1 ? 'person' : 'people'} ·
                 ${paid} paid · ${money(value)}
                 ${lead.group_ref ? ` · <a href="#" onclick="Admin.cancelGroup('${
@@ -827,7 +1965,8 @@ const Admin = (() => {
     $('boxBody').innerHTML = `
       <p class="sub">
         ${visits.size} visit${visits.size === 1 ? '' : 's'} ·
-        ${data.seats.taken} of ${data.seats.capacity} places booked
+        ${data.seats.available} seat${data.seats.available === 1 ? '' : 's'} available
+        (${data.seats.taken} of ${data.seats.capacity} taken)
         ${waiting.length ? ` · ${waiting.length} waiting` : ''}
       </p>
       ${visitHtml}
@@ -874,7 +2013,9 @@ const Admin = (() => {
     if (!confirm('Remove this person? Their seat is freed and offered to the waitlist.')) return;
     await api(`/api/admin/registrations/${ref}/cancel`, {method:'POST', body:'{}'});
     toast('Removed');
-    roster(classId); refresh();
+    await refresh();
+    // The last person off a cancelled day deletes the day, run sheet and all.
+    if (classes.some((c) => c.id === classId)) roster(classId); else closeBox();
   }
 
   function copyEmails(list){
@@ -891,7 +2032,6 @@ const Admin = (() => {
     localStorage.setItem('spectrum_admin_theme', dark ? 'light' : 'dark');
   }
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeBox(); });
 
   // boot
   const savedTheme = localStorage.getItem('spectrum_admin_theme');
@@ -902,9 +2042,14 @@ const Admin = (() => {
   if (saved){ token = saved; show(); }
 
   return { login, logout, refresh, newClass, edit, save, cancelClass, reopen,
+           tour, formTour, tourStep, endTour,
            roster, markPaid, dropStudent, cancelGroup, copyEmails, closeBox, toggleTheme,
            addTier, dropTier, editTier, previewTiers,
-           zipTyped, zipKey, dropZip };
+           setMode, editWeek, previewWeek,
+           editSchedule, toggleSchedule, deleteSchedule,
+           newTimeOff, saveTimeOff, removeTimeOff, setNotice,
+           setPrice, setDefaultTrainers, setTravel,
+           editTrainers, stepTrainers, resetTrainers, saveTrainers, bumpTrainers };
 })();
 window.Admin = Admin;
 </script>

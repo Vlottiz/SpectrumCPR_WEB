@@ -186,7 +186,7 @@
   .slot-body{flex:1;}
   .slot-name{font-weight:600;font-size:15px;}
   .slot-meta{font-size:13.5px;color:var(--ink-soft);}
-  .slot-seats{font-size:12.5px;font-weight:600;color:var(--c-pediatric);}
+  .slot-seats{font-size:12.5px;font-weight:600;color:var(--c-pediatric);text-align:right;line-height:1.3;}
   .slot-seats.low{color:var(--red);}
   .next-foot{padding:14px 18px;background:var(--paper-2);border-top:1px solid var(--rule);}
   .next-foot a{color:var(--ink);font-weight:600;font-size:14px;}
@@ -226,6 +226,56 @@
   .seats-ok{color:var(--c-pediatric);font-weight:600;font-size:14px;}
   .seats-low{color:var(--red);font-weight:600;font-size:14px;}
   .seats-full{color:var(--ink-soft);font-size:14px;}
+
+  /* course filter above the schedule */
+  .course-filter{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 26px;}
+  .course-filter:empty{display:none;}
+  .course-filter button{
+    font:inherit;font-size:14px;font-weight:600;padding:8px 14px;border-radius:2px;cursor:pointer;
+    background:var(--paper);color:var(--ink);border:1.5px solid var(--rule);
+  }
+  .course-filter button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  /* Each course in its own colour, matching its tag on the schedule: a dot
+     when it's not picked, the whole button when it is. */
+  .course-filter button[data-code]::before{
+    content:"";display:inline-block;width:10px;height:10px;border-radius:50%;
+    background:var(--c);margin-right:8px;vertical-align:0;
+  }
+  .course-filter button[data-code]{border-color:var(--c);}
+  .course-filter button[data-code]:hover{background:color-mix(in srgb, var(--c) 12%, var(--paper));}
+  .course-filter button[data-code][aria-pressed="true"]{background:var(--c);border-color:var(--c);color:#fff;}
+  .course-filter button[data-code][aria-pressed="true"]::before{background:#fff;}
+
+  /* schedule, grouped by week and then by day */
+  .sched-week{margin:0 0 34px;}
+  .sched-week h3{
+    font-size:15px;font-family:var(--sans);font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-soft);margin:0 0 4px;
+    padding-bottom:8px;border-bottom:1.5px solid var(--ink);
+  }
+  .sched-day{
+    display:grid;grid-template-columns:92px 1fr;gap:0 20px;
+    padding:16px 0;border-bottom:1px solid var(--rule);
+  }
+  .day-date{line-height:1.15;}
+  .day-date b{display:block;font-family:var(--cond);font-size:15px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);}
+  .day-date span{font-family:var(--cond);font-size:26px;font-weight:700;}
+  .sched-class{
+    display:grid;grid-template-columns:1fr auto auto;gap:6px 20px;align-items:center;
+    border-left:4px solid var(--rule);padding:6px 0 6px 14px;margin:0 0 10px;
+  }
+  .sched-class:last-child{margin-bottom:0;}
+  .sched-class .what b{font-weight:600;}
+  .sched-class .hours{display:block;font-size:14px;color:var(--ink-soft);margin-top:2px;}
+  @media (max-width:640px){
+    .sched-day{grid-template-columns:1fr;gap:8px;}
+    .day-date{display:flex;gap:8px;align-items:baseline;}
+    .day-date span{font-size:21px;}
+    .sched-class{grid-template-columns:1fr auto;}
+    .sched-class .avail{grid-column:1;}
+    .sched-class .btn{grid-row:1 / span 2;grid-column:2;}
+  }
 
   /* about */
   .about-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:48px;align-items:start;}
@@ -466,21 +516,24 @@
   .addr-hint.bad{color:var(--red);font-weight:600;}
   .addr-hint.good{color:var(--c-pediatric);font-weight:600;}
 
-  /* service area */
+  /* travel zones */
   .area{
     border:1.5px solid var(--rule);border-left:4px solid var(--c-babysit);
     background:var(--paper-2);padding:10px 13px;margin:0 0 16px;
     font-size:13.5px;border-radius:2px;
   }
-  .area b{display:block;font-family:var(--cond);font-size:16px;margin-bottom:3px;}
-  .area .zips{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;
-              word-spacing:3px;}
-  .area button{
-    background:none;border:0;padding:0;margin-left:5px;cursor:pointer;
-    font:inherit;font-size:12.5px;font-weight:600;color:var(--ink-soft);
-    text-decoration:underline;text-underline-offset:2px;
-  }
-  .row-area{font-size:12px;color:var(--ink-soft);display:block;margin-top:2px;}
+  .area b{display:block;font-family:var(--cond);font-size:16px;margin-bottom:5px;}
+  .zone-table{width:100%;border-collapse:collapse;font-size:13.5px;margin:0 0 4px;}
+  .zone-table td{padding:3px 0;border:0;}
+  .zone-table tr td:first-child{border-left:0;font-weight:600;}
+  .zone-table td:last-child{text-align:right;font-weight:600;}
+  .zone-table tr.mine td{color:var(--red);}
+  .area small{display:block;color:var(--ink-soft);font-size:12.5px;}
+  .total-rows{border-top:1px solid var(--rule);padding-top:11px;margin:16px 0 18px;font-size:14.5px;}
+  .total-rows div{display:flex;justify-content:space-between;align-items:baseline;padding:2px 0;}
+  .total-rows .muted{color:var(--ink-soft);}
+  .total-rows .grand{border-top:1px solid var(--rule);margin-top:7px;padding-top:9px;}
+  .total-rows .grand b{font-family:var(--cond);font-size:27px;}
   @media (max-width:520px){ .addr-row{grid-template-columns:1fr;} }
 
   textarea.addr-notes{
@@ -514,6 +567,36 @@
     table{font-size:14px;}
     td,th{padding:10px 8px;}
   }
+  /* Grid children default to min-width:auto, so one long word (an email
+     address) can push a whole column off a small screen. */
+  .hero-grid > *, .about-grid > *, .contact-grid > *{min-width:0;}
+  .info-row div{overflow-wrap:anywhere;}
+
+  @media (max-width:640px){
+    /* 16px or larger stops iPhones zooming the page when a field is tapped. */
+    input,select,textarea,.addr-row select,textarea.addr-notes,.att-extra input{font-size:16px;}
+
+    /* The booking window becomes a full-screen sheet with the × always in reach. */
+    .modal-veil{padding:0;}
+    .modal{max-width:none;min-height:100%;border:0;}
+    .modal-head{position:sticky;top:0;z-index:2;background:var(--paper);padding:14px 16px;}
+    .modal-head h3{font-size:20px;}
+    .modal-close{font-size:30px;padding:0 4px;}
+    .modal-body{padding:16px 16px 28px;}
+    .slot-grid{grid-template-columns:repeat(auto-fill,minmax(88px,1fr));}
+    .slot-btn{padding:13px 4px;}
+    .qty-btns button{width:44px;height:44px;}
+    .qty-btns b{line-height:44px;}
+    .cal-row .btn{min-width:0;}
+  }
+  @media (max-width:420px){
+    .info-row{flex-direction:column;gap:2px;}
+    /* Availability moves under the class name rather than a third column. */
+    .slot{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;}
+    .slot-seats{grid-column:2;text-align:left;}
+    .slot-seats br{display:none;}
+  }
+
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
 </style>
 </head>
@@ -607,7 +690,7 @@
              trainers.</p>
           <p class="course-meta">4 hour session · at your location</p>
         </div>
-        <div class="course-price"><div class="price">$85<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="CPR">$85</span><small>per person</small></div></div>
       </div>
 
       <div class="course">
@@ -619,7 +702,7 @@
              attack. The fuller workplace certification.</p>
           <p class="course-meta">4 hour session · at your location</p>
         </div>
-        <div class="course-price"><div class="price">$95<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="HEARTSAVER">$95</span><small>per person</small></div></div>
       </div>
 
       <div class="course">
@@ -630,7 +713,7 @@
              basic first aid, home safety, and knowing when to call for help.</p>
           <p class="course-meta">4 hour session · ages 11–15 · at your location</p>
         </div>
-        <div class="course-price"><div class="price">$55<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="BABYSIT">$55</span><small>per person</small></div></div>
       </div>
     </div>
   </section>
@@ -684,7 +767,7 @@
              and volunteers.</p>
           <p class="course-meta">4 hour session · certification valid 2 years · cards issued before we leave</p>
         </div>
-        <div class="course-price"><div class="price">$85<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="CPR">$85</span><small>per person</small></div></div>
       </div>
 
       <div class="course">
@@ -697,7 +780,7 @@
              first aid alongside CPR want this one.</p>
           <p class="course-meta">4 hour session · certification valid 2 years · cards issued before we leave</p>
         </div>
-        <div class="course-price"><div class="price">$95<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="HEARTSAVER">$95</span><small>per person</small></div></div>
       </div>
 
       <div class="course">
@@ -709,7 +792,7 @@
              knowing when to call for help.</p>
           <p class="course-meta">4 hour session · ages 13+ · certificate of completion</p>
         </div>
-        <div class="course-price"><div class="price">$55<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="BABYSIT">$55</span><small>per person</small></div></div>
       </div>
 
       <h2 class="sec" style="font-size:26px;margin-top:40px">Group pricing</h2>
@@ -764,16 +847,12 @@
   <section>
     <div class="wrap">
       <h2 class="sec">Class schedule</h2>
-      <p class="sec-note">Register any time — online booking is open 24/7. Classes run at the training center unless noted. Can't find a date that works? Ask about a private session.</p>
+      <p class="sec-note">Register any time — online booking is open 24/7. We come to you: pick a day, then a start time that suits. Travel is free within 25 miles of Forest Grove. Can't find a date that works? Ask about a private session.</p>
 
-      <table>
-        <thead>
-          <tr><th>Date</th><th>Course</th><th>Hours</th><th>Available</th><th></th></tr>
-        </thead>
-        <tbody id="scheduleRows">
-          <tr><td colspan="5" class="row-loading">Loading the schedule…</td></tr>
-        </tbody>
-      </table>
+      <div id="courseFilter" class="course-filter" role="group" aria-label="Show courses"></div>
+      <div id="scheduleRows" class="sched">
+        <p class="row-loading">Loading the schedule…</p>
+      </div>
 
       <p class="sec-note" style="margin-top:32px">Arrive 10 minutes early. Wear comfortable clothes — you'll be on the floor doing compressions. Cards are issued before you leave.</p>
     </div>
@@ -923,7 +1002,7 @@ const Booking = (() => {
 
   // Server features this page relies on. Checked against /health on load, so a
   // mismatched pair says so plainly instead of failing mid-booking.
-  const NEEDS = ['groups', 'attendee-contacts'];
+  const NEEDS = ['groups', 'attendee-contacts', 'zones'];
 
   let classes = [];
   let current = null;      // class being booked
@@ -934,6 +1013,8 @@ const Booking = (() => {
   let daySlots = null;     // the day's bookable times
   let chosenSlot = null;   // the time they picked
   let quote = null;        // what this party size costs, and why
+  let travel = null;       // zone lookup for the ZIP typed: { ok, zone, miles, feeCents, ... }
+  let zoneTable = null;    // the zones and their charges, from /api/zones
 
   // ---------------------------------------------------------------- helpers
 
@@ -951,6 +1032,12 @@ const Booking = (() => {
       { hour: 'numeric', minute: '2-digit' });
 
   const fmtRange = (a, b) => `${fmtTime(a)} – ${fmtTime(b)}`;
+
+  /** "4 hour", or "90 minute" when it isn't whole hours. */
+  const sessionLabel = () => {
+    const m = current?.sessionMinutes || 240;
+    return m % 60 ? `${m} minute` : `${m / 60} hour`;
+  };
 
   const esc = (str) => String(str ?? '').replace(/[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -988,39 +1075,124 @@ const Booking = (() => {
     }
     const tight = c.availableSlots <= 2 || c.seatsAvailable <= 3;
     return `<span class="${tight ? 'seats-low' : 'seats-ok'}">
-      ${c.availableSlots} time${c.availableSlots === 1 ? '' : 's'} ·
-      ${c.seatsAvailable} place${c.seatsAvailable === 1 ? '' : 's'}
+      ${c.availableSlots} time slot${c.availableSlots === 1 ? '' : 's'} available ·
+      ${c.seatsAvailable} seat${c.seatsAvailable === 1 ? '' : 's'} available
     </span>`;
   }
 
-  function renderSchedule() {
-    const tbody = document.getElementById('scheduleRows');
-    if (!tbody) return;
+  /** Local "YYYY-MM-DD" for grouping, so a day never splits across UTC midnight. */
+  const dayKey = (iso) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
 
-    if (!classes.length) {
-      tbody.innerHTML =
-        '<tr><td colspan="5" class="row-loading">No classes scheduled right now. ' +
-        'Get in touch and we will arrange one.</td></tr>';
+  /** Monday of the week a date falls in, at local midnight. */
+  const mondayOf = (iso) => {
+    const d = new Date(iso);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+  };
+
+  function weekLabel(monday) {
+    const thisWeek = mondayOf(new Date().toISOString()).getTime();
+    const weeks = Math.round((monday.getTime() - thisWeek) / (7 * 86400000));
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    const span = `${monday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ` +
+                 `${sunday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+    if (weeks === 0) return `This week · ${span}`;
+    if (weeks === 1) return `Next week · ${span}`;
+    return `Week of ${span}`;
+  }
+
+  /**
+   * The schedule, grouped by week and then by day.
+   *
+   * With weekly opening hours there can be a day row for every weekday, so a
+   * flat list turns into one long block. Grouping by date keeps it readable:
+   * each date appears once, with whatever runs that day beneath it.
+   */
+  // Which course the schedule is showing; null is all of them.
+  let courseShown = null;
+
+  /**
+   * Buttons to narrow the schedule to one course. With every course offered
+   * most days, the unfiltered list is three rows per date.
+   */
+  function renderFilter() {
+    const el = document.getElementById('courseFilter');
+    if (!el) return;
+    const codes = [...new Set(classes.map((c) => c.courseCode))];
+    if (codes.length < 2) { el.innerHTML = ''; courseShown = null; return; }
+    if (courseShown && !codes.includes(courseShown)) courseShown = null;
+    const label = (code) => classes.find((c) => c.courseCode === code).title;
+    el.innerHTML = [[null, 'All courses'], ...codes.map((c) => [c, label(c)])]
+      .map(([code, text]) => `
+        <button type="button" aria-pressed="${courseShown === code}"
+                ${code ? `data-code="${code}" style="--c:${swatch(code)}"` : ''}
+                onclick="Booking.showCourse(${code ? `'${code}'` : 'null'})">${esc(text)}</button>`)
+      .join('');
+  }
+
+  function showCourse(code) {
+    courseShown = code;
+    renderFilter();
+    renderSchedule();
+  }
+
+  function renderSchedule() {
+    const box = document.getElementById('scheduleRows');
+    if (!box) return;
+    renderFilter();
+    const shown = courseShown ? classes.filter((c) => c.courseCode === courseShown) : classes;
+
+    if (!shown.length) {
+      box.innerHTML = '<p class="row-loading">No classes scheduled right now. ' +
+        'Get in touch and we will arrange one.</p>';
       return;
     }
 
-    tbody.innerHTML = classes.map((c) => `
-      <tr>
-        <td style="border-left-color:${swatch(c.courseCode)}">${fmtDate(c.opensAt || c.startsAt)}</td>
-        <td>
-          <span class="tag" style="background:${swatch(c.courseCode)}">${shortTag(c.courseCode)}</span>
-          ${esc(c.title)}
-          ${c.serviceZips && c.serviceZips.length
-            ? `<span class="row-area">ZIPs ${esc(areaSummary(c.serviceZips, 3))}</span>` : ''}
-        </td>
-        <td>${fmtTime(c.opensAt || c.startsAt)}–${fmtTime(c.closesAt || c.endsAt)}</td>
-        <td>${seatLabel(c)}</td>
-        <td>
-          <button class="btn ${c.isFull ? 'btn-ghost' : ''}" onclick="Booking.open(${c.id})">
-            ${c.isFull ? 'Waitlist' : 'Book a time'}
-          </button>
-        </td>
-      </tr>`).join('');
+    const sorted = [...shown].sort((a, b) =>
+      new Date(a.opensAt || a.startsAt) - new Date(b.opensAt || b.startsAt));
+
+    // week -> day -> classes, in date order.
+    const weeks = new Map();
+    for (const c of sorted) {
+      const at = c.opensAt || c.startsAt;
+      const wk = mondayOf(at).getTime();
+      if (!weeks.has(wk)) weeks.set(wk, new Map());
+      const days = weeks.get(wk);
+      const key = dayKey(at);
+      if (!days.has(key)) days.set(key, []);
+      days.get(key).push(c);
+    }
+
+    box.innerHTML = [...weeks.entries()].map(([wk, days]) => `
+      <div class="sched-week">
+        <h3>${weekLabel(new Date(wk))}</h3>
+        ${[...days.values()].map((list) => {
+          const at = new Date(list[0].opensAt || list[0].startsAt);
+          return `
+          <div class="sched-day">
+            <div class="day-date">
+              <b>${at.toLocaleDateString(undefined, { weekday: 'long' })}</b>
+              <span>${at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+            </div>
+            <div class="day-classes">
+              ${list.map((c) => `
+                <div class="sched-class" style="border-left-color:${swatch(c.courseCode)}">
+                  <div class="what">
+                    <span class="tag" style="background:${swatch(c.courseCode)}">${shortTag(c.courseCode)}</span>
+                    <b>${esc(c.title)}</b>
+                    <span class="hours">Open ${fmtTime(c.opensAt || c.startsAt)} – ${fmtTime(c.closesAt || c.endsAt)}</span>
+                  </div>
+                  <div class="avail">${seatLabel(c)}</div>
+                  <button class="btn ${c.isFull ? 'btn-ghost' : ''}" onclick="Booking.open(${c.id})">
+                    ${c.isFull ? 'Waitlist' : 'Book a time'}
+                  </button>
+                </div>`).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`).join('');
   }
 
   function renderNext() {
@@ -1041,14 +1213,32 @@ const Booking = (() => {
         <div class="slot-body">
           <div class="slot-name">${esc(c.title)}</div>
           <div class="slot-meta">
-            ${fmtTime(c.opensAt || c.startsAt)}–${fmtTime(c.closesAt || c.endsAt)} ·
-            ${c.availableSlots} time${c.availableSlots === 1 ? '' : 's'} open
+            <span style="white-space:nowrap">${fmtTime(c.opensAt || c.startsAt)} –</span>
+            <span style="white-space:nowrap">${fmtTime(c.closesAt || c.endsAt)}</span>
           </div>
         </div>
         <div class="slot-seats ${c.isFull || c.availableSlots <= 2 ? 'low' : ''}">
-          ${c.isFull ? 'Booked' : c.availableSlots + ' times'}
+          ${c.isFull ? 'Booked' : `${c.availableSlots} time slot${c.availableSlots === 1 ? '' : 's'} <br>available`}
         </div>
       </div>`).join('');
+  }
+
+  /**
+   * Course prices on the courses and home pages come from the server, so a
+   * price change in the admin page shows here without editing this file.
+   * The numbers in the markup are only what shows if the server can't be
+   * reached.
+   */
+  async function loadPrices() {
+    try {
+      const { data } = await api('/api/courses');
+      if (!data.ok) return;
+      for (const c of data.courses) {
+        const whole = c.priceCents % 100 === 0;
+        const text = '$' + (whole ? c.priceCents / 100 : (c.priceCents / 100).toFixed(2));
+        document.querySelectorAll(`[data-price="${c.code}"]`).forEach((el) => { el.textContent = text; });
+      }
+    } catch { /* keep the printed prices */ }
   }
 
   /** Warn plainly if the server is older than this page. */
@@ -1079,8 +1269,8 @@ const Booking = (() => {
     if (location.protocol === 'file:' && !window.BOOKING_API_BASE) {
       const msg = 'This page is open from a file, so it cannot reach the booking API. ' +
                   'Start the server and open http://localhost:3000 instead.';
-      const tbody = document.getElementById('scheduleRows');
-      if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="row-loading">${msg}</td></tr>`;
+      const sched = document.getElementById('scheduleRows');
+      if (sched) sched.innerHTML = `<p class="row-loading">${msg}</p>`;
       const box = document.getElementById('nextClasses');
       if (box) box.innerHTML = `<div class="slot"><div class="slot-body row-loading">${msg}</div></div>`;
       return;
@@ -1094,11 +1284,10 @@ const Booking = (() => {
     }
 
     if (!data.ok) {
-      const tbody = document.getElementById('scheduleRows');
-      if (tbody) {
-        tbody.innerHTML =
-          '<tr><td colspan="5" class="row-loading">Could not load the schedule. ' +
-          'Please refresh, or call us to book.</td></tr>';
+      const sched = document.getElementById('scheduleRows');
+      if (sched) {
+        sched.innerHTML = '<p class="row-loading">Could not load the schedule. ' +
+          'Please refresh, or call us to book.</p>';
       }
       const box = document.getElementById('nextClasses');
       if (box) {
@@ -1111,6 +1300,7 @@ const Booking = (() => {
     classes = data.classes;
     renderSchedule();
     renderNext();
+    loadPrices();
   }
 
 
@@ -1264,7 +1454,16 @@ const Booking = (() => {
       if (el.id === 'fZip') {
         el.value = el.value.replace(/[^\d-]/g, '').slice(0, 10);
         lookupZip(el);
-        checkZip();
+        checkZone();
+      }
+    });
+
+    // The browser's own autofill can fill the ZIP without an input event,
+    // so check the zone on change too.
+    root.addEventListener('change', (e) => {
+      if (e.target.id === 'fZip') {
+        lookupZip(e.target);
+        checkZone();
       }
     });
 
@@ -1298,74 +1497,101 @@ const Booking = (() => {
 
 
 
-  // --------------------------------------------------- service area
+  // --------------------------------------------------- travel zones
 
-  /** "97123, 97124 and 3 more" — the whole list is a click away. */
-  function areaSummary(zips, shown = 4) {
-    if (!zips || !zips.length) return '';
-    if (zips.length <= shown) return zips.join(', ');
-    return `${zips.slice(0, shown).join(', ')} and ${zips.length - shown} more`;
-  }
+  const zoneFee = (cents) => (cents ? `${money(cents)} travel charge` : 'no travel charge');
 
-  let areaExpanded = false;
-
-  function renderArea() {
+  /** The zone table, with the customer's own zone picked out once known. */
+  async function renderArea() {
     const el = document.getElementById('areaBox');
     if (!el) return;
 
-    const zips = current.serviceZips || [];
-    if (!zips.length) {
-      el.innerHTML = `<p class="area"><b>We travel anywhere</b>
-        No ZIP restriction on this day.</p>`;
-      return;
+    if (!zoneTable) {
+      const { data } = await api('/api/zones');
+      zoneTable = data.ok ? data.zones : [];
     }
+    if (!zoneTable.length) { el.innerHTML = ''; return; }
 
+    const mine = travel && travel.ok ? travel.zone : null;
     el.innerHTML = `
       <div class="area">
-        <b>Where we travel on this day</b>
-        <span class="zips">${areaExpanded ? zips.join(', ') : esc(areaSummary(zips))}</span>
-        ${zips.length > 4 ? `<button type="button" onclick="Booking.toggleArea()">
-          ${areaExpanded ? 'show fewer' : 'show all'}</button>` : ''}
+        <b>Travel charge</b>
+        <table class="zone-table">
+          ${zoneTable.map((z) => `
+            <tr class="${z.zone === mine ? 'mine' : ''}">
+              <td>Zone ${z.zone}</td>
+              <td>${z.zone === 1 ? `up to ${z.maxMiles}` : `${Math.floor(z.minMiles)}–${z.maxMiles}`} miles</td>
+              <td>${z.feeCents ? money(z.feeCents) : 'Free'}</td>
+            </tr>`).join('')}
+        </table>
+        <small>Measured from Forest Grove (97116). Charged once per visit, not per
+          person. Enter your ZIP below to see your zone.</small>
       </div>`;
   }
 
-  function toggleArea() {
-    areaExpanded = !areaExpanded;
-    renderArea();
-  }
-
-  const zipServed = (zip) => {
-    const zips = current?.serviceZips || [];
-    if (!zips.length) return true;
-    return zips.includes(String(zip || '').trim().slice(0, 5));
-  };
+  let zoneTimer = null;
 
   /**
-   * Tell them as they type, not after they've filled in the whole form.
+   * Look up the zone as they type, not after they've filled in the whole form.
    *
    * A customer who reaches the payment step before learning we don't drive to
-   * them has wasted their time and ours.
+   * them, or what the trip costs, has wasted their time and ours.
    */
-  function checkZip() {
+  function checkZone() {
     const hint = document.getElementById('addrHint');
     const zipEl = document.getElementById('fZip');
     if (!hint || !zipEl) return;
 
     const zip = zipEl.value.trim().slice(0, 5);
-    hint.classList.remove('bad', 'good');
+    clearTimeout(zoneTimer);
 
     if (!/^\d{5}$/.test(zip)) {
+      const had = travel;
+      travel = null;
+      hint.classList.remove('bad', 'good');
       hint.textContent = "Start typing the street, or enter a ZIP and we'll fill the rest.";
+      if (had) { renderPrice(); renderArea(); loadSlots(); }
       return;
     }
-    if (zipServed(zip)) {
-      hint.textContent = `${zip} is in our area for this day.`;
-      hint.classList.add('good');
+    if (travel && travel.zip === zip) return;
+
+    zoneTimer = setTimeout(() => lookupZone(zip), 150);
+  }
+
+  async function lookupZone(zip) {
+    const query = new URLSearchParams({ zip, classId: String(current.id) });
+    const { data } = await api(`/api/zones/lookup?${query}`);
+    const zipNow = (document.getElementById('fZip')?.value || '').trim().slice(0, 5);
+    if (zipNow !== zip) return;           // they kept typing
+
+    travel = { ...data, zip };
+    showZone();
+    renderPrice();
+    renderArea();
+    loadSlots();                          // their zone may rule some days out
+
+    if (!data.ok || data.dayHasRoom === false) showAlternatives(null, zip);
+  }
+
+  function showZone() {
+    const hint = document.getElementById('addrHint');
+    if (!hint || !travel) return;
+    hint.classList.remove('bad', 'good');
+
+    if (!travel.ok) {
+      hint.textContent = travel.message || `We don't travel to ${travel.zip}.`;
+      hint.classList.add('bad');
       return;
     }
-    hint.textContent = `We don't travel to ${zip} on this day — see other days below.`;
-    hint.classList.add('bad');
-    showAlternatives(null, zip);
+    const place = travel.city ? `${travel.city}, ${travel.state}` : travel.zip;
+    if (travel.dayHasRoom === false) {
+      hint.textContent = `${place} is Zone ${travel.zone}, and we're already booked for ` +
+        `Zone ${travel.zone} trips this day — see other days below.`;
+      hint.classList.add('bad');
+      return;
+    }
+    hint.textContent = `${place} is Zone ${travel.zone} (${travel.miles} mi) — ${zoneFee(travel.feeCents)}.`;
+    hint.classList.add('good');
   }
 
   // --------------------------------------------------- address lookup
@@ -1452,6 +1678,8 @@ const Booking = (() => {
 
     hideAddr();
     document.getElementById('addrHint').textContent = 'Looks good.';
+    // A filled-in ZIP needs its zone and travel charge just like a typed one.
+    checkZone();
     document.getElementById('fUnit')?.focus();
   }
 
@@ -1484,9 +1712,9 @@ const Booking = (() => {
       if (city && !city.value.trim()) city.value = data.city;
       if (state && !state.value) state.value = data.state;
 
-      // Leave the area verdict in place; it matters more than the city name.
+      // The zone verdict already names the place and matters more.
       const hint = document.getElementById('addrHint');
-      if (hint && !hint.classList.contains('bad')) {
+      if (hint && !hint.classList.contains('bad') && !hint.classList.contains('good')) {
         hint.textContent = `${data.city}, ${data.state}`;
       }
     }, 300);
@@ -1508,7 +1736,7 @@ const Booking = (() => {
     chosenSlot = null;
     daySlots = null;
     quote = null;
-    areaExpanded = false;
+    travel = null;
 
     document.getElementById('bookTitle').textContent = current.title;
     document.getElementById('bookWhen').textContent =
@@ -1536,6 +1764,7 @@ const Booking = (() => {
     chosenSlot = null;
     daySlots = null;
     quote = null;
+    travel = null;
     load();
   }
 
@@ -1631,10 +1860,15 @@ const Booking = (() => {
         document.getElementById('fZip')?.focus();
         return null;
       }
-      if (!zipServed(zip)) {
-        showErr(`We don't travel to ${zip.slice(0, 5)} on this day. ` +
-                `Other days are listed below the times.`);
+      // Only what the lookup already said; the server checks again anyway.
+      if (travel && travel.zip === zip.slice(0, 5) && !travel.ok) {
+        showErr(travel.message || `We don't travel to ${zip.slice(0, 5)}.`);
         document.getElementById('fZip')?.focus();
+        return null;
+      }
+      if (travel && travel.zip === zip.slice(0, 5) && travel.dayHasRoom === false) {
+        showErr(`We're already booked for Zone ${travel.zone} trips on this day. ` +
+                `Other days are listed with the times.`);
         showAlternatives(null, zip.slice(0, 5));
         return null;
       }
@@ -1655,7 +1889,7 @@ const Booking = (() => {
     body(`
       <div class="modal-err" id="bookErr"></div>
       <div class="modal-price" id="priceLine">${money(current.priceCents)}
-        <small>per person · ${current.sessionMinutes || 120} minute session</small>
+        <small>per person · ${sessionLabel()} session</small>
       </div>
       <div id="priceWhy"></div>
 
@@ -1667,12 +1901,6 @@ const Booking = (() => {
           <button type="button" onclick="Booking.setQty(1)" id="qtyUp" aria-label="One more">+</button>
         </div>
       </div>
-
-      <label>What time should we arrive?</label>
-      <div id="slotArea"><p class="modal-note">Loading times…</p></div>
-
-      <div id="groupNote"></div>
-      <div id="attendees"></div>
 
       <div id="areaBox"></div>
 
@@ -1694,6 +1922,12 @@ const Booking = (() => {
       <textarea id="fAddrNotes" class="addr-notes"
                 placeholder="Parking, gate code, suite number, where to meet (optional)"></textarea>
 
+      <label>What time should we arrive?</label>
+      <div id="slotArea"><p class="modal-note">Loading times…</p></div>
+
+      <div id="groupNote"></div>
+      <div id="attendees"></div>
+
       <label for="fEmail">Email</label>
       <input id="fEmail" type="email" autocomplete="email" placeholder="you@example.com">
       <label for="fPhone">Phone <span style="font-weight:400;color:var(--ink-soft)">(optional)</span></label>
@@ -1712,7 +1946,9 @@ const Booking = (() => {
 
   /** Fetch the day's times for the current party size. */
   async function loadSlots() {
-    const { data } = await api(`/api/classes/${current.id}/slots?partySize=${qty}`);
+    const query = new URLSearchParams({ partySize: String(qty) });
+    if (travel && travel.ok) query.set('zip', travel.zip);
+    const { data } = await api(`/api/classes/${current.id}/slots?${query}`);
     if (!data.ok) {
       document.getElementById('slotArea').innerHTML =
         '<p class="modal-note">Could not load times. Please call us to book.</p>';
@@ -1731,32 +1967,38 @@ const Booking = (() => {
     const area = document.getElementById('slotArea');
     if (!area || !daySlots) return;
 
-    const usable = daySlots.slots.filter((s) => s.reason !== 'past');
+    // Only times they can actually book. Hours we're closed, times already
+    // taken and times that have passed are left out rather than shown
+    // crossed through.
+    const open = daySlots.slots.filter((s) => s.available);
 
-    if (!usable.some((s) => s.available)) {
-      const why = daySlots.seatsLeft === 0
-        ? 'This day is fully booked.'
-        : daySlots.seatsLeft < qty
-          ? `Only ${daySlots.seatsLeft} place${daySlots.seatsLeft === 1 ? '' : 's'} left this day.`
-          : 'Every time on this day is taken.';
+    if (!open.length) {
+      const zoneFull = daySlots.slots.some((s) => s.reason === 'zone_full');
+      const why = zoneFull
+        ? `We're already booked for Zone ${travel.zone} trips on this day.`
+        : daySlots.seatsLeft === 0
+          ? 'This day is fully booked.'
+          : daySlots.seatsLeft < qty
+            ? `Only ${daySlots.seatsLeft} seat${daySlots.seatsLeft === 1 ? '' : 's'} available this day.`
+            : 'Every time on this day is taken.';
       area.innerHTML = `<p class="group-note">${why}</p>`;
-      showAlternatives();
+      showAlternatives(null, travel && travel.ok ? travel.zip : null);
       return;
     }
 
+    const hours = Math.round(daySlots.sessionMinutes / 6) / 10;
     area.innerHTML = `
       <div class="slot-grid">
-        ${usable.map((s) => `
+        ${open.map((s) => `
           <button type="button" class="slot-btn ${s.start === chosenSlot ? 'picked' : ''}"
-                  ${s.available ? '' : 'disabled'}
-                  title="${s.available ? `${fmtTime(s.start)} to ${fmtTime(s.end)}` : 'Not available'}"
+                  title="${fmtTime(s.start)} to ${fmtTime(s.end)}"
                   onclick="Booking.pickSlot('${s.start}')">
             ${fmtTime(s.start)}
           </button>`).join('')}
       </div>
       <p class="slot-legend">
-        Each session runs ${daySlots.sessionMinutes} minutes.
-        Crossed-out times are already booked.
+        Start times we have open on ${fmtDate(daySlots.opensAt)}.
+        Each session runs ${hours} hour${hours === 1 ? '' : 's'}.
       </p>`;
   }
 
@@ -1785,14 +2027,14 @@ const Booking = (() => {
     wrap.className = 'alt-list';
     wrap.innerHTML = `
       <p style="font-weight:600;margin:16px 0 8px">
-        ${zip ? `Other days we travel to ${esc(zip)}` : 'Other days we could come out'}</p>
+        ${zip ? `Other days we can come to ${esc(zip)}` : 'Other days we could come out'}</p>
       ${data.alternatives.map((a) => `
         <div class="alt-day" onclick="Booking.switchDay(${a.classId}, '${a.suggestedSlot}')">
           <b>${fmtDate(a.opensAt)}</b>
           <span>
             ${fmtTime(a.suggestedSlot)}
             ${a.matchesPreferredTime ? '<span class="match">· the time you wanted</span>' : ''}
-            · ${a.seatsLeft} place${a.seatsLeft === 1 ? '' : 's'} left
+            · ${a.seatsLeft} seat${a.seatsLeft === 1 ? '' : 's'} available
           </span>
         </div>`).join('')}`;
     area.appendChild(wrap);
@@ -1838,7 +2080,7 @@ const Booking = (() => {
     // Before the quote lands, show the headline rather than a blank.
     if (!quote || quote.partySize !== qty) {
       priceEl.innerHTML = `${money(current.priceCents)}
-        <small>per person · ${current.sessionMinutes || 120} minute session</small>`;
+        <small>per person · ${sessionLabel()} session</small>`;
       whyEl.innerHTML = '';
       totalEl.innerHTML = '';
       return;
@@ -1850,7 +2092,7 @@ const Booking = (() => {
     priceEl.innerHTML = `
       ${changed ? `<span class="was">${money(quote.baseCents)}</span>` : ''}
       ${money(quote.perSeatCents)}
-      <small>per person · ${current.sessionMinutes || 120} minute session</small>`;
+      <small>per person · ${sessionLabel()} session</small>`;
 
     whyEl.innerHTML = quote.reason ? `
       <div class="price-why ${cheaper ? '' : 'surcharge'}">
@@ -1859,12 +2101,36 @@ const Booking = (() => {
         ${nextTierNudge()}
       </div>` : '';
 
-    totalEl.innerHTML = qty > 1
-      ? `<div class="total-line">
-           <span>${qty} × ${money(quote.perSeatCents)}</span>
-           <b>${money(quote.totalCents)}</b>
-         </div>`
-      : '';
+    totalEl.innerHTML = totalRows();
+  }
+
+  /**
+   * Classes, travel and the total, as the customer will be charged.
+   *
+   * The travel line is always there — before a ZIP is entered it says so,
+   * rather than showing a total that later jumps by $100.
+   */
+  function totalRows() {
+    if (!quote || quote.partySize !== qty) return '';
+    const seatsLine = `${qty === 1 ? '1 person' : `${qty} people`} × ${money(quote.perSeatCents)}`;
+
+    let travelLine;
+    let fee = 0;
+    if (travel && travel.ok) {
+      fee = travel.feeCents;
+      travelLine = `<div><span>Travel — Zone ${travel.zone} (${travel.miles} mi)</span>
+        <span>${fee ? money(fee) : 'Free'}</span></div>`;
+    } else if (travel && !travel.ok) {
+      travelLine = `<div class="muted"><span>Travel</span><span>outside our area</span></div>`;
+    } else {
+      travelLine = `<div class="muted"><span>Travel charge</span><span>enter your ZIP</span></div>`;
+    }
+
+    return `<div class="total-rows">
+      <div><span>${seatsLine}</span><span>${money(quote.totalCents)}</span></div>
+      ${travelLine}
+      <div class="grand"><span>Total</span><b>${money(quote.totalCents + fee)}</b></div>
+    </div>`;
   }
 
   /**
@@ -1968,7 +2234,7 @@ const Booking = (() => {
     renderPrice();
 
     const btn = document.querySelector('#bookBody > .btn');
-    if (btn) btn.textContent = qty > 1 ? `Hold ${qty} places` : 'Hold my seat';
+    if (btn) btn.textContent = qty > 1 ? `Hold ${qty} seats` : 'Hold my seat';
   }
 
   // step 2 — seat held, pay now
@@ -1993,14 +2259,22 @@ const Booking = (() => {
       // Someone took the last seat(s) while this form was open.
       if (status === 409 && data.canJoinWaitlist) { stepWaitlist(true); return; }
 
-      if (data.reason === 'outside_service_area') {
+      if (data.reason === 'outside_service_area' || data.reason === 'zip_required') {
         showErr(data.message);
+        return;
+      }
+
+      // Another booking took the day's last trip into their zone meanwhile.
+      if (data.reason === 'zone_full') {
+        showErr(data.message);
+        travel = null;
+        checkZone();
         showAlternatives(null, (fields.zip || '').slice(0, 5));
         return;
       }
 
       // Someone took that time while the form was open.
-      if (data.reason === 'slot_taken' || data.reason === 'slot_in_past') {
+      if (['slot_taken', 'slot_in_past', 'slot_too_soon', 'day_off'].includes(data.reason)) {
         showErr(data.message);
         chosenSlot = null;
         await loadSlots();
@@ -2044,6 +2318,12 @@ const Booking = (() => {
         <small>${esc(current.title)}${data.seats > 1
           ? ` — ${data.seats} people at ${money(data.registration.amountCents)} each` : ''}</small>
       </div>
+      ${data.travel ? `<div class="total-rows" style="margin-top:0">
+        <div><span>Class${data.seats > 1 ? 'es' : ''}</span><span>${money(data.seatsCents)}</span></div>
+        <div><span>Travel — Zone ${data.travel.zone} (${data.travel.miles} mi)</span>
+          <span>${data.travelCents ? money(data.travelCents) : 'Free'}</span></div>
+        <div class="grand"><span>Total</span><b>${money(data.totalCents)}</b></div>
+      </div>` : ''}
       ${data.pricing && data.pricing.label ? `<p class="price-why ${
         data.pricing.adjustPct < 0 ? '' : 'surcharge'}">
         <b>${esc(data.pricing.label)} — ${data.pricing.adjustPct > 0 ? '+' : ''}${
@@ -2138,7 +2418,10 @@ const Booking = (() => {
         ${esc(current.title)}<br>
         ${lastBooking ? `${fmtDate(lastBooking.slotStart)},
           ${fmtTime(lastBooking.slotStart)}–${fmtTime(lastBooking.slotEnd)}<br>
-          ${esc(lastBooking.address)}<br>` : ''}
+          ${esc(lastBooking.address)}<br>
+          ${lastBooking.travel ? `Paid ${money(lastBooking.totalCents)}, including
+            ${lastBooking.travelCents ? `${money(lastBooking.travelCents)} Zone ${lastBooking.travel.zone} travel`
+                                      : `free Zone ${lastBooking.travel.zone} travel`}.<br>` : ''}` : ''}
         We come to you — have floor space ready and wear comfortable clothes.
         ${group ? 'Each person gets their own certification card.' : ''}
       </p>
@@ -2218,7 +2501,7 @@ const Booking = (() => {
             <span>
               ${fmtTime(a.suggestedSlot)}
               ${a.matchesPreferredTime ? '<span class="match">· the time you wanted</span>' : ''}
-              · ${a.seatsLeft} place${a.seatsLeft === 1 ? '' : 's'} left
+              · ${a.seatsLeft} seat${a.seatsLeft === 1 ? '' : 's'} available
             </span>
           </div>`).join('')}` : ''}
 
@@ -2263,20 +2546,17 @@ const Booking = (() => {
 
   // ------------------------------------------------------------------- init
 
+  // Escape only dismisses the suggestion lists. The booking window itself
+  // closes from its × alone, so a stray key or click can't lose a booking
+  // halfway through.
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      if (suggestBox?.classList.contains('open')) { hideSuggest(); return; }
-      close();
-    }
+    if (e.key === 'Escape') { hideSuggest(); hideAddr(); }
   });
 
   // The list is fixed-position, so it would drift away from its field.
   window.addEventListener('scroll', () => { hideSuggest(); hideAddr(); }, true);
   window.addEventListener('resize', () => { hideSuggest(); hideAddr(); });
 
-  document.getElementById('bookVeil')?.addEventListener('click', (e) => {
-    if (e.target.id === 'bookVeil') close();
-  });
 
   checkServer();
   load();
@@ -2284,7 +2564,7 @@ const Booking = (() => {
   setInterval(load, 60000);
 
   return { open, close, hold, pay, payConverge, joinWaitlist, load, setQty, toggleContact,
-           pickSlot, switchDay, loadSlots, loadQuote, toggleArea, checkZip,
+           pickSlot, switchDay, loadSlots, loadQuote, checkZone, showCourse,
            // exposed for tests
            _formatPhone: formatPhone, _showSuggest: showSuggest, _hideSuggest: hideSuggest,
            _composeAddress: composeAddress, _chooseAddress: chooseAddress,
