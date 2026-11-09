@@ -16,18 +16,20 @@ $downloads = Join-Path $env:USERPROFILE 'Downloads'
 
 # file name -> where it belongs, and a string proving it's current
 $files = @(
-  @{ name = 'index.html';   dest = '.';             marker = 'areaSummary' }
-  @{ name = 'admin.html';   dest = '.';             marker = 'zip-chip' }
-  @{ name = 'guide.html';   dest = '.';             marker = 'QUICK REFERENCE' }
-  @{ name = 'db.js';        dest = 'src';           marker = 'service_zips' }
-  @{ name = 'seats.js';     dest = 'src';           marker = 'serviceZipsFor' }
-  @{ name = 'server.js';    dest = 'src';           marker = 'service-area' }
+  @{ name = 'index.html';   dest = '.';             marker = 'checkZone' }
+  @{ name = 'admin.html';   dest = '.';             marker = 'zoneFields' }
+  @{ name = 'guide.html';   dest = '.';             marker = 'Travel zones' }
+  @{ name = 'db.js';        dest = 'src';           marker = 'zone_limits' }
+  @{ name = 'seats.js';     dest = 'src';           marker = 'zoneTripsLeft' }
+  @{ name = 'server.js';    dest = 'src';           marker = 'bulk-days' }
+  @{ name = 'zones.js';     dest = 'src';           marker = 'zoneForZip' }
+  @{ name = 'zip-centroids.json'; dest = 'src';     marker = '"97116"' }
   @{ name = 'calendar.js';  dest = 'src';           marker = 'BEGIN:VCALENDAR' }
   @{ name = 'address.js';   dest = 'src';           marker = 'PHOTON_URL' }
   @{ name = 'seed.js';      dest = 'src';           marker = 'WORKDAY' }
   @{ name = 'mock.js';      dest = 'src\payments';  marker = 'MOCK PAYMENT' }
   @{ name = 'converge.js';  dest = 'src\payments';  marker = 'PayWithConverge' }
-  @{ name = 'package.json'; dest = '.';             marker = 'test:slots' }
+  @{ name = 'package.json'; dest = '.';             marker = 'test:zones' }
   @{ name = 'seats.test.js';    dest = 'test';      marker = 'the OS will clear it' }
   @{ name = 'slots.test.js';    dest = 'test';      marker = 'the OS will clear it' }
   @{ name = 'address.test.js';  dest = 'test';      marker = 'Photon parsing' }
@@ -35,7 +37,7 @@ $files = @(
   @{ name = 'admin.test.js';    dest = 'test';      marker = 'already closed' }
   @{ name = 'e2e.sh';           dest = 'test';      marker = 'created from the admin API' }
   @{ name = 'pricing.test.js';  dest = 'test';      marker = 'the OS will clear it' }
-  @{ name = 'geofence.test.js'; dest = 'test';      marker = 'reading the area' }
+  @{ name = 'zones.test.js';    dest = 'test';      marker = 'trips per zone per day' }
 )
 
 # Selecting several files at once makes the browser hand back a single zip,

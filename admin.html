@@ -107,19 +107,35 @@
   .tier-preview{font-size:13px;color:var(--ink-soft);margin:0 0 14px}
   .tier-preview b{color:var(--ink);font-family:var(--cond);font-size:15px}
 
-  /* service area */
-  .zip-box{border:1.5px solid var(--rule);padding:11px 12px;margin:0 0 6px;
-    display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:46px;
-    background:var(--paper)}
-  .zip-chip{background:var(--paper-2);border:1px solid var(--rule);border-radius:2px;
-    padding:3px 7px;font-size:13.5px;font-family:ui-monospace,Menlo,Consolas,monospace;
-    display:inline-flex;align-items:center;gap:5px}
-  .zip-chip button{background:none;border:0;cursor:pointer;color:var(--ink-soft);
-    font-size:15px;line-height:1;padding:0}
-  .zip-chip button:hover{color:var(--red)}
-  .zip-box input{border:0;outline:0;margin:0;padding:3px 2px;width:96px;
-    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;background:none}
-  .zip-note{font-size:12.5px;color:var(--ink-soft);margin:0 0 14px}
+  /* travel zones */
+  .zones{border:1.5px solid var(--rule);margin:0 0 6px}
+  .zone-row{display:grid;grid-template-columns:1fr 110px;gap:0 12px;align-items:center;
+    padding:9px 12px;border-bottom:1px solid var(--rule)}
+  .zone-row:last-child{border-bottom:0}
+  .zone-row b{font-family:var(--cond);font-size:16px}
+  .zone-row span{display:block;font-size:12.5px;color:var(--ink-soft)}
+  .zone-row input{margin:0;padding:7px 8px;font-size:14px}
+  .zone-note{font-size:12.5px;color:var(--ink-soft);margin:0 0 14px}
+
+  /* one day or weekly hours */
+  .mode{display:flex;gap:0;margin:0 0 16px;border:1.5px solid var(--ink);width:max-content}
+  .mode button{font:inherit;font-weight:600;font-size:14px;padding:8px 14px;border:0;
+    background:none;color:var(--ink);cursor:pointer}
+  .mode button.on{background:var(--ink);color:var(--paper)}
+  .week{border:1.5px solid var(--rule);margin:0 0 8px}
+  .wk-row{display:grid;grid-template-columns:110px 1fr 1fr;gap:0 10px;align-items:center;
+    padding:7px 11px;border-bottom:1px solid var(--rule)}
+  .wk-row:last-child{border-bottom:0}
+  .wk-row label{margin:0;display:flex;gap:8px;align-items:center;font-size:14.5px;cursor:pointer}
+  .wk-row label input{width:auto;margin:0}
+  .wk-row input[type=time]{margin:0;padding:6px 8px;font-size:14px}
+  .wk-row.off input[type=time]{opacity:.35}
+  .wk-preview{font-size:13px;color:var(--ink-soft);margin:0 0 16px}
+  .wk-preview b{color:var(--ink)}
+
+  /* week headings in the day table */
+  tr.week-head td{background:var(--paper-2);font-family:var(--cond);font-size:15px;
+    font-weight:600;padding:7px 10px;border-bottom:1px solid var(--rule);letter-spacing:.02em}
 
   .roster-row{display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--rule);font-size:14px}
   .roster-row:last-child{border-bottom:0}
@@ -150,6 +166,8 @@
   .visit .roster-row{padding:8px 13px;border-bottom:1px solid var(--rule)}
   .visit .roster-row:last-child{border-bottom:0}
   .visit-meta{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
+  .zone-tag{font-size:11px;font-weight:600;padding:1px 6px;border-radius:2px;
+    background:var(--blue);color:#fff;margin-right:4px}
 
   .pill{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:2px;white-space:nowrap}
   .p-confirmed{background:var(--green);color:#fff}
@@ -166,6 +184,7 @@
     .stats{grid-template-columns:repeat(2,1fr)}
     .two{grid-template-columns:1fr}
     .hide-sm{display:none}
+    .wk-row{grid-template-columns:90px 1fr 1fr}
   }
 </style>
 </head>
@@ -203,9 +222,9 @@
       <div>
         <h2>Training days</h2>
         <p class="sub">Each row is a day you're available and the hours you'll work.
-          Customers book two-hour sessions inside that window at their own address.</p>
+          Customers can only pick start times inside those hours.</p>
       </div>
-      <button class="btn" onclick="Admin.newClass()">Add a day</button>
+      <button class="btn" onclick="Admin.newClass()">Add days</button>
     </div>
 
     <table>
@@ -213,7 +232,7 @@
         <tr>
           <th>Date</th><th>Course</th><th class="hide-sm">Hours</th>
           <th>Booked</th><th class="hide-sm">People</th><th class="hide-sm">Waitlist</th>
-          <th class="hide-sm">Area</th><th class="hide-sm">Price</th><th></th>
+          <th class="hide-sm">Zone trips</th><th class="hide-sm">Price</th><th></th>
         </tr>
       </thead>
       <tbody id="rows">
@@ -240,6 +259,15 @@ const Admin = (() => {
   const API = window.BOOKING_API_BASE || '';
   let token = null;
   let classes = [];
+  let sessionMinutes = 240;   // replaced by the server's figure once the list loads
+
+  // Matches ZONES in src/zones.js.
+  const ZONES = [
+    { zone: 1, label: '0 – 25 miles',      fee: 'no travel charge' },
+    { zone: 2, label: '25.01 – 50 miles',  fee: '$50 travel charge' },
+    { zone: 3, label: '50.01 – 90 miles',  fee: '$100 travel charge' },
+  ];
+  const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   // ------------------------------------------------------------- utilities
 
@@ -361,42 +389,71 @@ const Admin = (() => {
       return;
     }
     classes = list.classes;
+    if (list.sessionMinutes) sessionMinutes = list.sessionMinutes;
     const now = Date.now();
 
+    // A heading row each time the week changes, so a run of days reads as a
+    // calendar rather than one long list.
+    let lastWeek = null;
     $('rows').innerHTML = classes.length ? classes.map((c) => {
-      const past = new Date(c.endsAt).getTime() < now;
-      const cls = c.status === 'cancelled' ? 'cancelled' : (past ? 'past' : '');
-      const seatClass = c.available === 0 ? 'low' : 'ok';
-      return `
-        <tr class="${cls}">
-          <td class="nowrap">${fmtDate(c.startsAt)}</td>
-          <td>
-            <span class="tag" style="background:${swatch(c.courseCode)}">${esc(c.courseCode)}</span>
-            ${esc(c.title)}
-            ${c.status === 'cancelled' ? ' <span class="muted">(cancelled)</span>' : ''}
-          </td>
-          <td class="hide-sm nowrap">${fmtTime(c.startsAt)} – ${fmtTime(c.endsAt)}</td>
-          <td class="nowrap">
-            <span class="num ${c.availableSlots === 0 ? 'low' : 'ok'}">${c.bookedSlots || 0}</span>
-            <span class="muted">of ${(c.bookedSlots || 0) + (c.availableSlots || 0)} times</span>
-          </td>
-          <td class="hide-sm nowrap">
-            <span class="num ${seatClass}">${c.taken}/${c.capacity}</span>
-            <span class="muted">(${c.confirmed} paid)</span>
-          </td>
-          <td class="hide-sm">${c.waitlist || '—'}</td>
-          <td class="hide-sm" title="${(c.serviceZips || []).join(', ')}">
-            ${c.serviceZips && c.serviceZips.length
-              ? `${c.serviceZips.length} ZIP${c.serviceZips.length === 1 ? '' : 's'}`
-              : '<span class="muted">anywhere</span>'}
-          </td>
-          <td class="hide-sm nowrap">${money(c.priceCents)}</td>
-          <td class="nowrap">
-            <button class="btn btn-ghost btn-sm" onclick="Admin.roster(${c.id})">Roster</button>
-            <button class="btn btn-ghost btn-sm" onclick="Admin.edit(${c.id})">Edit</button>
-          </td>
-        </tr>`;
-    }).join('') : '<tr><td colspan="9" class="muted">No training days yet. Add one to get started.</td></tr>';
+      const week = weekOf(c.startsAt);
+      const head = week !== lastWeek
+        ? `<tr class="week-head"><td colspan="9">Week of ${week}</td></tr>` : '';
+      lastWeek = week;
+      return head + dayRow(c, now);
+    }).join('') : '<tr><td colspan="9" class="muted">No training days yet. Add some to get started.</td></tr>';
+  }
+
+  /** "Mon, Nov 16" — the Monday starting the week a date falls in. */
+  function weekOf(iso){
+    const d = new Date(iso);
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+    return monday.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'});
+  }
+
+  /** "Z3 1/1 · Z2 0/3", only for zones with a limit set. */
+  function zoneSummary(c){
+    const parts = ZONES
+      .filter((z) => c.zoneLimits && c.zoneLimits[z.zone] !== null && c.zoneLimits[z.zone] !== undefined)
+      .map((z) => {
+        const used = (c.zoneTrips && c.zoneTrips[z.zone] && c.zoneTrips[z.zone].used) || 0;
+        const limit = c.zoneLimits[z.zone];
+        return `<span class="${used >= limit ? 'low' : ''}">Z${z.zone} ${used}/${limit}</span>`;
+      });
+    return parts.length ? parts.join(' · ') : '<span class="muted">no limits</span>';
+  }
+
+  function dayRow(c, now){
+    const past = new Date(c.endsAt).getTime() < now;
+    const cls = c.status === 'cancelled' ? 'cancelled' : (past ? 'past' : '');
+    const seatClass = c.available === 0 ? 'low' : 'ok';
+    return `
+      <tr class="${cls}">
+        <td class="nowrap">${fmtDate(c.startsAt)}</td>
+        <td>
+          <span class="tag" style="background:${swatch(c.courseCode)}">${esc(c.courseCode)}</span>
+          ${esc(c.title)}
+          ${c.status === 'cancelled' ? ' <span class="muted">(cancelled)</span>' : ''}
+        </td>
+        <td class="hide-sm nowrap">${fmtTime(c.startsAt)} – ${fmtTime(c.endsAt)}</td>
+        <td class="nowrap">
+          <span class="num ${c.availableSlots === 0 ? 'low' : 'ok'}">${c.bookedSlots || 0}</span>
+          <span class="muted">of ${(c.bookedSlots || 0) + (c.availableSlots || 0)} times</span>
+        </td>
+        <td class="hide-sm nowrap">
+          <span class="num ${seatClass}">${c.taken}/${c.capacity}</span>
+          <span class="muted">(${c.confirmed} paid)</span>
+        </td>
+        <td class="hide-sm">${c.waitlist || '—'}</td>
+        <td class="hide-sm nowrap" title="Trips booked / allowed per zone on this date">
+          ${zoneSummary(c)}
+        </td>
+        <td class="hide-sm nowrap">${money(c.priceCents)}</td>
+        <td class="nowrap">
+          <button class="btn btn-ghost btn-sm" onclick="Admin.roster(${c.id})">Roster</button>
+          <button class="btn btn-ghost btn-sm" onclick="Admin.edit(${c.id})">Edit</button>
+        </td>
+      </tr>`;
   }
 
   // ------------------------------------------------------------ class form
@@ -414,14 +471,174 @@ const Admin = (() => {
     ['BABYSIT',    'Babysitter Safety'],
   ];
 
+  // Local "YYYY-MM-DD" and "HH:MM" pieces of a UTC instant.
+  const datePart = (iso) => toLocalInput(iso).slice(0, 10);
+  const timePart = (iso) => toLocalInput(iso).slice(11, 16);
+
+  // Weekly hours being edited: one row per weekday, Sunday first.
+  let weekRows = [];
+  let formMode = 'week';
+
+  const STARTER_WEEK = () => WEEKDAYS.map((_, i) => ({
+    on: i >= 1 && i <= 5, open: '09:00', close: '17:00',
+  }));
+
+  function hoursFields(c){
+    if (c) {
+      // Editing one existing day: just its date and hours.
+      return `
+        <label for="fDate">Date</label>
+        <input id="fDate" type="date" value="${datePart(c.startsAt)}">
+        <div class="two">
+          <div><label for="fOpen">Opens</label>
+            <input id="fOpen" type="time" step="900" value="${timePart(c.startsAt)}"></div>
+          <div><label for="fClose">Closes</label>
+            <input id="fClose" type="time" step="900" value="${timePart(c.endsAt)}"></div>
+        </div>`;
+    }
+    const today = toLocalInput(new Date().toISOString()).slice(0, 10);
+    return `
+      <div class="mode" role="tablist">
+        <button type="button" id="modeWeek" class="${formMode === 'week' ? 'on' : ''}"
+                onclick="Admin.setMode('week')">Weekly hours</button>
+        <button type="button" id="modeDay" class="${formMode === 'day' ? 'on' : ''}"
+                onclick="Admin.setMode('day')">One day</button>
+      </div>
+
+      <div id="dayFields" style="${formMode === 'day' ? '' : 'display:none'}">
+        <label for="fDate">Date</label>
+        <input id="fDate" type="date" value="${today}">
+        <div class="two">
+          <div><label for="fOpen">Opens</label>
+            <input id="fOpen" type="time" step="900" value="09:00"></div>
+          <div><label for="fClose">Closes</label>
+            <input id="fClose" type="time" step="900" value="17:00"></div>
+        </div>
+      </div>
+
+      <div id="weekFields" style="${formMode === 'week' ? '' : 'display:none'}">
+        <div class="two">
+          <div><label for="fFrom">Starting</label>
+            <input id="fFrom" type="date" value="${today}" onchange="Admin.previewWeek()"></div>
+          <div><label for="fWeeks">For how long</label>
+            <select id="fWeeks" onchange="Admin.previewWeek()">
+              ${[1,2,3,4,5,6,8,10,12].map((n) =>
+                `<option value="${n}">${n} week${n === 1 ? '' : 's'}</option>`).join('')}
+            </select></div>
+        </div>
+        <label>Open hours</label>
+        <p class="sub" style="margin:-4px 0 8px;font-size:13px">
+          Tick the days you're open and set the hours. Customers only see start
+          times inside these hours — closed days and hours never appear.
+        </p>
+        <div class="week" id="week"></div>
+        <p class="wk-preview" id="wkPreview"></p>
+      </div>`;
+  }
+
+  function renderWeek(){
+    const box = $('week');
+    if (!box) return;
+    // Monday first, the way staff read a week.
+    const order = [1, 2, 3, 4, 5, 6, 0];
+    box.innerHTML = order.map((i) => {
+      const r = weekRows[i];
+      return `
+        <div class="wk-row ${r.on ? '' : 'off'}">
+          <label><input type="checkbox" id="wkOn${i}" ${r.on ? 'checked' : ''}
+                        onchange="Admin.editWeek(${i},'on',this.checked)"> ${WEEKDAYS[i]}</label>
+          <input type="time" step="900" id="wkOpen${i}" value="${r.open}" aria-label="${WEEKDAYS[i]} opens"
+                 oninput="Admin.editWeek(${i},'open',this.value)">
+          <input type="time" step="900" id="wkClose${i}" value="${r.close}" aria-label="${WEEKDAYS[i]} closes"
+                 oninput="Admin.editWeek(${i},'close',this.value)">
+        </div>`;
+    }).join('');
+    previewWeek();
+  }
+
+  function editWeek(i, field, value){
+    weekRows[i][field] = value;
+    if (field === 'on') renderWeek(); else previewWeek();
+  }
+
+  function setMode(mode){
+    formMode = mode;
+    $('modeWeek').classList.toggle('on', mode === 'week');
+    $('modeDay').classList.toggle('on', mode === 'day');
+    $('weekFields').style.display = mode === 'week' ? '' : 'none';
+    $('dayFields').style.display = mode === 'day' ? '' : 'none';
+    const btn = $('saveBtn');
+    if (btn) btn.textContent = mode === 'week' ? 'Add these days' : 'Add the day';
+    previewWeek();
+  }
+
+  /**
+   * Every open day the weekly hours produce, as UTC open/close pairs.
+   *
+   * Built from local dates and times in this browser, so a run of weeks that
+   * crosses a daylight saving change still opens at 9:00 on both sides of it.
+   */
+  function weekDays(){
+    const from = $('fFrom')?.value;
+    const weeks = parseInt($('fWeeks')?.value, 10) || 1;
+    if (!from) return [];
+    const [y, m, d] = from.split('-').map(Number);
+    const out = [];
+    for (let n = 0; n < weeks * 7; n++){
+      const day = new Date(y, m - 1, d + n);
+      const r = weekRows[day.getDay()];
+      if (!r || !r.on) continue;
+      const ymd = toLocalInput(day.toISOString()).slice(0, 10);
+      out.push({
+        label: day.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'}),
+        weekday: day.getDay(),
+        open: r.open, close: r.close,
+        startsAt: r.open ? fromLocalInput(`${ymd}T${r.open}`) : null,
+        endsAt: r.close ? fromLocalInput(`${ymd}T${r.close}`) : null,
+      });
+    }
+    return out;
+  }
+
+  function previewWeek(){
+    const el = $('wkPreview');
+    if (!el) return;
+    const days = weekDays();
+    if (!days.length){ el.innerHTML = 'No open days picked yet.'; return; }
+    const shown = days.slice(0, 8).map((x) => x.label).join(', ');
+    el.innerHTML = `Adds <b>${days.length} day${days.length === 1 ? '' : 's'}</b>: ${shown}` +
+      (days.length > 8 ? ` and ${days.length - 8} more` : '') + '.';
+  }
+
+  function zoneFields(c){
+    const limits = (c && c.zoneLimits) || {};
+    return `
+      <label>Trips per zone, per day</label>
+      <p class="sub" style="margin:-4px 0 8px;font-size:13px">
+        Distance is from 97116. Set how many visits you'll make into each zone
+        on a day — e.g. 1 for Zone 3 stops you being sent to opposite edges of
+        it. Leave blank for no limit, or 0 to skip that zone. Counted across
+        every class on the same date.
+      </p>
+      <div class="zones">
+        ${ZONES.map((z) => `
+          <div class="zone-row">
+            <div><b>Zone ${z.zone}</b><span>${z.label} · ${z.fee}</span></div>
+            <input id="fZone${z.zone}" type="number" min="0" max="50" step="1"
+                   placeholder="No limit" aria-label="Zone ${z.zone} trips per day"
+                   value="${limits[z.zone] ?? ''}">
+          </div>`).join('')}
+      </div>
+      <p class="zone-note">Customers see their zone and its travel charge as
+        soon as they enter their ZIP, and it's added to their total.</p>`;
+  }
+
   function classForm(c){
-    const start = c ? toLocalInput(c.startsAt) : '';
-    const end   = c ? toLocalInput(c.endsAt)   : '';
     return `
       <div class="err" id="fErr"></div>
       <p class="sub" style="margin:-4px 0 16px">
         You travel to the customer, so set the hours you're willing to work.
-        Sessions are booked inside that window.
+        Sessions are booked inside those hours.
       </p>
 
       <label for="fTitle">Course name</label>
@@ -433,12 +650,7 @@ const Admin = (() => {
           `<option value="${code}" ${c?.courseCode===code?'selected':''}>${label}</option>`).join('')}
       </select>
 
-      <div class="two">
-        <div><label for="fStart">Day opens</label>
-          <input id="fStart" type="datetime-local" value="${start}"></div>
-        <div><label for="fEnd">Day closes</label>
-          <input id="fEnd" type="datetime-local" value="${end}"></div>
-      </div>
+      ${hoursFields(c)}
 
       <input id="fLoc" type="hidden" value="">
 
@@ -468,12 +680,10 @@ const Admin = (() => {
               onclick="Admin.addTier()">Add a band</button>
       <div class="tier-preview" id="tierPreview"></div>
 
-      <label>Where you'll travel on this day</label>
-      <div class="zip-box" id="zipBox" onclick="document.getElementById('zipInput')?.focus()"></div>
-      <p class="zip-note" id="zipNote"></p>
+      ${zoneFields(c)}
 
-      <button class="btn" style="width:100%" onclick="Admin.save(${c ? c.id : 'null'})">
-        ${c ? 'Save changes' : 'Add the day'}
+      <button class="btn" id="saveBtn" style="width:100%" onclick="Admin.save(${c ? c.id : 'null'})">
+        ${c ? 'Save changes' : (formMode === 'week' ? 'Add these days' : 'Add the day')}
       </button>
 
       ${c && c.status === 'open' ? `
@@ -495,12 +705,13 @@ const Admin = (() => {
       reason: 'Our best rate — one visit, more people trained, less cost each.' },
   ];
 
-  function newClass(){
+  function newClass(mode = 'week'){
     tierRows = JSON.parse(JSON.stringify(STARTER_TIERS));
-    zipRows = [];
-    openBox('Add a training day', classForm(null));
+    weekRows = STARTER_WEEK();
+    formMode = mode;
+    openBox('Add training days', classForm(null));
     renderTiers();
-    renderZips();
+    renderWeek();
   }
 
   function edit(id){
@@ -509,10 +720,8 @@ const Admin = (() => {
     tierRows = c.pricingTiers && c.pricingTiers.length
       ? JSON.parse(JSON.stringify(c.pricingTiers))
       : JSON.parse(JSON.stringify(STARTER_TIERS));
-    zipRows = [...(c.serviceZips || [])];
     openBox(`Edit — ${fmtDate(c.startsAt)}`, classForm(c));
     renderTiers();
-    renderZips();
   }
 
   function formErr(msg){
@@ -520,35 +729,76 @@ const Admin = (() => {
     $('fErr').classList.add('show');
   }
 
+  /** Trips per zone from the form; blank is no limit. Null when one is invalid. */
+  function readZoneLimits(){
+    const out = {};
+    for (const z of ZONES){
+      const raw = ($(`fZone${z.zone}`)?.value || '').trim();
+      if (raw === '') { out[z.zone] = null; continue; }
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 0) return null;
+      out[z.zone] = n;
+    }
+    return out;
+  }
+
+  /** What's wrong with one day's hours, or null. */
+  function hoursProblem(startsAt, endsAt, prefix = ''){
+    if (!startsAt || !endsAt) return `${prefix}Set the hours you'll be working.`;
+    if (new Date(endsAt) <= new Date(startsAt)) return `${prefix}Closing time must be after opening.`;
+    // Below one session length there is nothing anyone could book.
+    if (new Date(endsAt) - new Date(startsAt) < sessionMinutes * 60000) {
+      const h = sessionMinutes / 60;
+      return `${prefix}Open at least ${h} hour${h === 1 ? '' : 's'} — one full session.`;
+    }
+    return null;
+  }
+
   async function save(id){
     const title = $('fTitle').value.trim();
-    const startsAt = $('fStart').value;
-    const endsAt = $('fEnd').value;
     const capacity = parseInt($('fCap').value, 10);
     const price = parseFloat($('fPrice').value);
 
     if (title.length < 2) return formErr('Give the course a name.');
-    if (!startsAt || !endsAt) return formErr('Set the hours you\'ll be working.');
-    if (new Date(endsAt) <= new Date(startsAt)) return formErr('Closing time must be after opening.');
-    // Below one session length there is nothing anyone could book.
-    if (new Date(endsAt) - new Date(startsAt) < 240 * 60000) {
-      return formErr('The day needs to be at least four hours — one session.');
+
+    // One day (new or edited) or a run of weekly hours.
+    const weekly = !id && formMode === 'week';
+    let days;
+    if (weekly){
+      days = weekDays();
+      if (!days.length) return formErr('Tick at least one open day.');
+      for (const x of days){
+        const problem = hoursProblem(x.startsAt, x.endsAt, `${WEEKDAYS[x.weekday]}: `);
+        if (problem) return formErr(problem);
+      }
+    } else {
+      const date = $('fDate').value;
+      const open = $('fOpen').value;
+      const close = $('fClose').value;
+      if (!date || !open || !close) return formErr('Set the date and the hours you\'ll be working.');
+      const startsAt = fromLocalInput(`${date}T${open}`);
+      const endsAt = fromLocalInput(`${date}T${close}`);
+      const problem = hoursProblem(startsAt, endsAt);
+      if (problem) return formErr(problem);
+      days = [{ startsAt, endsAt }];
     }
+
     if (!Number.isInteger(capacity) || capacity < 1) return formErr('Set at least one place.');
     if (!(price >= 0)) return formErr('Enter a valid price.');
 
     const bandProblem = tierProblem();
     if (bandProblem) return formErr(bandProblem);
 
+    const zoneLimits = readZoneLimits();
+    if (!zoneLimits) return formErr('Zone trips must be whole numbers, or blank for no limit.');
+
     const payload = {
       title,
       courseCode: $('fCode').value,
-      startsAt: fromLocalInput(startsAt),
-      endsAt: fromLocalInput(endsAt),
       location: $('fLoc').value.trim(),
       capacity,
       priceCents: Math.round(price * 100),
-      serviceZips: [...zipRows],
+      zoneLimits,
       pricingTiers: tierRows.map((t) => ({
         minSize: t.minSize ?? 1,
         maxSize: t.maxSize ?? null,
@@ -558,14 +808,17 @@ const Admin = (() => {
       })),
     };
 
+    const post = (path, body) => api(path, {method:'POST', body:JSON.stringify(body)});
     const { data } = id
-      ? await api(`/api/admin/classes/${id}/update`, {method:'POST', body:JSON.stringify(payload)})
-      : await api('/api/admin/classes', {method:'POST', body:JSON.stringify(payload)});
+      ? await post(`/api/admin/classes/${id}/update`, { ...payload, ...days[0] })
+      : weekly
+        ? await post('/api/admin/classes/bulk', { ...payload, days: days.map(({startsAt, endsAt}) => ({startsAt, endsAt})) })
+        : await post('/api/admin/classes', { ...payload, ...days[0] });
 
     if (!data.ok) return formErr(data.message || `Could not save (${data.reason}).`);
 
     closeBox();
-    toast(id ? 'Day updated' : 'Day added');
+    toast(id ? 'Day updated' : weekly ? `${data.created} days added` : 'Day added');
     if (data.promoted) toast(`${data.promoted} waitlisted student offered a seat`);
     refresh();
   }
@@ -583,68 +836,6 @@ const Admin = (() => {
   }
 
 
-
-  // ------------------------------------------------------ service area
-
-  let zipRows = [];
-
-  /**
-   * ZIP codes this day will drive to.
-   *
-   * An empty list means anywhere, which is also the right default — a day with
-   * no stated area should be bookable, not unreachable.
-   */
-  function renderZips(){
-    const box = $('zipBox');
-    if (!box) return;
-
-    box.innerHTML = zipRows.map((z, i) => `
-      <span class="zip-chip">${z}
-        <button type="button" title="Remove" onclick="Admin.dropZip(${i});event.stopPropagation()">&times;</button>
-      </span>`).join('') +
-      `<input id="zipInput" inputmode="numeric" maxlength="5"
-              placeholder="${zipRows.length ? 'add ZIP' : 'any ZIP'}"
-              oninput="Admin.zipTyped(this)"
-              onkeydown="Admin.zipKey(event)">`;
-
-    $('zipNote').textContent = zipRows.length
-      ? `${zipRows.length} ZIP code${zipRows.length === 1 ? '' : 's'}. ` +
-        `Customers outside these are told so before they book, and are offered other days.`
-      : 'Empty means you will travel anywhere. Add ZIP codes to limit this day.';
-  }
-
-  /** Five digits is a complete ZIP, so commit it without waiting for Enter. */
-  function zipTyped(input){
-    input.value = input.value.replace(/\D/g, '').slice(0, 5);
-    if (input.value.length === 5) commitZip(input);
-  }
-
-  function zipKey(e){
-    const input = e.target;
-    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
-      e.preventDefault();
-      commitZip(input);
-    } else if (e.key === 'Backspace' && !input.value && zipRows.length) {
-      // Backspace on an empty box removes the chip before it.
-      e.preventDefault();
-      dropZip(zipRows.length - 1);
-    }
-  }
-
-  function commitZip(input){
-    const z = input.value.trim();
-    if (!/^\d{5}$/.test(z)) return;
-    if (!zipRows.includes(z)) zipRows.push(z);
-    zipRows.sort();
-    renderZips();
-    $('zipInput')?.focus();
-  }
-
-  function dropZip(i){
-    zipRows.splice(i, 1);
-    renderZips();
-    $('zipInput')?.focus();
-  }
 
   // ------------------------------------------------------- price bands
 
@@ -799,8 +990,9 @@ const Admin = (() => {
         const lead = rows[0];
         const paid = rows.filter((r) => r.status === 'confirmed').length;
         const value = rows.reduce((sum, r) =>
-          sum + (r.status === 'confirmed' ? r.amount_cents : 0), 0);
-        const end = new Date(new Date(slotStart).getTime() + 240 * 60000).toISOString();
+          sum + (r.status === 'confirmed' ? r.amount_cents + (r.travel_cents || 0) : 0), 0);
+        const travel = rows.reduce((sum, r) => sum + (r.travel_cents || 0), 0);
+        const end = new Date(new Date(slotStart).getTime() + sessionMinutes * 60000).toISOString();
 
         return `
           <div class="visit">
@@ -814,6 +1006,9 @@ const Admin = (() => {
               </div>
               ${lead.address_notes ? `<div class="visit-notes">${esc(lead.address_notes)}</div>` : ''}
               <div class="visit-meta">
+                ${lead.travel_zone ? `<span class="zone-tag">Zone ${lead.travel_zone}</span>
+                  ${lead.travel_miles != null ? `${lead.travel_miles} mi · ` : ''}
+                  ${travel ? `${money(travel)} travel` : 'no travel charge'} · ` : ''}
                 ${rows.length} ${rows.length === 1 ? 'person' : 'people'} ·
                 ${paid} paid · ${money(value)}
                 ${lead.group_ref ? ` · <a href="#" onclick="Admin.cancelGroup('${
@@ -904,7 +1099,7 @@ const Admin = (() => {
   return { login, logout, refresh, newClass, edit, save, cancelClass, reopen,
            roster, markPaid, dropStudent, cancelGroup, copyEmails, closeBox, toggleTheme,
            addTier, dropTier, editTier, previewTiers,
-           zipTyped, zipKey, dropZip };
+           setMode, editWeek, previewWeek };
 })();
 window.Admin = Admin;
 </script>

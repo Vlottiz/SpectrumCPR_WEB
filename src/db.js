@@ -59,10 +59,15 @@ CREATE TABLE IF NOT EXISTS classes (
   -- the defaults in seats.js apply.
   pricing_tiers   TEXT,
 
-  -- ZIP codes this day will travel to, as a JSON array of five-digit strings.
-  -- NULL or empty means anywhere — a day with no stated area is unrestricted
-  -- rather than unreachable.
+  -- Legacy: ZIP codes a day would travel to. Replaced by travel zones and no
+  -- longer read; kept so older databases don't need the column dropped.
   service_zips    TEXT,
+
+  -- How many trips into each travel zone this day allows, as JSON:
+  -- {"1": null, "2": 3, "3": 1}. null or missing means no limit; 0 means the
+  -- zone is closed that day. Counted per calendar date, so two days sharing a
+  -- date share the limit — see zoneTripsLeft() in seats.js.
+  zone_limits     TEXT,
   status          TEXT    NOT NULL DEFAULT 'open'
                           CHECK (status IN ('open','cancelled')),
   created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -89,6 +94,13 @@ CREATE TABLE IF NOT EXISTS registrations (
   slot_start        TEXT,                     -- session start (ISO 8601 UTC)
   address           TEXT    NOT NULL DEFAULT '',
   address_notes     TEXT    NOT NULL DEFAULT '',  -- gate codes, parking, suite
+
+  -- Travel zone of the address and what the trip costs. Every seat in a
+  -- booking carries the zone and distance; only the organiser's seat
+  -- (seat_index 0) carries the charge, since it's one trip.
+  travel_zone       INTEGER,
+  travel_miles      REAL,
+  travel_cents      INTEGER NOT NULL DEFAULT 0,
 
   -- Group bookings: one organiser reserves several seats in one payment.
   -- Every seat is still its own row (each attendee needs their own name on
@@ -245,6 +257,9 @@ function migrate(raw) {
     ['slot_start', 'ALTER TABLE registrations ADD COLUMN slot_start TEXT'],
     ['address', "ALTER TABLE registrations ADD COLUMN address TEXT NOT NULL DEFAULT ''"],
     ['address_notes', "ALTER TABLE registrations ADD COLUMN address_notes TEXT NOT NULL DEFAULT ''"],
+    ['travel_zone', 'ALTER TABLE registrations ADD COLUMN travel_zone INTEGER'],
+    ['travel_miles', 'ALTER TABLE registrations ADD COLUMN travel_miles REAL'],
+    ['travel_cents', 'ALTER TABLE registrations ADD COLUMN travel_cents INTEGER NOT NULL DEFAULT 0'],
   ];
 
   const classColumns = raw.prepare('PRAGMA table_info(classes)').all().map((c) => c.name);
@@ -255,6 +270,10 @@ function migrate(raw) {
   if (!classColumns.includes('service_zips')) {
     raw.exec('ALTER TABLE classes ADD COLUMN service_zips TEXT');
     console.log('[db] added classes.service_zips');
+  }
+  if (!classColumns.includes('zone_limits')) {
+    raw.exec('ALTER TABLE classes ADD COLUMN zone_limits TEXT');
+    console.log('[db] added classes.zone_limits');
   }
 
   for (const [name, sql] of additions) {

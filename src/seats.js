@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const { getDb } = require('./db');
+const zones = require('./zones');
 
 const HOLD_MINUTES = Number(process.env.HOLD_MINUTES || 20);
 const OFFER_HOURS = Number(process.env.OFFER_HOURS || 24);
@@ -22,6 +23,10 @@ const BUFFER_MINUTES = Number(process.env.BUFFER_MINUTES || 90);
 const SLOT_STEP_MINUTES = Number(process.env.SLOT_STEP_MINUTES || 30);
 
 const BLOCK_MINUTES = SESSION_MINUTES + BUFFER_MINUTES;
+
+// The business's own timezone. "Per day" limits are counted by the calendar
+// date here, not by UTC — a 5pm Pacific visit is 01:00 UTC the next day.
+const BUSINESS_TZ = process.env.BUSINESS_TZ || 'America/Los_Angeles';
 
 // ---------------------------------------------------------------- time utils
 
@@ -95,38 +100,101 @@ function availability(classId, now = nowIso()) {
 
 
 
-// ------------------------------------------------------------- service area
+// -------------------------------------------------------------- travel zones
 
-/**
- * ZIP codes a day will travel to.
- *
- * An empty list means anywhere. A day with no stated area is unrestricted
- * rather than unreachable — the opposite default would quietly make every
- * existing day unbookable the moment this column appeared.
- */
-function serviceZipsFor(cls) {
-  if (!cls || !cls.service_zips) return [];
-  try {
-    const parsed = JSON.parse(cls.service_zips);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((z) => String(z).trim().slice(0, 5))
-      .filter((z) => /^\d{5}$/.test(z));
-  } catch {
-    // Unreadable means we can't prove the customer is outside the area, so
-    // let the booking through rather than turn away someone who is inside it.
-    console.warn(`[geofence] class ${cls.id} has unreadable service_zips, treating as unrestricted`);
-    return [];
-  }
+/** "2026-11-16" — the calendar date of an instant, in the business's timezone. */
+function localDate(iso) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(iso));
 }
 
-/** Does this day travel to that ZIP? */
-function servesZip(cls, zip) {
-  const zips = serviceZipsFor(cls);
-  if (!zips.length) return true;               // unrestricted
-  const clean = String(zip || '').trim().slice(0, 5);
-  if (!/^\d{5}$/.test(clean)) return false;    // can't place them, so can't promise
-  return zips.includes(clean);
+/**
+ * How many trips into each zone a day allows: { 1: null, 2: 3, 3: 1 }.
+ *
+ * null is no limit, which is also the default — a day with nothing set
+ * should be bookable rather than closed. 0 closes that zone for the day.
+ */
+function zoneLimitsFor(cls) {
+  const out = {};
+  for (const z of zones.ZONES) out[z.zone] = null;
+  if (!cls || !cls.zone_limits) return out;
+  try {
+    const parsed = JSON.parse(cls.zone_limits) || {};
+    for (const z of zones.ZONES) {
+      const v = parsed[z.zone];
+      if (Number.isInteger(v) && v >= 0) out[z.zone] = v;
+    }
+  } catch {
+    // Unreadable limits shouldn't close a day; treat it as unlimited.
+    console.warn(`[zones] class ${cls.id} has unreadable zone_limits, treating as unlimited`);
+  }
+  return out;
+}
+
+/** Open days that fall on the same calendar date as this one, itself included. */
+function sameDateClasses(db, cls) {
+  const date = localDate(cls.starts_at);
+  const from = addMinutes(cls.starts_at, -36 * 60);
+  const to = addMinutes(cls.starts_at, 36 * 60);
+  const rows = db
+    .prepare(`SELECT * FROM classes
+               WHERE (status = 'open' OR id = ?) AND starts_at BETWEEN ? AND ?`)
+    .all(cls.id, from, to)
+    .filter((c) => localDate(c.starts_at) === date);
+  return rows.some((c) => c.id === cls.id) ? rows : [cls, ...rows];
+}
+
+/**
+ * Trips into one zone still available on a day's date.
+ *
+ * The limit is per calendar date, not per day row or per time slot: it exists
+ * so the instructor isn't sent to opposite edges of Zone 3 on the same day.
+ * If two days share a date (say a CPR day and a Babysitter day), their trips
+ * are counted together and the stricter limit applies.
+ *
+ * A trip is one visit — a group of six at one address is one trip.
+ *
+ *   { zone, date, limit, used, left }   limit and left are null when unlimited
+ */
+function zoneTripsLeft(classId, zone, { now = nowIso(), db = getDb() } = {}) {
+  const cls = getClass(classId);
+  if (!cls) return null;
+
+  const siblings = sameDateClasses(db, cls);
+  const limits = siblings
+    .map((c) => zoneLimitsFor(c)[zone])
+    .filter((v) => v !== null && v !== undefined);
+  const limit = limits.length ? Math.min(...limits) : null;
+
+  const ids = siblings.map((c) => c.id);
+  const used = db
+    .prepare(
+      `SELECT COUNT(DISTINCT COALESCE(group_ref, public_ref)) AS n
+         FROM registrations
+        WHERE class_id IN (${ids.map(() => '?').join(',')})
+          AND travel_zone = ?
+          AND (
+                status = 'confirmed'
+             OR (status = 'held'    AND hold_expires_at  > ?)
+             OR (status = 'offered' AND offer_expires_at > ?)
+          )`
+    )
+    .get(...ids, zone, now, now).n;
+
+  return {
+    zone,
+    date: localDate(cls.starts_at),
+    limit,
+    used,
+    left: limit === null ? null : Math.max(0, limit - used),
+  };
+}
+
+/** Pull a ZIP off the end of a one-line address, for callers that only sent that. */
+function zipFromAddress(address) {
+  const m = String(address || '').match(/\b(\d{5})(?:-\d{4})?\s*$/);
+  return m ? m[1] : '';
 }
 
 // --------------------------------------------------------------- pricing
@@ -286,10 +354,15 @@ const overlaps = (aStart, bStart) => {
  * has room for the party. The instructor is one person in one van, so a
  * booked slot is exclusive — unlike a classroom, nobody else can join it.
  */
-function daySlots(classId, { partySize = 1, now = nowIso() } = {}) {
+function daySlots(classId, { partySize = 1, now = nowIso(), zone = null } = {}) {
   const db = getDb();
   const cls = getClass(classId);
   if (!cls) return null;
+
+  // When the customer's zone is known, a day that has used up its trips into
+  // that zone has nothing to offer them, however free its calendar looks.
+  const trips = zone ? zoneTripsLeft(classId, zone, { now, db }) : null;
+  const zoneFull = Boolean(trips && trips.left === 0);
 
   const booked = activeBookings(db, classId, now);
   const seatsTaken = booked.reduce((sum, b) => sum + b.seats, 0);
@@ -305,6 +378,7 @@ function daySlots(classId, { partySize = 1, now = nowIso() } = {}) {
     if (inPast) reason = 'past';
     else if (clash) reason = 'booked';
     else if (seatsLeft < partySize) reason = seatsLeft === 0 ? 'day_full' : 'not_enough_seats';
+    else if (zoneFull) reason = 'zone_full';
 
     return {
       start,
@@ -325,6 +399,7 @@ function daySlots(classId, { partySize = 1, now = nowIso() } = {}) {
     seatsLeft,
     slots,
     availableSlots: slots.filter((s) => s.available).length,
+    zoneTrips: trips,
   };
 }
 
@@ -355,12 +430,19 @@ function suggestAlternatives({ classId, preferredTime = null, partySize = 1,
   const hhmm = (iso) => new Date(iso).toISOString().slice(11, 16);
   const wanted = preferredTime ? preferredTime.slice(0, 5) : null;
 
+  // No point offering anything to an address we don't drive to at all.
+  let zone = null;
+  if (zip) {
+    const where = zones.zoneForZip(zip);
+    if (!where.ok) return [];
+    zone = where.zone;
+  }
+
   const out = [];
   for (const c of candidates) {
-    // No point offering a day that won't drive to them.
-    if (zip && !servesZip(c, zip)) continue;
-
-    const day = daySlots(c.id, { partySize, now });
+    // daySlots marks every time unavailable when the day's trips into their
+    // zone are used up, so such a day drops out below.
+    const day = daySlots(c.id, { partySize, now, zone });
     if (!day || !day.availableSlots) continue;
 
     const exact = wanted
@@ -375,7 +457,6 @@ function suggestAlternatives({ classId, preferredTime = null, partySize = 1,
       closesAt: c.ends_at,
       priceCents: c.price_cents,
       seatsLeft: day.seatsLeft,
-      serviceZips: serviceZipsFor(c),
       matchesPreferredTime: Boolean(exact),
       suggestedSlot: (exact || day.slots.find((s) => s.available)).start,
       availableSlots: day.availableSlots,
@@ -402,8 +483,8 @@ function suggestAlternatives({ classId, preferredTime = null, partySize = 1,
  * because by the time an email arrives the seat is already gone.
  */
 function holdSeat({ classId, name, email, phone = '', notes = '',
-                    slotStart = null, address = '' }) {
-  return holdSeats({ classId, attendees: [name], email, phone, notes, slotStart, address });
+                    slotStart = null, address = '', zip = '' }) {
+  return holdSeats({ classId, attendees: [name], email, phone, notes, slotStart, address, zip });
 }
 
 /**
@@ -454,15 +535,17 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
     if (!cls) return { ok: false, reason: 'no_such_class' };
     if (cls.status !== 'open') return { ok: false, reason: 'class_cancelled' };
 
+    // Where they are decides whether we go at all, and what the trip costs.
     // Checked here, inside the transaction, as well as on the way in — a
     // booking that slipped past the form must not reserve a slot the
     // instructor won't drive to.
-    if (!servesZip(cls, args.zip)) {
+    const where = zones.zoneForZip(args.zip);
+    if (!where.ok) {
       return {
         ok: false,
-        reason: 'outside_service_area',
+        reason: where.reason === 'zip_invalid' ? 'zip_required' : 'outside_service_area',
         zip: args.zip || null,
-        serviceZips: serviceZipsFor(cls),
+        miles: where.miles ?? null,
       };
     }
 
@@ -494,6 +577,14 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
     if (clash) {
       return { ok: false, reason: 'slot_taken', slotStart: args.slotStart };
     }
+    // ...and the day still has a trip left into their zone. Inside the
+    // transaction too, so two Zone 3 bookings can't both take the last trip.
+    const trips = zoneTripsLeft(args.classId, where.zone, { now, db });
+    if (trips.left === 0) {
+      return {
+        ok: false, reason: 'zone_full', zone: where.zone, limit: trips.limit, date: trips.date,
+      };
+    }
 
     // Party size sets the per-person price, so it's worked out once here and
     // stamped on every seat.
@@ -520,6 +611,10 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
         groupRef,
         seatIndex: i,
         organiserName: groupRef ? args.organiserName : null,
+        travelZone: where.zone,
+        travelMiles: where.miles,
+        // One trip, one charge — carried on the organiser's seat only.
+        travelCents: i === 0 ? where.feeCents : 0,
       });
 
       logEvent(db, {
@@ -538,7 +633,13 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
       registrations: rows,
       groupRef,
       seats: rows.length,
-      totalCents: quote.totalCents,
+      seatsCents: quote.totalCents,
+      travelCents: where.feeCents,
+      totalCents: quote.totalCents + where.feeCents,
+      travel: {
+        zone: where.zone, miles: where.miles, feeCents: where.feeCents,
+        city: where.city, state: where.state,
+      },
       pricing: quote,
       contactEmail: args.email,
       slotStart: args.slotStart,
@@ -552,7 +653,7 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
   return run.immediate({
     classId, people, email, phone, notes, organiserName,
     slotStart, address: String(address).trim(), addressNotes: String(addressNotes).trim(),
-    zip: String(zip).trim().slice(0, 5),
+    zip: (String(zip || '').trim() || zipFromAddress(address)).slice(0, 5),
   });
 }
 
@@ -567,16 +668,19 @@ function insertRegistration(db, r) {
              (public_ref, class_id, status, student_name, student_email,
               student_phone, notes, amount_cents, hold_expires_at, offer_expires_at,
               group_ref, seat_index, organiser_name,
-              slot_start, address, address_notes)
+              slot_start, address, address_notes,
+              travel_zone, travel_miles, travel_cents)
            VALUES
              (@ref, @classId, @status, @name, @email,
               @phone, @notes, @amountCents, @holdExpiresAt, @offerExpiresAt,
               @groupRef, @seatIndex, @organiserName,
-              @slotStart, @address, @addressNotes)`
+              @slotStart, @address, @addressNotes,
+              @travelZone, @travelMiles, @travelCents)`
         )
         .run({
           groupRef: null, seatIndex: 0, organiserName: null,
           slotStart: null, address: '', addressNotes: '',
+          travelZone: null, travelMiles: null, travelCents: 0,
           ...r, ref,
         });
       return db
@@ -1004,6 +1108,30 @@ function findByRef(publicRef) {
     .get(publicRef);
 }
 
+/**
+ * What one booking costs in full: every seat plus the trip.
+ *
+ * Seats are summed from the rows rather than recomputed, so a booking keeps
+ * the price it was quoted even if the day's prices change later.
+ */
+function bookingTotals(reg) {
+  if (!reg) return null;
+  const rows = reg.group_ref
+    ? getDb().prepare(`SELECT amount_cents, travel_cents FROM registrations
+                        WHERE group_ref = ? AND status NOT IN ('cancelled','expired')`)
+        .all(reg.group_ref)
+    : [reg];
+  const seatsCents = rows.reduce((sum, r) => sum + (r.amount_cents || 0), 0);
+  const travelCents = rows.reduce((sum, r) => sum + (r.travel_cents || 0), 0);
+  return {
+    seats: rows.length,
+    seatsCents,
+    travelCents,
+    travelZone: reg.travel_zone ?? null,
+    totalCents: seatsCents + travelCents,
+  };
+}
+
 function listUpcomingClasses({ includeFull = true, from = nowIso() } = {}) {
   const db = getDb();
   const rows = db
@@ -1025,7 +1153,8 @@ function roster(classId) {
       `SELECT public_ref, student_name, student_email, student_phone,
               status, amount_cents, confirmed_at, created_at,
               group_ref, seat_index, organiser_name,
-              slot_start, address, address_notes, notes
+              slot_start, address, address_notes, notes,
+              travel_zone, travel_miles, travel_cents
          FROM registrations
         WHERE class_id = ? AND status IN ('confirmed','held','offered','waitlist')
         ORDER BY
@@ -1061,6 +1190,15 @@ function queueConfirmationEmail(db, reg) {
   const when = reg.slot_start || cls.starts_at;
   const where = reg.address || cls.location;
 
+  const totals = bookingTotals(reg);
+  const dollars = (c) => `$${(c / 100).toFixed(2)}`;
+  const charges = reg.travel_zone ? [
+    ``,
+    `Classes: ${dollars(totals.seatsCents)}`,
+    `Travel (Zone ${reg.travel_zone}): ${totals.travelCents ? dollars(totals.travelCents) : 'no charge'}`,
+    `Total:   ${dollars(totals.totalCents)}`,
+  ] : [];
+
   const body = group && group.length > 1
     ? [
         `Hi ${greeting},`,
@@ -1071,6 +1209,7 @@ function queueConfirmationEmail(db, reg) {
         ``,
         `Attending:`,
         ...group.map((g, i) => `  ${i + 1}. ${g.student_name} — ${g.public_ref}`),
+        ...charges,
         ``,
         `Group reference: ${reg.group_ref}`,
         ``,
@@ -1084,6 +1223,7 @@ function queueConfirmationEmail(db, reg) {
         `When:  ${when}`,
         `Where: ${where}`,
         `Confirmation: ${reg.public_ref}`,
+        ...charges,
         ``,
         `We come to you. Wear comfortable clothes and have floor space ready.`,
       ];
@@ -1142,8 +1282,12 @@ function queueOfferEmail(db, reg, expiresAt) {
 }
 
 module.exports = {
-  serviceZipsFor,
-  servesZip,
+  BUSINESS_TZ,
+  localDate,
+  zoneLimitsFor,
+  zoneTripsLeft,
+  zipFromAddress,
+  bookingTotals,
   DEFAULT_TIERS,
   priceFor,
   priceLadder,

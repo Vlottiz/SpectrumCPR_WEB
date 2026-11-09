@@ -89,50 +89,57 @@ async function until(fn, timeoutMs = 4000) {
   check('it counts the seeded days',
     ($('stats').textContent || '').includes('4'), $('stats').textContent);
 
+  const dayRows = () => doc.querySelectorAll('#rows tr:not(.week-head)');
   check('the day table fills',
-    await until(() => doc.querySelectorAll('#rows tr').length === 4),
-    `${doc.querySelectorAll('#rows tr').length} rows`);
+    await until(() => dayRows().length === 4),
+    `${dayRows().length} rows`);
+  check('days are grouped under week headings',
+    doc.querySelectorAll('#rows tr.week-head').length >= 1
+    && (doc.querySelector('#rows tr.week-head')?.textContent || '').includes('Week of'));
 
-  const firstRow = doc.querySelector('#rows tr')?.textContent || '';
+  const firstRow = dayRows()[0]?.textContent || '';
   check('seat counts show as taken/capacity', /\d+\/\d+/.test(firstRow), firstRow.slice(0, 90));
   check('a price shows', firstRow.includes('$'), firstRow.slice(0, 90));
 
   console.log('\nadding a class');
 
-  window.Admin.newClass();
+  window.Admin.newClass('day');
   await sleep(150);
   check('the add form opens', $('veil').classList.contains('open'));
 
   $('fTitle').value = 'X';
-  $('fStart').value = '2026-12-01T09:00';
-  $('fEnd').value = '2026-12-01T13:00';
+  $('fDate').value = '2026-12-01';
+  $('fOpen').value = '09:00';
+  $('fClose').value = '13:00';
   window.Admin.save(null);
   await sleep(200);
   check('a one-character name is refused', $('fErr').classList.contains('show'));
 
   $('fTitle').value = 'Evening BLS';
-  $('fStart').value = '2026-12-01T13:00';
-  $('fEnd').value = '2026-12-01T09:00';
+  $('fOpen').value = '13:00';
+  $('fClose').value = '09:00';
   window.Admin.save(null);
   await sleep(200);
   check('a closing time before opening is refused',
     ($('fErr').textContent || '').includes('after opening'),
     $('fErr').textContent);
 
-  $('fStart').value = '2026-12-01T09:00';
-  $('fEnd').value = '2026-12-01T10:00';
+  $('fOpen').value = '09:00';
+  $('fClose').value = '10:00';
   window.Admin.save(null);
   await sleep(200);
   check('a day too short for one session is refused',
-    ($('fErr').textContent || '').includes('two hours'), $('fErr').textContent);
+    ($('fErr').textContent || '').includes('at least 4 hours'), $('fErr').textContent);
 
-  $('fStart').value = '2026-12-01T10:00';
-  $('fEnd').value = '2026-12-01T18:00';
+  $('fOpen').value = '10:00';
+  $('fClose').value = '18:00';
   $('fCap').value = '8';
   $('fPrice').value = '95.50';
+  $('fZone3').value = '1';
   window.Admin.save(null);
 
-  check('a valid class saves', await until(() => !$('veil').classList.contains('open')));
+  check('a valid class saves', await until(() => !$('veil').classList.contains('open')),
+    $('fErr')?.textContent);
   check('it appears in the table',
     await until(() => (doc.getElementById('rows').textContent || '').includes('Evening BLS')));
 
@@ -143,10 +150,101 @@ async function until(fn, timeoutMs = 4000) {
   check('the price is stored in cents', evening?.priceCents === 9550, `got ${evening?.priceCents}`);
   check('the capacity is stored', evening?.capacity === 8, `got ${evening?.capacity}`);
 
-  // A datetime-local value is local time; it must reach the server as UTC.
+  // A date and time typed in local time must reach the server as UTC.
   check('local time converts to UTC on save',
     evening?.startsAt.endsWith('Z') && evening.startsAt.includes('2026-12-0'),
     `got ${evening?.startsAt}`);
+
+  check('a zone trip limit is stored', evening?.zoneLimits?.[3] === 1,
+    JSON.stringify(evening?.zoneLimits));
+  check('blank zones mean no limit',
+    evening?.zoneLimits?.[1] === null && evening?.zoneLimits?.[2] === null,
+    JSON.stringify(evening?.zoneLimits));
+
+  console.log('\nadding weekly hours');
+
+  window.Admin.newClass();
+  await sleep(150);
+  check('weekly hours is the default', $('weekFields').style.display !== 'none');
+  check('Monday to Friday start ticked',
+    $('wkOn1').checked && $('wkOn5').checked && !$('wkOn6').checked && !$('wkOn0').checked);
+
+  $('fTitle').value = 'Weekly CPR';
+  $('fFrom').value = '2027-01-04';           // a Monday
+  $('fWeeks').value = '2';
+  window.Admin.previewWeek();
+  check('it previews how many days it will add',
+    ($('wkPreview').textContent || '').includes('10 days'), $('wkPreview').textContent);
+
+  // Saturday mornings too, and a short Friday that can't fit a session.
+  $('wkOn6').checked = true;
+  $('wkOn6').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(50);
+  check('ticking a day adds it', ($('wkPreview').textContent || '').includes('12 days'),
+    $('wkPreview').textContent);
+
+  $('wkClose5').value = '10:00';
+  $('wkClose5').dispatchEvent(new window.Event('input', { bubbles: true }));
+  window.Admin.save(null);
+  await sleep(200);
+  check('a day too short to book is caught by name',
+    ($('fErr').textContent || '').includes('Fri'), $('fErr').textContent);
+
+  $('wkClose5').value = '17:00';
+  $('wkClose5').dispatchEvent(new window.Event('input', { bubbles: true }));
+  $('wkOpen6').value = '08:00';
+  $('wkOpen6').dispatchEvent(new window.Event('input', { bubbles: true }));
+  $('wkClose6').value = '12:00';
+  $('wkClose6').dispatchEvent(new window.Event('input', { bubbles: true }));
+  $('fZone3').value = '1';
+  window.Admin.save(null);
+  check('the weekly days save', await until(() => !$('veil').classList.contains('open')),
+    $('fErr')?.textContent);
+
+  const weekly = (await (await fetch(`${BASE}/api/admin/classes`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json()).classes.filter((c) => c.title === 'Weekly CPR');
+  check('one day is created per open day', weekly.length === 12, `got ${weekly.length}`);
+
+  const localDay = (iso) => new Date(iso).getDay();
+  check('no closed weekday was created', !weekly.some((c) => localDay(c.startsAt) === 0),
+    weekly.map((c) => c.startsAt).join(' '));
+  const saturday = weekly.find((c) => localDay(c.startsAt) === 6);
+  check('each weekday keeps its own hours',
+    saturday && new Date(saturday.startsAt).getHours() === 8
+    && new Date(saturday.endsAt).getHours() === 12,
+    saturday && `${saturday.startsAt} – ${saturday.endsAt}`);
+  check('every day gets the zone limit', weekly.every((c) => c.zoneLimits[3] === 1));
+
+  const bulkBad = await (await fetch(`${BASE}/api/admin/classes/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: JSON.stringify({
+      courseCode: 'CPR', title: 'Bad batch', capacity: 5, priceCents: 8500,
+      days: [
+        { startsAt: '2027-03-01T17:00:00Z', endsAt: '2027-03-02T01:00:00Z' },
+        { startsAt: '2027-03-02T17:00:00Z', endsAt: '2027-03-02T18:00:00Z' },
+      ],
+    }),
+  })).json();
+  check('a batch with one bad day is refused', bulkBad.ok === false && bulkBad.day === 2,
+    JSON.stringify(bulkBad));
+  const afterBad = (await (await fetch(`${BASE}/api/admin/classes`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json()).classes.filter((c) => c.title === 'Bad batch');
+  check('and saves none of it', afterBad.length === 0, `got ${afterBad.length}`);
+
+  const badZone = await (await fetch(`${BASE}/api/admin/classes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: JSON.stringify({
+      courseCode: 'CPR', title: 'Bad zone', capacity: 5, priceCents: 8500,
+      startsAt: '2027-03-05T17:00:00Z', endsAt: '2027-03-06T01:00:00Z',
+      zoneLimits: { 3: 1.5 },
+    }),
+  })).json();
+  check('a fractional zone limit is refused', badZone.reason === 'zone_limits_invalid',
+    JSON.stringify(badZone));
 
   console.log('\nediting and the capacity guard');
 
@@ -170,8 +268,9 @@ async function until(fn, timeoutMs = 4000) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: `Person ${who}`, email: `${who}@example.com`,
-        // Separate visits: each booking owns its time outright.
-        slotStart: freeTimes[i * 5],
+        // Separate visits: each booking owns its time outright, and a
+        // session plus travel blocks 5.5 hours.
+        slotStart: freeTimes[i * 11],
         address: '1200 SW Main St, Hillsboro, OR 97123',
       }),
     });
@@ -247,6 +346,8 @@ async function until(fn, timeoutMs = 4000) {
     ($('boxBody').textContent || '').includes('Hillsboro'), $('boxBody').textContent.slice(0, 200));
   check('it groups by visit time',
     ($('boxBody').textContent || '').includes('visit'), $('boxBody').textContent.slice(0, 120));
+  check('it shows each visit\'s travel zone',
+    ($('boxBody').textContent || '').includes('Zone 1'), $('boxBody').textContent.slice(0, 200));
 
   const paid = await (await fetch(`${BASE}/api/admin/classes/${small.classId}/roster`, {
     headers: { 'x-admin-token': TOKEN },
