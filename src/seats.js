@@ -123,6 +123,126 @@ function minNoticeHours() {
   return Number.isFinite(v) && v >= 0 ? v : 24;
 }
 
+// ------------------------------------------------------------ course prices
+
+/**
+ * One price per course, the same every week. Changing it moves every
+ * upcoming day of that course at once (see setCoursePrice); a customer who
+ * already booked keeps the price they paid, since it's stamped on their row.
+ */
+const COURSES = [
+  { code: 'CPR',        title: 'CPR / AED',                        priceCents: 8500 },
+  { code: 'HEARTSAVER', title: 'Heartsaver CPR / AED / First Aid', priceCents: 9500 },
+  { code: 'BABYSIT',    title: 'Babysitter Safety',                priceCents: 5500 },
+];
+
+function courses() {
+  let saved = {};
+  try { saved = JSON.parse(getSetting('course_prices', '{}')) || {}; } catch { /* defaults */ }
+  return COURSES.map((c) => ({
+    ...c,
+    priceCents: Number.isInteger(saved[c.code]) ? saved[c.code] : c.priceCents,
+  }));
+}
+
+/** The current price of a course, or null for one not in the list. */
+function coursePrice(code) {
+  const c = courses().find((x) => x.code === code);
+  return c ? c.priceCents : null;
+}
+
+/** Set a course's price and apply it to every day of it that hasn't finished. */
+function setCoursePrice(code, priceCents, now = nowIso()) {
+  const db = getDb();
+  if (!COURSES.some((c) => c.code === code)) return { ok: false, reason: 'no_such_course' };
+  let saved = {};
+  try { saved = JSON.parse(getSetting('course_prices', '{}')) || {}; } catch { /* start over */ }
+  saved[code] = priceCents;
+  return db.transaction(() => {
+    setSetting('course_prices', JSON.stringify(saved));
+    const info = db
+      .prepare('UPDATE classes SET price_cents = ? WHERE course_code = ? AND ends_at > ?')
+      .run(priceCents, code, now);
+    return { ok: true, daysUpdated: Number(info.changes) };
+  })();
+}
+
+// ----------------------------------------------------------------- trainers
+
+/** Trainers on a normal day, until a date says otherwise. */
+function defaultTrainers() {
+  const v = Number(getSetting('default_trainers', 1));
+  return Number.isInteger(v) && v >= 0 ? v : 1;
+}
+
+/** How many trainers are working on a calendar date (YYYY-MM-DD). */
+function trainersOn(ymd) {
+  const row = getDb().prepare('SELECT trainers FROM trainer_days WHERE day = ?').get(ymd);
+  return row ? row.trainers : defaultTrainers();
+}
+
+/**
+ * Set the trainers for some dates. Passing null puts a date back to the usual
+ * number. Returns, for each date, any times where the visits already booked
+ * now outnumber the trainers — staff need to move or cancel one of those.
+ */
+function setTrainers(days, trainers, now = nowIso()) {
+  const db = getDb();
+  const up = db.prepare(`INSERT INTO trainer_days (day, trainers) VALUES (?, ?)
+                         ON CONFLICT(day) DO UPDATE SET trainers = excluded.trainers`);
+  const clear = db.prepare('DELETE FROM trainer_days WHERE day = ?');
+  db.transaction(() => {
+    for (const d of days) {
+      if (trainers === null || trainers === defaultTrainers()) clear.run(d);
+      else up.run(d, trainers);
+    }
+  })();
+  return days.map((day) => ({ day, ...overbooked(day, now) })).filter((x) => x.over);
+}
+
+/** Visits on a date that hasn't finished, as {slot_start} rows. */
+function visitsOnDate(db, ymd, now) {
+  const cls = db
+    .prepare(`SELECT * FROM classes WHERE status = 'open' AND ends_at > ?
+               AND starts_at BETWEEN ? AND ?`)
+    .all(now, addMinutes(`${ymd}T00:00:00.000Z`, -24 * 60), addMinutes(`${ymd}T00:00:00.000Z`, 48 * 60))
+    .filter((c) => localDate(c.starts_at) === ymd);
+  return cls.length ? activeBookings(db, cls.map((c) => c.id), now) : [];
+}
+
+/** The most visits running at once on a date, against the trainers working it. */
+function overbooked(ymd, now = nowIso()) {
+  const visits = visitsOnDate(getDb(), ymd, now);
+  const most = visits.reduce((m, v) => Math.max(m, depthAt(visits, v.slot_start)), 0);
+  const trainers = trainersOn(ymd);
+  return { trainers, mostAtOnce: most, over: most > trainers };
+}
+
+/** How many of these visits are in progress (session plus travel) at an instant. */
+function depthAt(visits, iso) {
+  const t = new Date(iso).getTime();
+  const block = BLOCK_MINUTES * 60_000;
+  return visits.filter((v) => {
+    const s = new Date(v.slot_start).getTime();
+    return s <= t && t < s + block;
+  }).length;
+}
+
+/**
+ * Could one more visit start here without needing more trainers than there
+ * are? With equal-length visits that's true when, at every moment it would
+ * be running, fewer than `trainers` others are.
+ */
+function trainerFree(visits, start, trainers) {
+  if (trainers <= 0) return false;
+  const s = new Date(start).getTime();
+  const block = BLOCK_MINUTES * 60_000;
+  const points = [start, ...visits
+    .map((v) => v.slot_start)
+    .filter((p) => { const t = new Date(p).getTime(); return t >= s && t < s + block; })];
+  return points.every((p) => depthAt(visits, p) + 1 <= trainers);
+}
+
 /** Is this calendar date (YYYY-MM-DD) inside any time off? */
 function isTimeOff(ymd) {
   return Boolean(getDb()
@@ -382,12 +502,6 @@ function instructorBookings(db, cls, now) {
   return activeBookings(db, sameDateClasses(db, cls).map((c) => c.id), now);
 }
 
-const overlaps = (aStart, bStart) => {
-  const a = new Date(aStart).getTime();
-  const b = new Date(bStart).getTime();
-  const block = BLOCK_MINUTES * 60_000;
-  return a < b + block && b < a + block;
-};
 
 /**
  * The bookable picture of one day.
@@ -415,16 +529,17 @@ function daySlots(classId, { partySize = 1, now = nowIso(), zone = null } = {}) 
   const nowMs = new Date(now).getTime();
   const noticeMs = minNoticeHours() * 3600_000;
   const offDay = isTimeOff(localDate(cls.starts_at));
+  const trainers = trainersOn(localDate(cls.starts_at));
 
   const slots = slotGrid(cls).map((start) => {
-    const clash = booked.find((b) => overlaps(start, b.slot_start));
     const startMs = new Date(start).getTime();
 
     let reason = null;
     if (startMs <= nowMs) reason = 'past';
     else if (startMs < nowMs + noticeMs) reason = 'too_soon';
     else if (offDay) reason = 'time_off';
-    else if (clash) reason = 'booked';
+    else if (trainers === 0) reason = 'no_trainer';
+    else if (!trainerFree(booked, start, trainers)) reason = 'booked';
     else if (seatsLeft < partySize) reason = seatsLeft === 0 ? 'day_full' : 'not_enough_seats';
     else if (zoneFull) reason = 'zone_full';
 
@@ -442,6 +557,7 @@ function daySlots(classId, { partySize = 1, now = nowIso(), zone = null } = {}) 
     closesAt: cls.ends_at,
     sessionMinutes: SESSION_MINUTES,
     bufferMinutes: BUFFER_MINUTES,
+    trainers,
     capacity: cls.capacity,
     seatsTaken,
     seatsLeft,
@@ -626,12 +742,11 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
     if (isTimeOff(localDate(cls.starts_at))) {
       return { ok: false, reason: 'day_off' };
     }
-    // ...and free, across every course that date. Checked inside the
-    // transaction, so two customers clicking the same time serialise instead
-    // of both being told yes.
-    const clash = instructorBookings(db, cls, now)
-      .find((b) => overlaps(args.slotStart, b.slot_start));
-    if (clash) {
+    // ...and a trainer is free then, across every course that date. Checked
+    // inside the transaction, so two customers clicking the same time
+    // serialise instead of both being told yes.
+    const trainers = trainersOn(localDate(cls.starts_at));
+    if (!trainerFree(instructorBookings(db, cls, now), args.slotStart, trainers)) {
       return { ok: false, reason: 'slot_taken', slotStart: args.slotStart };
     }
     // ...and the day still has a trip left into their zone. Inside the
@@ -1421,6 +1536,14 @@ function queueOfferEmail(db, reg, expiresAt) {
 }
 
 module.exports = {
+  COURSES,
+  courses,
+  coursePrice,
+  setCoursePrice,
+  defaultTrainers,
+  trainersOn,
+  setTrainers,
+  overbooked,
   getSetting,
   setSetting,
   minNoticeHours,

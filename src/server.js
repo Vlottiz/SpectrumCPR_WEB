@@ -87,10 +87,10 @@ function publicRegistration(reg) {
 function publicClass(c) {
   const day = seats.daySlots(c.id);
   return {
-    // False once every time is past, inside the booking notice or on time
-    // off — the day has nothing left to offer, not even a waitlist.
+    // False once every time is past, inside the booking notice, on time off
+    // or with no trainer — nothing left to offer, not even a waitlist.
     stillBookable: Boolean(day && day.slots.some((s) =>
-      !['past', 'too_soon', 'time_off'].includes(s.reason))),
+      !['past', 'too_soon', 'time_off', 'no_trainer'].includes(s.reason))),
     id: c.id,
     courseCode: c.course_code,
     title: c.title,
@@ -668,7 +668,9 @@ function readDaySettings(body) {
 
   if (!courseCode || !title) return { error: 'courseCode and title are required' };
   if (!Number.isInteger(capacity) || capacity < 1) return { error: 'capacity_invalid' };
-  if (!Number.isInteger(priceCents) || priceCents < 0) return { error: 'priceCents_invalid' };
+  // A known course always takes its one current price, so no week can differ.
+  const price = seats.coursePrice(courseCode) ?? priceCents;
+  if (!Number.isInteger(price) || price < 0) return { error: 'priceCents_invalid' };
 
   const tierError = validateTiers(pricingTiers);
   if (tierError) return { error: 'pricing_invalid', message: tierError };
@@ -678,7 +680,7 @@ function readDaySettings(body) {
 
   return {
     values: {
-      courseCode, title, location, capacity, priceCents,
+      courseCode, title, location, capacity, priceCents: price,
       pricingTiers: pricingTiers ? JSON.stringify(pricingTiers) : null,
       zoneLimits: storeZoneLimits(limits.value),
     },
@@ -785,12 +787,24 @@ app.post('/api/admin/classes/:id/cancel', requireAdmin, (req, res) => {
 
 // ---------------------------------------------- schedules, time off, notice
 
+/** The courses and their one price each, for the booking page. */
+app.get('/api/courses', (req, res) => {
+  res.json({ ok: true, courses: seats.courses() });
+});
+
 /** Everything the admin page's schedule panel shows. */
 app.get('/api/admin/schedules', requireAdmin, (req, res) => {
   res.json({
     ok: true,
     schedules: schedule.listSchedules(),
     timeOff: schedule.listTimeOff(),
+    courses: seats.courses(),
+    defaultTrainers: seats.defaultTrainers(),
+    // Dates with a different number of trainers from the usual.
+    trainerDays: Object.fromEntries(getDb()
+      .prepare('SELECT day, trainers FROM trainer_days WHERE day >= ?')
+      .all(seats.localDate(new Date(Date.now() - 86400_000).toISOString()))
+      .map((r) => [r.day, r.trainers])),
     minNoticeHours: seats.minNoticeHours(),
     sessionMinutes: seats.SESSION_MINUTES,
     maxWeeksAhead: schedule.MAX_WEEKS_AHEAD,
@@ -868,8 +882,45 @@ app.post('/api/admin/time-off/:id/delete', requireAdmin, (req, res) => {
   res.json({ ok: true, created: schedule.removeTimeOff(Number(req.params.id)) });
 });
 
+/**
+ * Change a course's price. Every day of it that hasn't finished moves at
+ * once, so the price is the same every week; bookings keep what they paid.
+ */
+app.post('/api/admin/courses/:code/price', requireAdmin, (req, res) => {
+  const priceCents = Number(req.body?.priceCents);
+  if (!Number.isInteger(priceCents) || priceCents < 0 || priceCents > 1_000_000) {
+    return bad(res, 400, 'price_invalid', { message: 'Enter a valid price.' });
+  }
+  const r = seats.setCoursePrice(req.params.code, priceCents);
+  if (!r.ok) return bad(res, 404, r.reason);
+  res.json({ ok: true, daysUpdated: r.daysUpdated, courses: seats.courses() });
+});
+
+/**
+ * Trainers working on some dates: { days: ['2026-11-16', ...], trainers: 2 }.
+ * trainers null puts the dates back to the usual number. Answers with any
+ * date where visits already booked now overlap more than the trainers.
+ */
+app.post('/api/admin/trainers', requireAdmin, (req, res) => {
+  const { days, trainers } = req.body || {};
+  if (!Array.isArray(days) || !days.length || !days.every((d) => YMD.test(String(d)))) {
+    return bad(res, 400, 'days_invalid', { message: 'Pick the dates.' });
+  }
+  if (trainers !== null && (!Number.isInteger(trainers) || trainers < 0 || trainers > 20)) {
+    return bad(res, 400, 'trainers_invalid', { message: 'Enter 0 to 20 trainers.' });
+  }
+  res.json({ ok: true, overbooked: seats.setTrainers(days, trainers) });
+});
+
 app.post('/api/admin/settings', requireAdmin, (req, res) => {
-  const { minNoticeHours } = req.body || {};
+  const { minNoticeHours, defaultTrainers } = req.body || {};
+  if (defaultTrainers !== undefined) {
+    const n = Number(defaultTrainers);
+    if (!Number.isInteger(n) || n < 0 || n > 20) {
+      return bad(res, 400, 'trainers_invalid', { message: 'Enter 0 to 20 trainers.' });
+    }
+    seats.setSetting('default_trainers', n);
+  }
   if (minNoticeHours !== undefined) {
     const n = Number(minNoticeHours);
     if (!Number.isFinite(n) || n < 0 || n > 24 * 30) {
@@ -877,7 +928,8 @@ app.post('/api/admin/settings', requireAdmin, (req, res) => {
     }
     seats.setSetting('min_notice_hours', n);
   }
-  res.json({ ok: true, minNoticeHours: seats.minNoticeHours() });
+  res.json({ ok: true, minNoticeHours: seats.minNoticeHours(),
+             defaultTrainers: seats.defaultTrainers() });
 });
 
 /** What would have been emailed. Replace with a real mail provider later. */
@@ -926,6 +978,8 @@ app.get('/api/admin/classes', requireAdmin, (req, res) => {
         pricingTiers: seats_.tiersFor(c),
         zoneLimits: seats_.zoneLimitsFor(c),
         scheduleId: c.schedule_id || null,
+        day: seats_.localDate(c.starts_at),
+        trainers: seats_.trainersOn(seats_.localDate(c.starts_at)),
         // Where and when the instructor is going that day, for the list view.
         visits: seats_.dayVisits(c.id),
         // Trips already taken into each zone on this day's date.
@@ -986,6 +1040,9 @@ app.post('/api/admin/classes/:id/update', requireAdmin, (req, res) => {
   if (priceCents !== undefined && (!Number.isInteger(priceCents) || priceCents < 0)) {
     return bad(res, 400, 'price_invalid');
   }
+  // One price per course: a day's price follows its course, set in the
+  // Course prices panel, and can't be changed on its own.
+  const coursePriceNow = seats.coursePrice(courseCode || cls.course_code);
   if (status !== undefined && !['open', 'cancelled'].includes(status)) {
     return bad(res, 400, 'status_invalid');
   }
@@ -1005,7 +1062,9 @@ app.post('/api/admin/classes/:id/update', requireAdmin, (req, res) => {
 
   const fields = {
     title, course_code: courseCode, starts_at: startsAt, ends_at: endsAt,
-    location, capacity, price_cents: priceCents, status,
+    location, capacity,
+    price_cents: coursePriceNow ?? priceCents,
+    status,
     pricing_tiers: pricingTiers === undefined ? undefined : JSON.stringify(pricingTiers),
     zone_limits: limits.value === undefined ? undefined : storeZoneLimits(limits.value),
   };

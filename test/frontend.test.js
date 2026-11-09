@@ -869,6 +869,19 @@ async function until(fn, timeoutMs = 4000) {
     && doc.querySelectorAll('.slot-btn[disabled]').length === 0,
     `${doc.querySelectorAll('.slot-btn').length} buttons for ${openCount} open times`);
 
+  console.log('\ncourse prices');
+
+  await fetch(`${BASE}/api/admin/courses/CPR/price`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
+    body: JSON.stringify({ priceCents: 9900 }),
+  });
+  await window.Booking.load();
+  check('a price change shows on the courses page',
+    await until(() => [...doc.querySelectorAll('[data-price="CPR"]')].every((el) => el.textContent === '$99')),
+    [...doc.querySelectorAll('[data-price="CPR"]')].map((el) => el.textContent).join(','));
+  check('and in the schedule data', (await (await fetch(`${BASE}/api/classes`)).json())
+    .classes.filter((c) => c.courseCode === 'CPR').every((c) => c.priceCents === 9900));
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (pageErrors.length) console.log(`page errors: ${pageErrors.join('; ')}`);
   console.log('');

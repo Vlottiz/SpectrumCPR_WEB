@@ -154,7 +154,6 @@ async function until(fn, timeoutMs = 4000) {
   $('fOpen').value = '10:00';
   $('fClose').value = '18:00';
   $('fCap').value = '8';
-  $('crsPrice_BABYSIT').value = '95.50';
   $('fZone3').value = '1';
   window.Admin.save(null);
 
@@ -168,7 +167,7 @@ async function until(fn, timeoutMs = 4000) {
   check('it appears in the table',
     await until(() => [...doc.querySelectorAll('#rows tr.day-row')]
       .some((r) => r.textContent.includes('Babysitter Safety') && r.textContent.includes('Dec 1'))));
-  check('the price is stored in cents', evening?.priceCents === 9550, `got ${evening?.priceCents}`);
+  check('it takes the course price', evening?.priceCents === 5500, `got ${evening?.priceCents}`);
   check('the capacity is stored', evening?.capacity === 8, `got ${evening?.capacity}`);
 
   // A date and time typed in local time must reach the server as UTC.
@@ -286,15 +285,71 @@ async function until(fn, timeoutMs = 4000) {
   await sleep(150);
   check('editing reopens it with its settings',
     $('crsOn_BABYSIT').checked && !$('crsOn_CPR').checked && $('wkOn6').checked && $('fAhead').value === '4');
-  $('crsPrice_BABYSIT').value = '60.00';
+  check('the form has no price box of its own', !$('crsPrice_BABYSIT'));
   window.Admin.save(null);
   await until(() => !$('veil').classList.contains('open'));
-  check('a new price reaches its unbooked days',
-    (await listAll()).filter((c) => c.scheduleId).every((c) => c.priceCents === 6000));
 
   window.Admin.toggleSchedule(schedId, false);
   check('it can be paused',
     await until(() => ($('schedList').textContent || '').includes('Paused')));
+
+  console.log('\none price per course');
+
+  check('the course prices are listed', $('price_BABYSIT')?.value === '55.00', $('price_BABYSIT')?.value);
+  window.confirm = () => true;
+  $('price_BABYSIT').value = '60.00';
+  $('price_BABYSIT').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(400);
+  const babysit = (await listAll()).filter((c) => c.courseCode === 'BABYSIT'
+    && c.endsAt > new Date().toISOString());
+  check('a new price reaches every upcoming day of that course',
+    babysit.length > 1 && babysit.every((c) => c.priceCents === 6000),
+    babysit.map((c) => c.priceCents).join(','));
+  check('other courses keep theirs',
+    (await listAll()).filter((c) => c.courseCode === 'HEARTSAVER').every((c) => c.priceCents === 9500));
+  const shown = await (await fetch(`${BASE}/api/courses`)).json();
+  check('the booking page is told the new price',
+    shown.courses.find((c) => c.code === 'BABYSIT').priceCents === 6000);
+
+  const dodge = await (await fetch(`${BASE}/api/admin/classes/${babysit[0].id}/update`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: JSON.stringify({ priceCents: 100 }),
+  })).json();
+  const afterDodge = (await listAll()).find((c) => c.id === babysit[0].id);
+  check('one day cannot be priced differently', dodge.ok && afterDodge.priceCents === 6000,
+    `got ${afterDodge.priceCents}`);
+
+  console.log('\ntrainers');
+
+  await window.Admin.refresh();
+  check('the usual trainers default to 1', $('trainersDefault').value === '1');
+  const dayPicker = () => doc.querySelector('.trainer-strip select[data-day]');
+  check('each week heading has a trainer picker per day', !!dayPicker());
+  const pickDay = dayPicker().dataset.day;
+  dayPicker().value = '2';
+  dayPicker().dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(400);
+  const sched = await (await fetch(`${BASE}/api/admin/schedules`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json();
+  check('a day can be given more trainers', sched.trainerDays[pickDay] === 2,
+    JSON.stringify(sched.trainerDays));
+  check('and it shows as changed',
+    doc.querySelector(`.trainer-strip select[data-day="${pickDay}"]`)?.classList.contains('changed'));
+
+  const weekPicker = doc.querySelector('.trainer-strip select[aria-label="Trainers for the whole week"]');
+  weekPicker.value = '0';
+  weekPicker.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(400);
+  const allOff = await (await fetch(`${BASE}/api/admin/schedules`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json();
+  check('a whole week can be set at once', allOff.trainerDays[pickDay] === 0,
+    JSON.stringify(allOff.trainerDays));
+  await fetch(`${BASE}/api/admin/trainers`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: JSON.stringify({ days: Object.keys(allOff.trainerDays), trainers: null }),
+  });
 
   console.log('\ntime off');
 

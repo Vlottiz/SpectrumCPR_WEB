@@ -680,7 +680,7 @@
              trainers.</p>
           <p class="course-meta">4 hour session · at your location</p>
         </div>
-        <div class="course-price"><div class="price">$85<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="CPR">$85</span><small>per person</small></div></div>
       </div>
 
       <div class="course">
@@ -692,7 +692,7 @@
              attack. The fuller workplace certification.</p>
           <p class="course-meta">4 hour session · at your location</p>
         </div>
-        <div class="course-price"><div class="price">$95<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="HEARTSAVER">$95</span><small>per person</small></div></div>
       </div>
 
       <div class="course">
@@ -703,7 +703,7 @@
              basic first aid, home safety, and knowing when to call for help.</p>
           <p class="course-meta">4 hour session · ages 11–15 · at your location</p>
         </div>
-        <div class="course-price"><div class="price">$55<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="BABYSIT">$55</span><small>per person</small></div></div>
       </div>
     </div>
   </section>
@@ -757,7 +757,7 @@
              and volunteers.</p>
           <p class="course-meta">4 hour session · certification valid 2 years · cards issued before we leave</p>
         </div>
-        <div class="course-price"><div class="price">$85<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="CPR">$85</span><small>per person</small></div></div>
       </div>
 
       <div class="course">
@@ -770,7 +770,7 @@
              first aid alongside CPR want this one.</p>
           <p class="course-meta">4 hour session · certification valid 2 years · cards issued before we leave</p>
         </div>
-        <div class="course-price"><div class="price">$95<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="HEARTSAVER">$95</span><small>per person</small></div></div>
       </div>
 
       <div class="course">
@@ -782,7 +782,7 @@
              knowing when to call for help.</p>
           <p class="course-meta">4 hour session · ages 13+ · certificate of completion</p>
         </div>
-        <div class="course-price"><div class="price">$55<small>per person</small></div></div>
+        <div class="course-price"><div class="price"><span data-price="BABYSIT">$55</span><small>per person</small></div></div>
       </div>
 
       <h2 class="sec" style="font-size:26px;margin-top:40px">Group pricing</h2>
@@ -1212,6 +1212,24 @@ const Booking = (() => {
       </div>`).join('');
   }
 
+  /**
+   * Course prices on the courses and home pages come from the server, so a
+   * price change in the admin page shows here without editing this file.
+   * The numbers in the markup are only what shows if the server can't be
+   * reached.
+   */
+  async function loadPrices() {
+    try {
+      const { data } = await api('/api/courses');
+      if (!data.ok) return;
+      for (const c of data.courses) {
+        const whole = c.priceCents % 100 === 0;
+        const text = '$' + (whole ? c.priceCents / 100 : (c.priceCents / 100).toFixed(2));
+        document.querySelectorAll(`[data-price="${c.code}"]`).forEach((el) => { el.textContent = text; });
+      }
+    } catch { /* keep the printed prices */ }
+  }
+
   /** Warn plainly if the server is older than this page. */
   async function checkServer() {
     try {
@@ -1271,6 +1289,7 @@ const Booking = (() => {
     classes = data.classes;
     renderSchedule();
     renderNext();
+    loadPrices();
   }
 
 

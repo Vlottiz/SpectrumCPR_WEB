@@ -29,15 +29,15 @@ the other suites already cover from the inside, so skipping it on Windows
 costs little.
 
 ```bash
-npm run test:all        # everything that runs on Node — 379 checks
+npm run test:all        # everything that runs on Node — 396 checks
 npm test                # holds, payment, waitlist, groups (32)
 npm run test:slots      # the slot calendar and blocking (34)
 npm run test:pricing    # group bands, rounding, fallbacks (22)
 npm run test:zones      # travel zones, charges, trips per day (29)
-npm run test:schedule   # repeating schedules, time off, notice, shared instructor (24)
+npm run test:schedule   # schedules, time off, notice, trainers, course prices (34)
 npm run test:address    # address parsing, ZIP lookup, outages (19)
-npm run test:fe         # booking page in a headless DOM (138)
-npm run test:admin      # admin page and its API (86)
+npm run test:fe         # booking page in a headless DOM (140)
+npm run test:admin      # admin page and its API (96)
 
 npm run test:e2e        # full API flow over HTTP (37) — needs bash
 ```
@@ -99,11 +99,25 @@ days running the same course with room for the party, ordered so that a day
 offering **the time they asked for** comes first even if it's later — somebody
 who wanted 9am usually wants 9am more than they want that particular Tuesday.
 
-### One instructor, every course
+### Trainers, shared across courses
 
-There's one certified instructor, so time is shared across courses: a CPR
-visit at 9:00 blocks Heartsaver and Babysitter at 9:00 that date too (plus the
-travel buffer). Headcount stays per course and day.
+Each trainer can run one visit at a time, whatever the course. With one
+trainer, a CPR visit at 9:00 blocks Heartsaver and Babysitter at 9:00 that date
+too (plus the travel buffer); with two, two visits can overlap. Headcount
+stays per course and day.
+
+The usual number is `settings.default_trainers` (1 to start); a date can
+differ via `trainer_days` — more for a new hire, fewer or 0 for a call-out.
+0 means that date takes no new bookings. Lowering it below what's already
+booked is allowed, and the admin page lists the clashing dates.
+
+### One price per course
+
+Each course has one per-person price (`settings.course_prices`, defaults in
+`seats.js`). Changing it updates every day of that course that hasn't
+finished, so no week differs from another, and the booking page picks it up
+(`GET /api/courses`). Bookings keep the price stamped on them when they were
+made. Prices sent with a day or schedule are ignored for a known course.
 
 ### Repeating schedules, time off and notice
 
@@ -401,6 +415,7 @@ GET  /api/classes/:id/slots?partySize=N       bookable times for that party
 GET  /api/classes/:id/quote?partySize=N       what that party pays, and why
 GET  /api/classes/:id/alternatives            other days that could take it
 GET  /api/zones                               the zones and their charges
+GET  /api/courses                             each course and its price
 GET  /api/zones/lookup?zip=97123&classId=N    a ZIP's zone, miles and charge
 GET  /api/address/suggest?q=...               address completions
 GET  /api/address/zip?zip=97123               city and state for a ZIP
@@ -425,7 +440,9 @@ POST /api/admin/schedules                     start a repeating schedule
 POST /api/admin/schedules/:id/update|pause|resume|delete
 POST /api/admin/time-off                      {startsOn, endsOn, note}
 POST /api/admin/time-off/:id/delete
-POST /api/admin/settings                      {minNoticeHours}
+POST /api/admin/settings                      {minNoticeHours, defaultTrainers}
+POST /api/admin/trainers                      {days: ['2026-11-16'], trainers: 2 | null}
+POST /api/admin/courses/:code/price           {priceCents}
 POST /api/admin/classes/:id/cancel
 GET  /api/admin/outbox
 POST /api/admin/sweep

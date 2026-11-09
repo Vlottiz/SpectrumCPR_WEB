@@ -147,7 +147,9 @@ function fillSchedule(id, now = new Date().toISOString()) {
       for (const c of s.courses) {
         const key = `${day}|${c.code}`;
         if (have.has(key) || skipped.has(key)) continue;
-        insert.run(c.code, c.title, startsAt, endsAt, s.capacity, c.priceCents,
+        // Always the course's current price, so every week matches.
+        insert.run(c.code, c.title, startsAt, endsAt, s.capacity,
+                   seats.coursePrice(c.code) ?? c.priceCents,
                    row.pricing_tiers, row.zone_limits, id);
         made++;
       }
@@ -207,8 +209,11 @@ function cleanSchedule(body, { sessionMinutes }) {
   const courses = [];
   for (const c of b.courses) {
     const code = String(c?.code || '').trim();
-    const title = String(c?.title || '').trim();
-    const priceCents = Number(c?.priceCents);
+    const known = seats.courses().find((x) => x.code === code);
+    const title = String(c?.title || known?.title || '').trim();
+    // Prices are set per course, not per schedule; one sent here is ignored
+    // for a known course.
+    const priceCents = known ? known.priceCents : Number(c?.priceCents);
     if (!code || title.length < 2) return { error: 'Each course needs a name.' };
     if (!Number.isInteger(priceCents) || priceCents < 0) {
       return { error: `Enter a price for ${title}.` };

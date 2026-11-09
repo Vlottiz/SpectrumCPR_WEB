@@ -184,6 +184,15 @@ CREATE TABLE IF NOT EXISTS time_off (
   created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
+-- How many trainers are working on a date, where it differs from the usual
+-- number (settings.default_trainers). Each trainer can run one visit at a
+-- time, so two trainers means two overlapping bookings are fine. 0 means
+-- nobody is available that date.
+CREATE TABLE IF NOT EXISTS trainer_days (
+  day             TEXT    PRIMARY KEY,        -- YYYY-MM-DD
+  trainers        INTEGER NOT NULL CHECK (trainers >= 0)
+);
+
 -- Small site-wide settings, e.g. min_notice_hours.
 CREATE TABLE IF NOT EXISTS settings (
   key             TEXT    PRIMARY KEY,

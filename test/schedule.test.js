@@ -178,17 +178,52 @@ test('changing it rebuilds unbooked days and keeps booked ones', () => {
   assert.strictEqual(book(bookedDay).ok, true);
 
   const v = schedule.cleanSchedule({
-    courses: [{ ...COURSES[0], priceCents: 9900 }, COURSES[1]],
-    week: WEEKDAYS_9_TO_5, weeksAhead: 2, capacity: 10, startsOn: today,
+    courses: COURSES,
+    week: WEEKDAYS_9_TO_5.map((d) => ({ ...d, open: '10:00', close: '18:00' })),
+    weeksAhead: 2, capacity: 10, startsOn: today,
   }, { sessionMinutes: seats.SESSION_MINUTES });
   schedule.updateSchedule(id, v.value);
 
   const cpr = daysOf(id).filter((c) => c.course_code === 'CPR');
   const kept = cpr.find((c) => c.id === bookedDay.id);
   assert.ok(kept, 'the booked day survives');
-  assert.strictEqual(kept.price_cents, 8500, 'at the price it was booked');
-  assert.ok(cpr.filter((c) => c.id !== bookedDay.id).every((c) => c.price_cents === 9900));
-  assert.strictEqual(cpr.length, expectedDates(2).length, 'no duplicates');
+  assert.strictEqual(kept.starts_at, bookedDay.starts_at, 'with the hours it was booked for');
+  const rebuilt = cpr.filter((c) => c.id !== bookedDay.id && c.starts_at > new Date().toISOString());
+  assert.ok(rebuilt.length && rebuilt.every((c) =>
+    c.starts_at === schedule.zonedToUtc(seats.localDate(c.starts_at), '10:00')));
+});
+
+console.log('\none price per course');
+
+test('a schedule ignores a price sent with it', () => {
+  clearAll();
+  const { id } = make({ courses: [{ ...COURSES[0], priceCents: 1 }] });
+  assert.ok(daysOf(id).every((c) => c.price_cents === seats.coursePrice('CPR')));
+});
+
+test('changing a course price moves every upcoming day at once', () => {
+  clearAll();
+  const { id } = make();
+  const bookedDay = laterDays(id).find((c) => c.course_code === 'CPR');
+  const r = book(bookedDay);
+  const paid = r.registration.amount_cents;
+
+  const out = seats.setCoursePrice('CPR', 9900);
+  assert.ok(out.daysUpdated > 0);
+  const cpr = daysOf(id).filter((c) => c.course_code === 'CPR' && c.ends_at > new Date().toISOString());
+  assert.ok(cpr.every((c) => c.price_cents === 9900), 'every week matches');
+  assert.ok(daysOf(id).filter((c) => c.course_code === 'HEARTSAVER').every((c) => c.price_cents === 9500),
+    'other courses untouched');
+  assert.strictEqual(seats.findByRef(r.registration.public_ref).amount_cents, paid,
+    'a booking keeps what it was charged');
+});
+
+test('new days use the current price', () => {
+  const nextWeek = new Date(Date.now() + 7 * 86400_000).toISOString();
+  schedule.fillSchedule(schedule.listSchedules()[0].id, nextWeek);
+  const id = schedule.listSchedules()[0].id;
+  assert.ok(daysOf(id).filter((c) => c.course_code === 'CPR').every((c) => c.price_cents === 9900));
+  seats.setCoursePrice('CPR', 8500);
 });
 
 test('deleting it removes its unbooked future days', () => {
@@ -283,6 +318,76 @@ test('a different date is unaffected', () => {
   const first = seats.localDate(future[0].starts_at);
   const other = future.find((c) => c.course_code === 'HEARTSAVER' && seats.localDate(c.starts_at) !== first);
   assert.strictEqual(book(other, 0).ok, true);
+});
+
+console.log('\ntrainers');
+
+test('one trainer: overlapping visits are refused', () => {
+  clearAll();
+  const { id } = make();
+  const cpr = laterDays(id).find((c) => c.course_code === 'CPR');
+  assert.strictEqual(book(cpr, 0).ok, true);
+  assert.strictEqual(book(cpr, 2).reason, 'slot_taken');
+});
+
+test('two trainers: two visits can run at once', () => {
+  const id = schedule.listSchedules()[0].id;
+  const cpr = laterDays(id).find((c) => c.course_code === 'CPR');
+  const hs = laterDays(id).find((c) => c.course_code === 'HEARTSAVER' && c.starts_at === cpr.starts_at);
+  const day = seats.localDate(cpr.starts_at);
+  assert.deepStrictEqual(seats.setTrainers([day], 2), []);
+  assert.strictEqual(seats.trainersOn(day), 2);
+  assert.strictEqual(book(hs, 0).ok, true, 'a second trainer takes the same time');
+  assert.strictEqual(book(cpr, 1).reason, 'slot_taken', 'but not a third');
+  assert.strictEqual(seats.daySlots(cpr.id).trainers, 2);
+});
+
+test('two trainers: each later start is checked against both', () => {
+  clearAll();
+  const { id } = make();
+  const cpr = laterDays(id).find((c) => c.course_code === 'CPR');
+  seats.setTrainers([seats.localDate(cpr.starts_at)], 2);
+  assert.strictEqual(book(cpr, 0).ok, true);                 // 9:00, trainer A
+  const grid = seats.slotGrid(cpr);
+  const at = (i) => seats.daySlots(cpr.id).slots.find((s) => s.start === grid[i]);
+  assert.strictEqual(at(8).available, true, '1:00 still has trainer B');
+  assert.strictEqual(book(cpr, 8).ok, true);                 // 1:00, trainer B
+  assert.ok(seats.daySlots(cpr.id).slots.every((s) => !s.available),
+    'both trainers are now busy at every start that day');
+});
+
+test('cutting trainers below what is booked is reported', () => {
+  const id = schedule.listSchedules()[0].id;
+  const cpr = laterDays(id).find((c) => c.course_code === 'CPR');
+  const day = seats.localDate(cpr.starts_at);
+  const over = seats.setTrainers([day], 1);
+  assert.strictEqual(over.length, 1);
+  assert.strictEqual(over[0].mostAtOnce, 2);
+  assert.strictEqual(over[0].trainers, 1);
+});
+
+test('0 trainers (a call-out) takes no new bookings that day', () => {
+  clearAll();
+  const { id } = make();
+  const cpr = laterDays(id).find((c) => c.course_code === 'CPR');
+  seats.setTrainers([seats.localDate(cpr.starts_at)], 0);
+  const slots = seats.daySlots(cpr.id);
+  assert.strictEqual(slots.availableSlots, 0);
+  assert.ok(slots.slots.some((s) => s.reason === 'no_trainer'));
+  assert.strictEqual(book(cpr, 0).reason, 'slot_taken');
+});
+
+test('null puts a date back to the usual number', () => {
+  const id = schedule.listSchedules()[0].id;
+  const day = seats.localDate(laterDays(id)[0].starts_at);
+  seats.setTrainers([day], null);
+  assert.strictEqual(seats.trainersOn(day), 1);
+});
+
+test('the usual number can be raised for every day', () => {
+  seats.setSetting('default_trainers', 3);
+  assert.strictEqual(seats.trainersOn('2030-01-01'), 3);
+  seats.setSetting('default_trainers', 1);
 });
 
 console.log('\nminimum notice');

@@ -118,7 +118,19 @@
   .zone-note{font-size:12.5px;color:var(--ink-soft);margin:0 0 14px}
 
   /* schedule, time off and notice panels */
-  .panels{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:14px;margin:0 0 30px}
+  .panels{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:14px;margin:0 0 30px}
+  .price-row{display:grid;grid-template-columns:1fr 92px;gap:8px;align-items:center;
+    padding:5px 0;font-size:13.5px}
+  .price-row input{margin:0;padding:7px 8px}
+  /* trainers per day, in each week heading */
+  tr.week-head td{line-height:1.3}
+  .trainer-strip{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin-top:6px;
+    font-family:var(--sans);font-size:12.5px;font-weight:500;letter-spacing:0}
+  .trainer-strip label{display:flex;align-items:center;gap:4px;margin:0;font-size:12.5px;font-weight:500}
+  .trainer-strip select{width:auto;margin:0;padding:3px 4px;font-size:13px}
+  .trainer-strip select.changed{border-color:var(--blue);font-weight:700}
+  .trainer-strip select.none{border-color:var(--red);color:var(--red)}
+  .trainer-strip b{font-weight:600}
   .panel{border:1px solid var(--rule);padding:15px 17px}
   .panel h3{font-family:var(--cond);font-size:19px;margin:0 0 8px}
   .panel p{margin:0}
@@ -135,7 +147,7 @@
   .off-item .x{font-size:20px}
   .repeat-tag{font-size:11px;color:var(--ink-soft);white-space:nowrap}
   .wk-row.crs-row{grid-template-columns:1fr 1fr 110px}
-  @media (max-width:980px){ .panels{grid-template-columns:1fr 1fr} .panels .panel:first-child{grid-column:1 / -1} }
+  @media (max-width:1100px){ .panels{grid-template-columns:1fr 1fr} }
   @media (max-width:600px){ .panels{grid-template-columns:1fr} }
 
   /* one day or weekly hours */
@@ -296,9 +308,21 @@
         <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="Admin.newTimeOff()">Add time off</button>
       </section>
       <section class="panel">
-        <h3>Booking notice</h3>
-        <p class="muted" style="margin:0 0 8px;font-size:13.5px">How far ahead customers must book.</p>
+        <h3>Booking rules</h3>
+        <label for="notice" style="font-weight:400;color:var(--ink-soft)">How far ahead customers must book</label>
         <select id="notice" aria-label="Minimum booking notice" onchange="Admin.setNotice(this.value)"></select>
+        <label for="trainersDefault" style="font-weight:400;color:var(--ink-soft);margin-top:12px">
+          Trainers on a normal day</label>
+        <select id="trainersDefault" onchange="Admin.setDefaultTrainers(this.value)"></select>
+        <p class="muted" style="font-size:12.5px;margin-top:6px">Change single days in the
+          week headings below — for someone joining or calling out.</p>
+      </section>
+      <section class="panel">
+        <h3>Course prices</h3>
+        <p class="muted" style="font-size:13px;margin-bottom:8px">Per person, the same every
+          week. A change applies to every upcoming day at once; people already
+          booked keep what they paid.</p>
+        <div id="priceList"></div>
       </section>
     </div>
 
@@ -484,10 +508,50 @@ const Admin = (() => {
     $('rows').innerHTML = classes.length ? classes.map((c) => {
       const week = weekOf(c.startsAt);
       const head = week !== lastWeek
-        ? `<tr class="week-head"><td colspan="9">Week of ${week}</td></tr>` : '';
+        ? `<tr class="week-head"><td colspan="9">Week of ${week}${trainerStrip(c.startsAt)}</td></tr>` : '';
       lastWeek = week;
       return head + dayRow(c, now) + visitRows(c, now);
     }).join('') : '<tr><td colspan="9" class="muted">No training days yet. Add some to get started.</td></tr>';
+  }
+
+  const ymdOf = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  /** Trainers working a date: its own number, or the usual one. */
+  const trainersOn = (ymd) => trainerDays[ymd] ?? defaultTrainers;
+
+  /**
+   * A picker per day of the week, plus one for the whole week, so staff can
+   * staff up a week or mark a mid-week call-out in one click.
+   */
+  function trainerStrip(iso){
+    const d = new Date(iso);
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+    const days = Array.from({ length: 7 }, (_, i) =>
+      new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
+    const todayYmd = ymdOf(new Date());
+    const opts = (n) => Array.from({ length: 11 }, (_, i) =>
+      `<option value="${i}" ${i === n ? 'selected' : ''}>${i}</option>`).join('');
+    const week = days.map((x) => ymdOf(x)).filter((x) => x >= todayYmd);
+    if (!week.length) return '';
+    return `
+      <div class="trainer-strip">
+        <b>Trainers:</b>
+        <label>Whole week
+          <select aria-label="Trainers for the whole week"
+                  onchange="Admin.setTrainers(${JSON.stringify(week).replace(/"/g, "'")}, this.value)">
+            <option value="">–</option>${opts(-1)}
+          </select></label>
+        ${days.map((x) => {
+          const ymd = ymdOf(x);
+          if (ymd < todayYmd) return '';
+          const n = trainersOn(ymd);
+          return `<label>${WEEKDAYS[x.getDay()]} ${x.getDate()}
+            <select class="${ymd in trainerDays ? 'changed' : ''} ${n === 0 ? 'none' : ''}"
+                    aria-label="Trainers on ${ymd}" data-day="${ymd}"
+                    onchange="Admin.setTrainers(['${ymd}'], this.value)">${opts(n)}</select></label>`;
+        }).join('')}
+      </div>`;
   }
 
   /** "Mon, Nov 16" — the Monday starting the week a date falls in. */
@@ -776,28 +840,29 @@ const Admin = (() => {
       <div class="week" id="courseList">
         ${COURSES.map(([code, label, price]) => {
           const on = fresh ? code === 'CPR' : chosen.has(code);
-          const cents = chosen.get(code)?.priceCents;
           return `
           <div class="wk-row crs-row ${on ? '' : 'off'}">
             <label style="grid-column:span 2"><input type="checkbox" id="crsOn_${code}" ${on ? 'checked' : ''}
                    onchange="this.closest('.crs-row').classList.toggle('off', !this.checked);Admin.previewWeek();Admin.previewTiers()">
               ${label}</label>
-            <input type="number" min="0" step="0.01" id="crsPrice_${code}" aria-label="${label} price per person"
-                   value="${(cents != null ? cents / 100 : price).toFixed(2)}" oninput="Admin.previewTiers()">
+            <span class="muted" style="text-align:right">${money(priceOf(code))}</span>
           </div>`;
         }).join('')}
       </div>
-      <p class="zone-note">Base price per person, before group bands below.</p>`;
+      <p class="zone-note">Prices per person are set once for each course, under
+        <b>Course prices</b>, so every week matches.</p>`;
   }
 
   function checkedCourses(){
     return COURSES
       .filter(([code]) => $(`crsOn_${code}`)?.checked)
-      .map(([code, title]) => ({
-        code, title, priceCents: Math.round((parseFloat($(`crsPrice_${code}`).value) || 0) * 100),
-        price: parseFloat($(`crsPrice_${code}`).value),
-      }));
+      .map(([code, title]) => ({ code, title, priceCents: priceOf(code) }));
   }
+
+  /** A course's one current price, in cents. */
+  const priceOf = (code) =>
+    (coursePrices.find((c) => c.code === code) || {}).priceCents
+    ?? (COURSES.find(([c]) => c === code) || [, , 0])[2] * 100;
 
   function zoneFields(c){
     const limits = (c && c.zoneLimits) || {};
@@ -860,9 +925,9 @@ const Admin = (() => {
             ${c.taken} already booked — cannot go below this.</p>` : ''}
         </div>
         ${c ? `<div>
-          <label for="fPrice">Base price per person</label>
-          <input id="fPrice" type="number" min="0" step="0.01"
-                 oninput="Admin.previewTiers()" value="${(c.priceCents/100).toFixed(2)}">
+          <label>Price per person</label>
+          <p style="margin:6px 0 0"><b>${money(c.priceCents)}</b>
+            <span class="muted" style="font-size:13px">— set under Course prices</span></p>
         </div>` : ''}
       </div>
 
@@ -980,12 +1045,9 @@ const Admin = (() => {
     let courses = null;
     if (id){
       if ($('fTitle').value.trim().length < 2) return formErr('Give the course a name.');
-      if (!(parseFloat($('fPrice').value) >= 0)) return formErr('Enter a valid price.');
     } else {
       courses = checkedCourses();
       if (!courses.length) return formErr('Tick at least one course.');
-      const bad = courses.find((x) => !(x.price >= 0));
-      if (bad) return formErr(`Enter a price for ${bad.title}.`);
     }
 
     // One day (new or edited), a fixed run of weeks, or a repeating schedule.
@@ -1041,7 +1103,6 @@ const Admin = (() => {
         ...shared, ...days[0],
         title: $('fTitle').value.trim(),
         courseCode: $('fCode').value,
-        priceCents: Math.round(parseFloat($('fPrice').value) * 100),
       }));
     } else if (schedule){
       const body = {
@@ -1076,6 +1137,9 @@ const Admin = (() => {
 
   let schedules = [];
   let timeOff = [];
+  let coursePrices = [];
+  let defaultTrainers = 1;
+  let trainerDays = {};
 
   const NOTICE = [[0, 'No minimum'], [2, '2 hours'], [12, '12 hours'], [24, '24 hours'],
                   [48, '2 days'], [72, '3 days'], [168, '1 week']];
@@ -1110,6 +1174,20 @@ const Admin = (() => {
     if (!data.ok) return;
     schedules = data.schedules;
     timeOff = data.timeOff;
+    coursePrices = data.courses || [];
+    defaultTrainers = data.defaultTrainers ?? 1;
+    trainerDays = data.trainerDays || {};
+
+    $('priceList').innerHTML = coursePrices.map((c) => `
+      <div class="price-row">
+        <label for="price_${c.code}" style="margin:0;font-weight:500">${esc(c.title)}</label>
+        <input id="price_${c.code}" type="number" min="0" step="0.01" inputmode="decimal"
+               value="${(c.priceCents / 100).toFixed(2)}"
+               onchange="Admin.setPrice('${c.code}', this.value)">
+      </div>`).join('');
+
+    $('trainersDefault').innerHTML = Array.from({ length: 11 }, (_, i) =>
+      `<option value="${i}" ${i === defaultTrainers ? 'selected' : ''}>${i}</option>`).join('');
 
     $('schedList').innerHTML = schedules.length ? schedules.map((s) => `
       <div class="sched-item ${s.active ? '' : 'paused'}">
@@ -1197,6 +1275,48 @@ const Admin = (() => {
     if (!confirm('Remove this time off? Repeating schedules will fill those dates again.')) return;
     await api(`/api/admin/time-off/${id}/delete`, {method:'POST', body:'{}'});
     toast('Time off removed');
+    refresh();
+  }
+
+  async function setPrice(code, value){
+    const cents = Math.round(parseFloat(value) * 100);
+    const c = coursePrices.find((x) => x.code === code);
+    if (!(cents >= 0)) { toast('Enter a valid price'); return refresh(); }
+    if (c && cents === c.priceCents) return;
+    if (!confirm(`Change ${c ? c.title : code} to ${money(cents)} per person?\n\n`
+      + 'Every upcoming day of this course changes at once and the booking page shows the '
+      + 'new price straight away. People who already booked keep what they paid.')) return refresh();
+    const { data } = await api(`/api/admin/courses/${code}/price`, {method:'POST',
+      body: JSON.stringify({ priceCents: cents })});
+    toast(data.ok ? `Price saved — ${data.daysUpdated} upcoming day${data.daysUpdated === 1 ? '' : 's'} updated`
+                  : (data.message || 'Could not save the price'));
+    refresh();
+  }
+
+  async function setTrainers(days, value){
+    if (value === '') return;
+    const n = Number(value);
+    const { data } = await api('/api/admin/trainers', {method:'POST',
+      body: JSON.stringify({ days, trainers: n })});
+    if (!data.ok){ toast(data.message || 'Could not save'); return refresh(); }
+    if (data.overbooked && data.overbooked.length){
+      alert('Saved — but these days already have more visits running at once than trainers:\n\n'
+        + data.overbooked.map((o) => `• ${fmtYmd(o.day, {weekday:'short', month:'short', day:'numeric'})}: `
+          + `${o.mostAtOnce} at once, ${o.trainers} trainer${o.trainers === 1 ? '' : 's'}`).join('\n')
+        + '\n\nOpen that day\'s Roster to move or cancel a visit.');
+    } else {
+      toast(days.length > 1 ? `${n} trainer${n === 1 ? '' : 's'} all week`
+        : n === 0 ? 'No trainers that day — it takes no new bookings'
+        : `${n} trainer${n === 1 ? '' : 's'} that day`);
+    }
+    refresh();
+  }
+
+  async function setDefaultTrainers(value){
+    const { data } = await api('/api/admin/settings', {method:'POST',
+      body: JSON.stringify({ defaultTrainers: Number(value) })});
+    toast(data.ok ? `${data.defaultTrainers} trainer${data.defaultTrainers === 1 ? '' : 's'} on a normal day`
+                  : (data.message || 'Could not save'));
     refresh();
   }
 
@@ -1290,9 +1410,8 @@ const Admin = (() => {
     if (!el) return;
 
     // An existing day's own price, or the first ticked course's.
-    const base = $('fPrice')
-      ? Math.round((parseFloat($('fPrice').value) || 0) * 100)
-      : (checkedCourses()[0]?.priceCents || 0);
+    // The course's one price: the day being edited, or the first ticked.
+    const base = $('fCode') ? priceOf($('fCode').value) : (checkedCourses()[0]?.priceCents || 0);
     if (!base || !tierRows.length) { el.innerHTML = ''; return; }
 
     const priceAt = (n) => {
@@ -1492,7 +1611,8 @@ const Admin = (() => {
            addTier, dropTier, editTier, previewTiers,
            setMode, editWeek, previewWeek,
            editSchedule, toggleSchedule, deleteSchedule,
-           newTimeOff, saveTimeOff, removeTimeOff, setNotice };
+           newTimeOff, saveTimeOff, removeTimeOff, setNotice,
+           setPrice, setTrainers, setDefaultTrainers };
 })();
 window.Admin = Admin;
 </script>
