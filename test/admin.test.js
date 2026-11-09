@@ -116,15 +116,26 @@ async function until(fn, timeoutMs = 4000) {
   await sleep(100);
   check('a click outside or Escape does not close it', $('veil').classList.contains('open'));
 
-  $('fTitle').value = 'X';
+  const tick = (code, on) => {
+    $(`crsOn_${code}`).checked = on;
+    $(`crsOn_${code}`).dispatchEvent(new window.Event('change', { bubbles: true }));
+  };
+  const listAll = async () => (await (await fetch(`${BASE}/api/admin/classes`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json()).classes;
+
+  check('CPR is ticked to start with', $('crsOn_CPR').checked && !$('crsOn_BABYSIT').checked);
+
+  tick('CPR', false);
   $('fDate').value = '2026-12-01';
-  $('fOpen').value = '09:00';
-  $('fClose').value = '13:00';
+  $('fOpen').value = '10:00';
+  $('fClose').value = '18:00';
   window.Admin.save(null);
   await sleep(200);
-  check('a one-character name is refused', $('fErr').classList.contains('show'));
+  check('a day with no course is refused',
+    ($('fErr').textContent || '').includes('at least one course'), $('fErr').textContent);
 
-  $('fTitle').value = 'Evening BLS';
+  tick('BABYSIT', true);
   $('fOpen').value = '13:00';
   $('fClose').value = '09:00';
   window.Admin.save(null);
@@ -143,19 +154,20 @@ async function until(fn, timeoutMs = 4000) {
   $('fOpen').value = '10:00';
   $('fClose').value = '18:00';
   $('fCap').value = '8';
-  $('fPrice').value = '95.50';
+  $('crsPrice_BABYSIT').value = '95.50';
   $('fZone3').value = '1';
   window.Admin.save(null);
 
   check('a valid class saves', await until(() => !$('veil').classList.contains('open')),
     $('fErr')?.textContent);
-  check('it appears in the table',
-    await until(() => (doc.getElementById('rows').textContent || '').includes('Evening BLS')));
 
-  const added = await (await fetch(`${BASE}/api/admin/classes`, {
-    headers: { 'x-admin-token': TOKEN },
-  })).json();
-  const evening = added.classes.find((c) => c.title === 'Evening BLS');
+  const evening = (await listAll()).find((c) =>
+    c.courseCode === 'BABYSIT' && c.startsAt.startsWith('2026-12-01'));
+  check('it is stored under the ticked course', evening?.title === 'Babysitter Safety',
+    JSON.stringify(evening)?.slice(0, 120));
+  check('it appears in the table',
+    await until(() => [...doc.querySelectorAll('#rows tr.day-row')]
+      .some((r) => r.textContent.includes('Babysitter Safety') && r.textContent.includes('Dec 1'))));
   check('the price is stored in cents', evening?.priceCents === 9550, `got ${evening?.priceCents}`);
   check('the capacity is stored', evening?.capacity === 8, `got ${evening?.capacity}`);
 
@@ -170,20 +182,21 @@ async function until(fn, timeoutMs = 4000) {
     evening?.zoneLimits?.[1] === null && evening?.zoneLimits?.[2] === null,
     JSON.stringify(evening?.zoneLimits));
 
-  console.log('\nadding weekly hours');
+  console.log('\nadding a fixed run of weeks, several courses');
 
   window.Admin.newClass();
   await sleep(150);
   check('weekly hours is the default', $('weekFields').style.display !== 'none');
+  check('and it repeats by default', $('fWeeks').value === 'repeat');
   check('Monday to Friday start ticked',
     $('wkOn1').checked && $('wkOn5').checked && !$('wkOn6').checked && !$('wkOn0').checked);
 
-  $('fTitle').value = 'Weekly CPR';
+  tick('HEARTSAVER', true);
   $('fFrom').value = '2027-01-04';           // a Monday
   $('fWeeks').value = '2';
   window.Admin.previewWeek();
   check('it previews how many days it will add',
-    ($('wkPreview').textContent || '').includes('10 days'), $('wkPreview').textContent);
+    /10 days\s*× 2 courses/.test($('wkPreview').textContent || ''), $('wkPreview').textContent);
 
   // Saturday mornings too, and a short Friday that can't fit a session.
   $('wkOn6').checked = true;
@@ -210,10 +223,14 @@ async function until(fn, timeoutMs = 4000) {
   check('the weekly days save', await until(() => !$('veil').classList.contains('open')),
     $('fErr')?.textContent);
 
-  const weekly = (await (await fetch(`${BASE}/api/admin/classes`, {
-    headers: { 'x-admin-token': TOKEN },
-  })).json()).classes.filter((c) => c.title === 'Weekly CPR');
-  check('one day is created per open day', weekly.length === 12, `got ${weekly.length}`);
+  const inRun = (c) => c.startsAt >= '2027-01-04' && c.startsAt < '2027-01-19';
+  const weekly = (await listAll()).filter(inRun);
+  check('a day is created per open day per course', weekly.length === 24, `got ${weekly.length}`);
+  check('both courses are there',
+    weekly.filter((c) => c.courseCode === 'CPR').length === 12
+    && weekly.filter((c) => c.courseCode === 'HEARTSAVER').length === 12);
+  check('each at its own price',
+    weekly.every((c) => c.priceCents === (c.courseCode === 'CPR' ? 8500 : 9500)));
 
   const localDay = (iso) => new Date(iso).getDay();
   check('no closed weekday was created', !weekly.some((c) => localDay(c.startsAt) === 0),
@@ -224,6 +241,102 @@ async function until(fn, timeoutMs = 4000) {
     && new Date(saturday.endsAt).getHours() === 12,
     saturday && `${saturday.startsAt} – ${saturday.endsAt}`);
   check('every day gets the zone limit', weekly.every((c) => c.zoneLimits[3] === 1));
+  check('a fixed run is not a repeating schedule', weekly.every((c) => !c.scheduleId));
+
+  console.log('\na repeating schedule');
+
+  await window.Admin.refresh();
+  check('the schedule panel says there is none yet',
+    ($('schedList').textContent || '').includes('None yet'), $('schedList').textContent);
+
+  window.Admin.newClass();
+  await sleep(150);
+  tick('CPR', false);
+  tick('BABYSIT', true);
+  for (const d of [1, 2, 3, 4, 5]) {
+    $(`wkOn${d}`).checked = false;
+    $(`wkOn${d}`).dispatchEvent(new window.Event('change', { bubbles: true }));
+  }
+  $('wkOn6').checked = true;
+  $('wkOn6').dispatchEvent(new window.Event('change', { bubbles: true }));
+  $('fAhead').value = '4';
+  window.Admin.previewWeek();
+  check('the preview explains it keeps going',
+    /Sat.*4 weeks/.test($('wkPreview').textContent || ''), $('wkPreview').textContent);
+  check('the button says what happens', ($('saveBtn').textContent || '').includes('Start this schedule'));
+  window.Admin.save(null);
+  check('the schedule saves', await until(() => !$('veil').classList.contains('open')),
+    $('fErr')?.textContent);
+
+  check('it is listed in the schedule panel',
+    await until(() => ($('schedList').textContent || '').includes('Sat 9:00')),
+    $('schedList').textContent);
+  const fromSchedule = (await listAll()).filter((c) => c.scheduleId);
+  check('it opens about four weeks of Saturdays',
+    fromSchedule.length >= 3 && fromSchedule.length <= 4
+    && fromSchedule.every((c) => c.courseCode === 'BABYSIT' && localDay(c.startsAt) === 6),
+    fromSchedule.map((c) => `${c.courseCode} ${c.startsAt}`).join(' '));
+  check('its days are marked as repeating',
+    [...doc.querySelectorAll('#rows tr.day-row')].some((r) => r.textContent.includes('repeats')));
+
+  const schedId = (await (await fetch(`${BASE}/api/admin/schedules`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json()).schedules[0].id;
+  window.Admin.editSchedule(schedId);
+  await sleep(150);
+  check('editing reopens it with its settings',
+    $('crsOn_BABYSIT').checked && !$('crsOn_CPR').checked && $('wkOn6').checked && $('fAhead').value === '4');
+  $('crsPrice_BABYSIT').value = '60.00';
+  window.Admin.save(null);
+  await until(() => !$('veil').classList.contains('open'));
+  check('a new price reaches its unbooked days',
+    (await listAll()).filter((c) => c.scheduleId).every((c) => c.priceCents === 6000));
+
+  window.Admin.toggleSchedule(schedId, false);
+  check('it can be paused',
+    await until(() => ($('schedList').textContent || '').includes('Paused')));
+
+  console.log('\ntime off');
+
+  const firstSat = fromSchedule.map((c) => c.startsAt).sort()[0];
+  const satLocal = new Date(firstSat);
+  const ymd = `${satLocal.getFullYear()}-${String(satLocal.getMonth() + 1).padStart(2, '0')}-${String(satLocal.getDate()).padStart(2, '0')}`;
+  window.Admin.newTimeOff();
+  await sleep(100);
+  $('offFrom').value = ymd;
+  $('offTo').value = ymd;
+  $('offNote').value = 'Family wedding';
+  await window.Admin.saveTimeOff();
+  check('time off is listed',
+    await until(() => ($('offList').textContent || '').includes('Family wedding')),
+    $('offList').textContent);
+  check('the empty day on it is removed',
+    !(await listAll()).some((c) => c.scheduleId && c.startsAt === firstSat));
+
+  const blocked = await (await fetch(`${BASE}/api/admin/classes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: JSON.stringify({
+      courseCode: 'CPR', title: 'CPR / AED', capacity: 5, priceCents: 8500,
+      startsAt: firstSat, endsAt: new Date(new Date(firstSat).getTime() + 8 * 3600_000).toISOString(),
+    }),
+  })).json();
+  check('a day cannot be added on time off', blocked.reason === 'time_off', JSON.stringify(blocked));
+
+  console.log('\nbooking notice');
+
+  check('the notice defaults to 24 hours', $('notice').value === '24', $('notice').value);
+  $('notice').value = '48';
+  $('notice').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(300);
+  const notice = await (await fetch(`${BASE}/api/admin/schedules`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json();
+  check('changing it saves', notice.minNoticeHours === 48, `got ${notice.minNoticeHours}`);
+  await fetch(`${BASE}/api/admin/settings`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: JSON.stringify({ minNoticeHours: 24 }),
+  });
 
   const bulkBad = await (await fetch(`${BASE}/api/admin/classes/bulk`, {
     method: 'POST',

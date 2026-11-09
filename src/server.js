@@ -8,6 +8,7 @@ const calendar = require('./calendar');
 const address = require('./address');
 const payments = require('./payments');
 const zones = require('./zones');
+const schedule = require('./schedule');
 const { getDb } = require('./db');
 
 const app = express();
@@ -86,6 +87,10 @@ function publicRegistration(reg) {
 function publicClass(c) {
   const day = seats.daySlots(c.id);
   return {
+    // False once every time is past, inside the booking notice or on time
+    // off — the day has nothing left to offer, not even a waitlist.
+    stillBookable: Boolean(day && day.slots.some((s) =>
+      !['past', 'too_soon', 'time_off'].includes(s.reason))),
     id: c.id,
     courseCode: c.course_code,
     title: c.title,
@@ -213,8 +218,10 @@ function requireAdmin(req, res, next) {
 
 app.get('/api/classes', (req, res) => {
   const includeFull = req.query.includeFull !== 'false';
-  const classes = seats.listUpcomingClasses({ includeFull }).map(publicClass);
-  res.json({ ok: true, classes });
+  const classes = seats.listUpcomingClasses({ includeFull })
+    .map(publicClass)
+    .filter((c) => c.stillBookable);
+  res.json({ ok: true, classes, minNoticeHours: seats.minNoticeHours() });
 });
 
 app.get('/api/classes/:id', (req, res) => {
@@ -440,6 +447,9 @@ app.post('/api/classes/:id/hold', async (req, res) => {
                           `left that day — you asked for ${result.requested}.`,
         slot_taken: 'Someone just booked that time. Please pick another.',
         slot_in_past: 'That time has already passed. Please pick another.',
+        slot_too_soon: `Bookings need at least ${result.noticeHours} hours' notice. ` +
+                       'Please pick a later time.',
+        day_off: 'Sorry, that day is no longer available. Please pick another.',
         slot_not_offered: 'That time is not available on this day.',
         full: 'This day is fully booked.',
         outside_service_area: `That ZIP code is outside our travel area.`,
@@ -699,6 +709,11 @@ app.post('/api/admin/classes', requireAdmin, (req, res) => {
 
   const hoursError = dayHoursProblem(startsAt, endsAt);
   if (hoursError) return bad(res, 400, 'hours_invalid', { message: hoursError });
+  if (seats.isTimeOff(seats.localDate(startsAt))) {
+    return bad(res, 400, 'time_off', {
+      message: 'That date is marked as time off. Remove the time off first.',
+    });
+  }
 
   const classId = insertDay(settings.values, startsAt, endsAt);
   res.status(201).json({ ok: true, classId });
@@ -725,8 +740,20 @@ app.post('/api/admin/classes/bulk', requireAdmin, (req, res) => {
     });
   }
 
-  const settings = readDaySettings(req.body);
-  if (settings.error) return bad(res, 400, settings.error, { message: settings.message });
+  // One course, or several: each open day gets a row per course, and the
+  // instructor's time is shared between them.
+  const courseList = Array.isArray(req.body.courses) && req.body.courses.length
+    ? req.body.courses
+    : [{ code: req.body.courseCode, title: req.body.title, priceCents: req.body.priceCents }];
+
+  const perCourse = [];
+  for (const c of courseList) {
+    const settings = readDaySettings({
+      ...req.body, courseCode: c.code, title: c.title, priceCents: c.priceCents,
+    });
+    if (settings.error) return bad(res, 400, settings.error, { message: settings.message });
+    perCourse.push(settings.values);
+  }
 
   for (const [i, d] of days.entries()) {
     const problem = d && d.startsAt && d.endsAt
@@ -737,10 +764,15 @@ app.post('/api/admin/classes/bulk', requireAdmin, (req, res) => {
     }
   }
 
-  const ids = getDb().transaction(() =>
-    days.map((d) => insertDay(settings.values, d.startsAt, d.endsAt)))();
+  // Dates marked as time off are left out rather than refusing the batch.
+  const open = days.filter((d) => !seats.isTimeOff(seats.localDate(d.startsAt)));
 
-  res.status(201).json({ ok: true, created: ids.length, classIds: ids });
+  const ids = getDb().transaction(() =>
+    open.flatMap((d) => perCourse.map((v) => insertDay(v, d.startsAt, d.endsAt))))();
+
+  res.status(201).json({
+    ok: true, created: ids.length, classIds: ids, skippedTimeOff: days.length - open.length,
+  });
 });
 
 app.post('/api/admin/classes/:id/cancel', requireAdmin, (req, res) => {
@@ -749,6 +781,103 @@ app.post('/api/admin/classes/:id/cancel', requireAdmin, (req, res) => {
   // Nobody on it means nothing to follow up, so it goes straight away.
   const deleted = seats.purgeEmptyCancelledDays().includes(classId);
   res.json({ ok: true, deleted });
+});
+
+// ---------------------------------------------- schedules, time off, notice
+
+/** Everything the admin page's schedule panel shows. */
+app.get('/api/admin/schedules', requireAdmin, (req, res) => {
+  res.json({
+    ok: true,
+    schedules: schedule.listSchedules(),
+    timeOff: schedule.listTimeOff(),
+    minNoticeHours: seats.minNoticeHours(),
+    sessionMinutes: seats.SESSION_MINUTES,
+    maxWeeksAhead: schedule.MAX_WEEKS_AHEAD,
+  });
+});
+
+/** Tiers and zone limits for a schedule, checked the same way as for a day. */
+function scheduleExtras(body) {
+  const tierError = validateTiers(body.pricingTiers);
+  if (tierError) return { error: 'pricing_invalid', message: tierError };
+  const limits = cleanZoneLimits(body.zoneLimits);
+  if (limits.error) return { error: 'zone_limits_invalid', message: limits.error };
+  return {
+    value: {
+      pricingTiers: body.pricingTiers ? JSON.stringify(body.pricingTiers) : null,
+      zoneLimits: storeZoneLimits(limits.value),
+    },
+  };
+}
+
+app.post('/api/admin/schedules', requireAdmin, (req, res) => {
+  const v = schedule.cleanSchedule(req.body, { sessionMinutes: seats.SESSION_MINUTES });
+  if (v.error) return bad(res, 400, 'schedule_invalid', { message: v.error });
+  const extras = scheduleExtras(req.body || {});
+  if (extras.error) return bad(res, 400, extras.error, { message: extras.message });
+
+  const out = schedule.createSchedule(v.value, extras.value);
+  res.status(201).json({ ok: true, scheduleId: out.id, created: out.created });
+});
+
+app.post('/api/admin/schedules/:id/update', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!schedule.getSchedule(id)) return bad(res, 404, 'no_such_schedule');
+  const v = schedule.cleanSchedule(req.body, { sessionMinutes: seats.SESSION_MINUTES });
+  if (v.error) return bad(res, 400, 'schedule_invalid', { message: v.error });
+  const extras = scheduleExtras(req.body || {});
+  if (extras.error) return bad(res, 400, extras.error, { message: extras.message });
+
+  res.json({ ok: true, ...schedule.updateSchedule(id, v.value, extras.value) });
+});
+
+app.post('/api/admin/schedules/:id/pause', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!schedule.getSchedule(id)) return bad(res, 404, 'no_such_schedule');
+  schedule.setScheduleActive(id, false);
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/schedules/:id/resume', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!schedule.getSchedule(id)) return bad(res, 404, 'no_such_schedule');
+  res.json({ ok: true, created: schedule.setScheduleActive(id, true) });
+});
+
+app.post('/api/admin/schedules/:id/delete', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!schedule.getSchedule(id)) return bad(res, 404, 'no_such_schedule');
+  res.json({ ok: true, ...schedule.deleteSchedule(id) });
+});
+
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+
+app.post('/api/admin/time-off', requireAdmin, (req, res) => {
+  const { startsOn, endsOn = startsOn, note = '' } = req.body || {};
+  if (!YMD.test(String(startsOn || '')) || !YMD.test(String(endsOn || ''))) {
+    return bad(res, 400, 'dates_invalid', { message: 'Pick the first and last day off.' });
+  }
+  if (endsOn < startsOn) {
+    return bad(res, 400, 'dates_invalid', { message: 'The last day off is before the first.' });
+  }
+  res.status(201).json({ ok: true, ...schedule.addTimeOff({ startsOn, endsOn, note }) });
+});
+
+app.post('/api/admin/time-off/:id/delete', requireAdmin, (req, res) => {
+  res.json({ ok: true, created: schedule.removeTimeOff(Number(req.params.id)) });
+});
+
+app.post('/api/admin/settings', requireAdmin, (req, res) => {
+  const { minNoticeHours } = req.body || {};
+  if (minNoticeHours !== undefined) {
+    const n = Number(minNoticeHours);
+    if (!Number.isFinite(n) || n < 0 || n > 24 * 30) {
+      return bad(res, 400, 'notice_invalid', { message: 'Pick a notice period.' });
+    }
+    seats.setSetting('min_notice_hours', n);
+  }
+  res.json({ ok: true, minNoticeHours: seats.minNoticeHours() });
 });
 
 /** What would have been emailed. Replace with a real mail provider later. */
@@ -796,6 +925,7 @@ app.get('/api/admin/classes', requireAdmin, (req, res) => {
         status: c.status,
         pricingTiers: seats_.tiersFor(c),
         zoneLimits: seats_.zoneLimitsFor(c),
+        scheduleId: c.schedule_id || null,
         // Where and when the instructor is going that day, for the list view.
         visits: seats_.dayVisits(c.id),
         // Trips already taken into each zone on this day's date.
@@ -1092,7 +1222,7 @@ async function done(outcome){
  * a server from different builds announce themselves instead of failing with
  * a confusing error halfway through a booking.
  */
-const FEATURES = ['calendar', 'admin', 'groups', 'attendee-contacts', 'slots', 'travel', 'address-lookup', 'group-pricing', 'zones', 'bulk-days'];
+const FEATURES = ['calendar', 'admin', 'groups', 'attendee-contacts', 'slots', 'travel', 'address-lookup', 'group-pricing', 'zones', 'bulk-days', 'schedules'];
 
 app.get('/health', (req, res) => {
   res.json({
@@ -1166,10 +1296,16 @@ if (require.main === module) {
   getDb();
   checkBuild();
 
+  // Repeating schedules: top the calendar up now, then on every sweep.
+  const filled = schedule.fillSchedules();
+  if (filled) console.log(`[schedules] added ${filled} days`);
+
   // Housekeeping: expire lapsed holds and move the waitlist along.
   const sweepMs = Number(process.env.SWEEP_INTERVAL_MS || 60_000);
   setInterval(() => {
     try {
+      const added = schedule.fillSchedules();
+      if (added) console.log(`[schedules] added ${added} days`);
       const r = seats.sweepExpired();
       if (r.expiredHolds || r.expiredOffers || r.promoted) {
         console.log('[sweep]', r);

@@ -117,6 +117,27 @@
   .zone-row input{margin:0;padding:7px 8px;font-size:14px}
   .zone-note{font-size:12.5px;color:var(--ink-soft);margin:0 0 14px}
 
+  /* schedule, time off and notice panels */
+  .panels{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:14px;margin:0 0 30px}
+  .panel{border:1px solid var(--rule);padding:15px 17px}
+  .panel h3{font-family:var(--cond);font-size:19px;margin:0 0 8px}
+  .panel p{margin:0}
+  .panel select{margin:0}
+  .sched-item{border-left:4px solid var(--green);padding:4px 0 4px 11px;margin:0 0 12px}
+  .sched-item:last-child{margin-bottom:0}
+  .sched-item.paused{border-left-color:var(--rule);opacity:.7}
+  .sched-item b{display:block;font-size:14.5px}
+  .sched-item span{display:block;font-size:13px;color:var(--ink-soft)}
+  .row-btns{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+  .off-item{display:flex;justify-content:space-between;align-items:center;gap:8px;
+    padding:6px 0;border-bottom:1px solid var(--rule);font-size:14px}
+  .off-item:last-child{border-bottom:0}
+  .off-item .x{font-size:20px}
+  .repeat-tag{font-size:11px;color:var(--ink-soft);white-space:nowrap}
+  .wk-row.crs-row{grid-template-columns:1fr 1fr 110px}
+  @media (max-width:980px){ .panels{grid-template-columns:1fr 1fr} .panels .panel:first-child{grid-column:1 / -1} }
+  @media (max-width:600px){ .panels{grid-template-columns:1fr} }
+
   /* one day or weekly hours */
   .mode{display:flex;gap:0;margin:0 0 16px;border:1.5px solid var(--ink);width:max-content}
   .mode button{font:inherit;font-weight:600;font-size:14px;padding:8px 14px;border:0;
@@ -263,6 +284,23 @@
 <main id="app">
   <div class="wrap">
     <div class="stats" id="stats"></div>
+
+    <div class="panels">
+      <section class="panel">
+        <h3>Repeating schedule</h3>
+        <div id="schedList"><p class="muted">Loading…</p></div>
+      </section>
+      <section class="panel">
+        <h3>Time off</h3>
+        <div id="offList"><p class="muted">Loading…</p></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="Admin.newTimeOff()">Add time off</button>
+      </section>
+      <section class="panel">
+        <h3>Booking notice</h3>
+        <p class="muted" style="margin:0 0 8px;font-size:13.5px">How far ahead customers must book.</p>
+        <select id="notice" aria-label="Minimum booking notice" onchange="Admin.setNotice(this.value)"></select>
+      </section>
+    </div>
 
     <div class="head-row">
       <div>
@@ -419,6 +457,7 @@ const Admin = (() => {
     const [{ data: sum }, { data: list }] = await Promise.all([
       api('/api/admin/summary'),
       api('/api/admin/classes'),
+      loadSchedules(),
     ]);
 
     if (sum.ok){
@@ -510,6 +549,7 @@ const Admin = (() => {
         <td class="c-course">
           <span class="tag" style="background:${swatch(c.courseCode)}">${esc(c.courseCode)}</span>
           ${esc(c.title)}
+          ${c.scheduleId ? '<span class="repeat-tag" title="Made by the repeating schedule">· repeats</span>' : ''}
           ${c.status === 'cancelled' ? ' <span class="muted">(cancelled)</span>' : ''}
         </td>
         <td class="hide-sm nowrap" data-label="Hours">${fmtTime(c.startsAt)} – ${fmtTime(c.endsAt)}</td>
@@ -544,10 +584,11 @@ const Admin = (() => {
   };
   const closeBox = () => $('veil').classList.remove('open');
 
+  // Course code, name, and the starting price for a new day.
   const COURSES = [
-    ['CPR',        'CPR / AED'],
-    ['HEARTSAVER', 'Heartsaver CPR / AED / First Aid'],
-    ['BABYSIT',    'Babysitter Safety'],
+    ['CPR',        'CPR / AED',                          85],
+    ['HEARTSAVER', 'Heartsaver CPR / AED / First Aid',   95],
+    ['BABYSIT',    'Babysitter Safety',                  55],
   ];
 
   // Local "YYYY-MM-DD" and "HH:MM" pieces of a UTC instant.
@@ -557,10 +598,13 @@ const Admin = (() => {
   // Weekly hours being edited: one row per weekday, Sunday first.
   let weekRows = [];
   let formMode = 'week';
+  let editingSchedule = null;   // the schedule open in the form, when editing one
 
   const STARTER_WEEK = () => WEEKDAYS.map((_, i) => ({
     on: i >= 1 && i <= 5, open: '09:00', close: '17:00',
   }));
+
+  const WEEKS_AHEAD = [4, 6, 8, 12, 16, 26];
 
   function hoursFields(c){
     if (c) {
@@ -576,8 +620,9 @@ const Admin = (() => {
         </div>`;
     }
     const today = toLocalInput(new Date().toISOString()).slice(0, 10);
+    const s = editingSchedule;
     return `
-      <div class="mode" role="tablist">
+      <div class="mode" role="tablist" style="${s ? 'display:none' : ''}">
         <button type="button" id="modeWeek" class="${formMode === 'week' ? 'on' : ''}"
                 onclick="Admin.setMode('week')">Weekly hours</button>
         <button type="button" id="modeDay" class="${formMode === 'day' ? 'on' : ''}"
@@ -598,12 +643,20 @@ const Admin = (() => {
       <div id="weekFields" style="${formMode === 'week' ? '' : 'display:none'}">
         <div class="two">
           <div><label for="fFrom">Starting</label>
-            <input id="fFrom" type="date" value="${today}" onchange="Admin.previewWeek()"></div>
+            <input id="fFrom" type="date" value="${s ? s.startsOn : today}" onchange="Admin.previewWeek()"></div>
           <div><label for="fWeeks">For how long</label>
-            <select id="fWeeks" onchange="Admin.previewWeek()">
+            <select id="fWeeks" onchange="Admin.previewWeek()" ${s ? 'disabled' : ''}>
+              <option value="repeat">Keep repeating</option>
               ${[1,2,3,4,5,6,8,10,12].map((n) =>
-                `<option value="${n}">${n} week${n === 1 ? '' : 's'}</option>`).join('')}
+                `<option value="${n}">${n} week${n === 1 ? '' : 's'} only</option>`).join('')}
             </select></div>
+        </div>
+        <div id="aheadRow">
+          <label for="fAhead">Keep this far ahead open for booking</label>
+          <select id="fAhead" onchange="Admin.previewWeek()">
+            ${WEEKS_AHEAD.map((n) => `<option value="${n}" ${n === (s ? s.weeksAhead : 8) ? 'selected' : ''}>
+              ${n} weeks</option>`).join('')}
+          </select>
         </div>
         <label>Open hours</label>
         <p class="sub" style="margin:-4px 0 8px;font-size:13px">
@@ -640,14 +693,20 @@ const Admin = (() => {
     if (field === 'on') renderWeek(); else previewWeek();
   }
 
+  const repeating = () => formMode === 'week' && ($('fWeeks')?.value === 'repeat');
+
+  function saveLabel(){
+    if (editingSchedule) return 'Save schedule';
+    if (formMode === 'day') return 'Add the day';
+    return repeating() ? 'Start this schedule' : 'Add these days';
+  }
+
   function setMode(mode){
     formMode = mode;
     $('modeWeek').classList.toggle('on', mode === 'week');
     $('modeDay').classList.toggle('on', mode === 'day');
     $('weekFields').style.display = mode === 'week' ? '' : 'none';
     $('dayFields').style.display = mode === 'day' ? '' : 'none';
-    const btn = $('saveBtn');
-    if (btn) btn.textContent = mode === 'week' ? 'Add these days' : 'Add the day';
     previewWeek();
   }
 
@@ -657,9 +716,9 @@ const Admin = (() => {
    * Built from local dates and times in this browser, so a run of weeks that
    * crosses a daylight saving change still opens at 9:00 on both sides of it.
    */
-  function weekDays(){
+  function weekDays(weeksOverride){
     const from = $('fFrom')?.value;
-    const weeks = parseInt($('fWeeks')?.value, 10) || 1;
+    const weeks = weeksOverride || parseInt($('fWeeks')?.value, 10) || 1;
     if (!from) return [];
     const [y, m, d] = from.split('-').map(Number);
     const out = [];
@@ -680,13 +739,64 @@ const Admin = (() => {
   }
 
   function previewWeek(){
+    const btn = $('saveBtn');
+    if (btn) btn.textContent = saveLabel();
+    const ahead = $('aheadRow');
+    if (ahead) ahead.style.display = repeating() ? '' : 'none';
+
     const el = $('wkPreview');
     if (!el) return;
+    const open = WEEKDAYS.filter((_, i) => weekRows[i] && weekRows[i].on);
+    const courses = checkedCourses().length || 1;
+    if (!open.length){ el.innerHTML = 'No open days picked yet.'; return; }
+
+    if (repeating()){
+      const weeks = parseInt($('fAhead')?.value, 10) || 8;
+      el.innerHTML = `Open <b>${open.join(', ')}</b>, always <b>${weeks} weeks</b> ahead. ` +
+        `New days are added by themselves each day — nothing to redo.`;
+      return;
+    }
     const days = weekDays();
-    if (!days.length){ el.innerHTML = 'No open days picked yet.'; return; }
     const shown = days.slice(0, 8).map((x) => x.label).join(', ');
-    el.innerHTML = `Adds <b>${days.length} day${days.length === 1 ? '' : 's'}</b>: ${shown}` +
+    el.innerHTML = `Adds <b>${days.length} day${days.length === 1 ? '' : 's'}</b>` +
+      (courses > 1 ? ` × ${courses} courses` : '') + `: ${shown}` +
       (days.length > 8 ? ` and ${days.length - 8} more` : '') + '.';
+  }
+
+  /** Which courses a new day or schedule offers, with each one's price. */
+  function courseFields(selected){
+    const chosen = new Map((selected || []).map((c) => [c.code, c]));
+    const fresh = !selected;
+    return `
+      <label>Courses offered</label>
+      <p class="sub" style="margin:-4px 0 8px;font-size:13px">
+        Tick every course you'll teach in these hours. There's one of you, so a
+        booking for any course blocks that time for the others.
+      </p>
+      <div class="week" id="courseList">
+        ${COURSES.map(([code, label, price]) => {
+          const on = fresh ? code === 'CPR' : chosen.has(code);
+          const cents = chosen.get(code)?.priceCents;
+          return `
+          <div class="wk-row crs-row ${on ? '' : 'off'}">
+            <label style="grid-column:span 2"><input type="checkbox" id="crsOn_${code}" ${on ? 'checked' : ''}
+                   onchange="this.closest('.crs-row').classList.toggle('off', !this.checked);Admin.previewWeek();Admin.previewTiers()">
+              ${label}</label>
+            <input type="number" min="0" step="0.01" id="crsPrice_${code}" aria-label="${label} price per person"
+                   value="${(cents != null ? cents / 100 : price).toFixed(2)}" oninput="Admin.previewTiers()">
+          </div>`;
+        }).join('')}
+      </div>
+      <p class="zone-note">Base price per person, before group bands below.</p>`;
+  }
+
+  function checkedCourses(){
+    return COURSES
+      .filter(([code]) => $(`crsOn_${code}`)?.checked)
+      .map(([code, title]) => ({
+        code, title, priceCents: Math.round((parseFloat($(`crsPrice_${code}`).value) || 0) * 100),
+        price: parseFloat($(`crsPrice_${code}`).value),
+      }));
   }
 
   function zoneFields(c){
@@ -712,7 +822,15 @@ const Admin = (() => {
         soon as they enter their ZIP, and it's added to their total.</p>`;
   }
 
+  /**
+   * The add / edit form.
+   *
+   * c is an existing day being edited (one course, one date); without it the
+   * form adds days — one, a fixed run of weeks, or a repeating schedule —
+   * for one or more courses.
+   */
   function classForm(c){
+    const s = editingSchedule;
     return `
       <div class="err" id="fErr"></div>
       <p class="sub" style="margin:-4px 0 16px">
@@ -720,14 +838,15 @@ const Admin = (() => {
         Sessions are booked inside those hours.
       </p>
 
-      <label for="fTitle">Course name</label>
-      <input id="fTitle" value="${esc(c?.title || '')}" placeholder="BLS Provider">
+      ${c ? `
+        <label for="fTitle">Course name</label>
+        <input id="fTitle" value="${esc(c.title)}" placeholder="CPR / AED">
 
-      <label for="fCode">Course type</label>
-      <select id="fCode">
-        ${COURSES.map(([code,label]) =>
-          `<option value="${code}" ${c?.courseCode===code?'selected':''}>${label}</option>`).join('')}
-      </select>
+        <label for="fCode">Course type</label>
+        <select id="fCode">
+          ${COURSES.map(([code,label]) =>
+            `<option value="${code}" ${c.courseCode===code?'selected':''}>${label}</option>`).join('')}
+        </select>` : courseFields(s ? s.courses : null)}
 
       ${hoursFields(c)}
 
@@ -735,17 +854,16 @@ const Admin = (() => {
 
       <div class="two">
         <div>
-          <label for="fCap">People you'll train that day</label>
-          <input id="fCap" type="number" min="1" value="${c?.capacity ?? 20}">
+          <label for="fCap">People per course, per day</label>
+          <input id="fCap" type="number" min="1" value="${c?.capacity ?? s?.capacity ?? 20}">
           ${c && c.taken ? `<p class="sub" style="margin-top:-8px;font-size:13px">
             ${c.taken} already booked — cannot go below this.</p>` : ''}
         </div>
-        <div>
+        ${c ? `<div>
           <label for="fPrice">Base price per person</label>
           <input id="fPrice" type="number" min="0" step="0.01"
-                 oninput="Admin.previewTiers()"
-                 value="${c ? (c.priceCents/100).toFixed(2) : '85.00'}">
-        </div>
+                 oninput="Admin.previewTiers()" value="${(c.priceCents/100).toFixed(2)}">
+        </div>` : ''}
       </div>
 
       <label>Group price bands</label>
@@ -759,11 +877,15 @@ const Admin = (() => {
               onclick="Admin.addTier()">Add a band</button>
       <div class="tier-preview" id="tierPreview"></div>
 
-      ${zoneFields(c)}
+      ${zoneFields(c || s)}
 
       <button class="btn" id="saveBtn" style="width:100%" onclick="Admin.save(${c ? c.id : 'null'})">
-        ${c ? 'Save changes' : (formMode === 'week' ? 'Add these days' : 'Add the day')}
+        ${c ? 'Save changes' : saveLabel()}
       </button>
+
+      ${s ? `<p class="zone-note" style="margin-top:10px">Saving rebuilds this
+        schedule's upcoming days that nobody has booked. Booked days keep their
+        hours and price.</p>` : ''}
 
       ${c && c.status === 'open' ? `
         <button class="btn btn-ghost" style="width:100%;margin-top:9px"
@@ -788,6 +910,7 @@ const Admin = (() => {
     tierRows = JSON.parse(JSON.stringify(STARTER_TIERS));
     weekRows = STARTER_WEEK();
     formMode = mode;
+    editingSchedule = null;
     openBox('Add training days', classForm(null));
     renderTiers();
     renderWeek();
@@ -796,6 +919,7 @@ const Admin = (() => {
   function edit(id){
     const c = classes.find((x) => x.id === id);
     if (!c) return;
+    editingSchedule = null;
     tierRows = c.pricingTiers && c.pricingTiers.length
       ? JSON.parse(JSON.stringify(c.pricingTiers))
       : JSON.parse(JSON.stringify(STARTER_TIERS));
@@ -803,9 +927,24 @@ const Admin = (() => {
     renderTiers();
   }
 
+  function editSchedule(id){
+    const s = schedules.find((x) => x.id === id);
+    if (!s) return;
+    editingSchedule = s;
+    formMode = 'week';
+    weekRows = JSON.parse(JSON.stringify(s.week));
+    tierRows = s.pricingTiers && s.pricingTiers.length
+      ? JSON.parse(JSON.stringify(s.pricingTiers))
+      : JSON.parse(JSON.stringify(STARTER_TIERS));
+    openBox('Edit repeating schedule', classForm(null));
+    renderTiers();
+    renderWeek();
+  }
+
   function formErr(msg){
     $('fErr').textContent = msg;
     $('fErr').classList.add('show');
+    $('fErr').scrollIntoView?.({ block: 'nearest' });
   }
 
   /** Trips per zone from the form; blank is no limit. Null when one is invalid. */
@@ -834,22 +973,33 @@ const Admin = (() => {
   }
 
   async function save(id){
-    const title = $('fTitle').value.trim();
     const capacity = parseInt($('fCap').value, 10);
-    const price = parseFloat($('fPrice').value);
 
-    if (title.length < 2) return formErr('Give the course a name.');
+    // Editing one existing day keeps its single course; anything new offers
+    // whichever courses are ticked.
+    let courses = null;
+    if (id){
+      if ($('fTitle').value.trim().length < 2) return formErr('Give the course a name.');
+      if (!(parseFloat($('fPrice').value) >= 0)) return formErr('Enter a valid price.');
+    } else {
+      courses = checkedCourses();
+      if (!courses.length) return formErr('Tick at least one course.');
+      const bad = courses.find((x) => !(x.price >= 0));
+      if (bad) return formErr(`Enter a price for ${bad.title}.`);
+    }
 
-    // One day (new or edited) or a run of weekly hours.
+    // One day (new or edited), a fixed run of weeks, or a repeating schedule.
+    const schedule = !id && (editingSchedule || repeating());
     const weekly = !id && formMode === 'week';
-    let days;
+    let days = [];
     if (weekly){
-      days = weekDays();
-      if (!days.length) return formErr('Tick at least one open day.');
-      for (const x of days){
+      if (!WEEKDAYS.some((_, i) => weekRows[i].on)) return formErr('Tick at least one open day.');
+      // Check one of each open weekday's hours, whatever the run length.
+      for (const x of weekDays(1)){
         const problem = hoursProblem(x.startsAt, x.endsAt, `${WEEKDAYS[x.weekday]}: `);
         if (problem) return formErr(problem);
       }
+      if (!schedule) days = weekDays();
     } else {
       const date = $('fDate').value;
       const open = $('fOpen').value;
@@ -863,7 +1013,6 @@ const Admin = (() => {
     }
 
     if (!Number.isInteger(capacity) || capacity < 1) return formErr('Set at least one place.');
-    if (!(price >= 0)) return formErr('Enter a valid price.');
 
     const bandProblem = tierProblem();
     if (bandProblem) return formErr(bandProblem);
@@ -871,12 +1020,9 @@ const Admin = (() => {
     const zoneLimits = readZoneLimits();
     if (!zoneLimits) return formErr('Zone trips must be whole numbers, or blank for no limit.');
 
-    const payload = {
-      title,
-      courseCode: $('fCode').value,
+    const shared = {
       location: $('fLoc').value.trim(),
       capacity,
-      priceCents: Math.round(price * 100),
       zoneLimits,
       pricingTiers: tierRows.map((t) => ({
         minSize: t.minSize ?? 1,
@@ -886,20 +1032,178 @@ const Admin = (() => {
         reason: String(t.reason || '').trim(),
       })),
     };
+    const courseList = courses && courses.map(({ code, title, priceCents }) => ({ code, title, priceCents }));
 
     const post = (path, body) => api(path, {method:'POST', body:JSON.stringify(body)});
-    const { data } = id
-      ? await post(`/api/admin/classes/${id}/update`, { ...payload, ...days[0] })
-      : weekly
-        ? await post('/api/admin/classes/bulk', { ...payload, days: days.map(({startsAt, endsAt}) => ({startsAt, endsAt})) })
-        : await post('/api/admin/classes', { ...payload, ...days[0] });
+    let data;
+    if (id){
+      ({ data } = await post(`/api/admin/classes/${id}/update`, {
+        ...shared, ...days[0],
+        title: $('fTitle').value.trim(),
+        courseCode: $('fCode').value,
+        priceCents: Math.round(parseFloat($('fPrice').value) * 100),
+      }));
+    } else if (schedule){
+      const body = {
+        ...shared, courses: courseList, week: weekRows,
+        weeksAhead: parseInt($('fAhead').value, 10) || 8,
+        startsOn: $('fFrom').value,
+      };
+      ({ data } = editingSchedule
+        ? await post(`/api/admin/schedules/${editingSchedule.id}/update`, body)
+        : await post('/api/admin/schedules', body));
+    } else {
+      ({ data } = await post('/api/admin/classes/bulk', {
+        ...shared, courses: courseList,
+        days: days.map(({ startsAt, endsAt }) => ({ startsAt, endsAt })),
+      }));
+    }
 
     if (!data.ok) return formErr(data.message || `Could not save (${data.reason}).`);
 
     closeBox();
-    toast(id ? 'Day updated' : weekly ? `${data.created} days added` : 'Day added');
+    if (id) toast('Day updated');
+    else if (editingSchedule) toast('Schedule saved — upcoming days rebuilt');
+    else if (schedule) toast(`Schedule started — ${data.created} days open for booking`);
+    else toast(`${data.created} day${data.created === 1 ? '' : 's'} added` +
+               (data.skippedTimeOff ? ` (${data.skippedTimeOff} skipped as time off)` : ''));
     if (data.promoted) toast(`${data.promoted} waitlisted student offered a seat`);
+    editingSchedule = null;
     refresh();
+  }
+
+  // ----------------------------------------------- schedules, time off, notice
+
+  let schedules = [];
+  let timeOff = [];
+
+  const NOTICE = [[0, 'No minimum'], [2, '2 hours'], [12, '12 hours'], [24, '24 hours'],
+                  [48, '2 days'], [72, '3 days'], [168, '1 week']];
+
+  const fmtHHMM = (hhmm) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
+  };
+  const fmtYmd = (ymd, opts = {month:'short', day:'numeric'}) => {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, opts);
+  };
+
+  /** "Mon–Fri 9:00 AM – 5:00 PM · Sat 8:00 AM – 12:00 PM" */
+  function weekSummary(week){
+    const order = [1, 2, 3, 4, 5, 6, 0];
+    const runs = [];
+    for (const i of order){
+      const d = week[i];
+      if (!d.on) continue;
+      const hours = `${fmtHHMM(d.open)} – ${fmtHHMM(d.close)}`;
+      const last = runs[runs.length - 1];
+      if (last && last.hours === hours && order.indexOf(last.to) === order.indexOf(i) - 1) last.to = i;
+      else runs.push({ from: i, to: i, hours });
+    }
+    return runs.map((r) =>
+      `${WEEKDAYS[r.from]}${r.to !== r.from ? `–${WEEKDAYS[r.to]}` : ''} ${r.hours}`).join(' · ');
+  }
+
+  async function loadSchedules(){
+    const { data } = await api('/api/admin/schedules');
+    if (!data.ok) return;
+    schedules = data.schedules;
+    timeOff = data.timeOff;
+
+    $('schedList').innerHTML = schedules.length ? schedules.map((s) => `
+      <div class="sched-item ${s.active ? '' : 'paused'}">
+        <b>${esc(weekSummary(s.week))}</b>
+        <span>${s.courses.map((c) => `${esc(c.title)} ${money(c.priceCents)}`).join(' · ')}</span>
+        <span>${s.active ? `Keeps ${s.weeksAhead} weeks open — new days add themselves`
+                         : 'Paused — no new days are being added'}</span>
+        <div class="row-btns">
+          <button class="btn btn-ghost btn-sm" onclick="Admin.editSchedule(${s.id})">Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="Admin.toggleSchedule(${s.id}, ${!s.active})">
+            ${s.active ? 'Pause' : 'Resume'}</button>
+          <button class="btn btn-ghost btn-sm" onclick="Admin.deleteSchedule(${s.id})">Delete</button>
+        </div>
+      </div>`).join('')
+      : `<p class="muted">None yet. Use <b>Add days → Weekly hours → Keep repeating</b>
+           and the calendar fills itself.</p>`;
+
+    $('offList').innerHTML = timeOff.length ? timeOff.map((t) => `
+      <div class="off-item">
+        <span><b>${fmtYmd(t.startsOn)}${t.endsOn !== t.startsOn ? ` – ${fmtYmd(t.endsOn)}` : ''}</b>
+          ${t.note ? `<span class="muted"> · ${esc(t.note)}</span>` : ''}</span>
+        <button class="x" title="Remove this time off" aria-label="Remove this time off"
+                onclick="Admin.removeTimeOff(${t.id})">&times;</button>
+      </div>`).join('') : '<p class="muted">No time off booked.</p>';
+
+    $('notice').innerHTML = NOTICE.map(([h, label]) =>
+      `<option value="${h}" ${h === data.minNoticeHours ? 'selected' : ''}>${label}</option>`).join('') +
+      (NOTICE.some(([h]) => h === data.minNoticeHours) ? ''
+        : `<option value="${data.minNoticeHours}" selected>${data.minNoticeHours} hours</option>`);
+  }
+
+  async function toggleSchedule(id, active){
+    await api(`/api/admin/schedules/${id}/${active ? 'resume' : 'pause'}`, {method:'POST', body:'{}'});
+    toast(active ? 'Schedule resumed' : 'Schedule paused — existing days stay');
+    refresh();
+  }
+
+  async function deleteSchedule(id){
+    if (!confirm('Delete this schedule? Its upcoming days that nobody has booked are removed. '
+               + 'Booked days stay.')) return;
+    const { data } = await api(`/api/admin/schedules/${id}/delete`, {method:'POST', body:'{}'});
+    toast(`Schedule deleted — ${data.removed || 0} empty days removed`);
+    refresh();
+  }
+
+  function newTimeOff(){
+    const today = toLocalInput(new Date().toISOString()).slice(0, 10);
+    openBox('Add time off', `
+      <div class="err" id="fErr"></div>
+      <p class="sub" style="margin:-4px 0 16px">No classes are offered on these dates.
+        Days already there with nobody booked are removed; days with bookings
+        stay so you can contact those customers.</p>
+      <div class="two">
+        <div><label for="offFrom">First day off</label>
+          <input id="offFrom" type="date" value="${today}"
+                 onchange="const to=document.getElementById('offTo'); if (to.value < this.value) to.value = this.value"></div>
+        <div><label for="offTo">Last day off</label>
+          <input id="offTo" type="date" value="${today}"></div>
+      </div>
+      <label for="offNote">Note <span class="muted" style="font-weight:400">(optional)</span></label>
+      <input id="offNote" maxlength="120" placeholder="Vacation, conference, …">
+      <button class="btn" style="width:100%" onclick="Admin.saveTimeOff()">Add time off</button>`);
+  }
+
+  async function saveTimeOff(){
+    const startsOn = $('offFrom').value;
+    const endsOn = $('offTo').value || startsOn;
+    if (!startsOn) return formErr('Pick the first day off.');
+    if (endsOn < startsOn) return formErr('The last day off is before the first.');
+    const { data } = await api('/api/admin/time-off', {method:'POST',
+      body: JSON.stringify({ startsOn, endsOn, note: $('offNote').value.trim() })});
+    if (!data.ok) return formErr(data.message || 'Could not save.');
+    closeBox();
+    if (data.kept && data.kept.length){
+      alert(`Time off saved. ${data.kept.length} day${data.kept.length === 1 ? ' has' : 's have'} `
+        + 'bookings and were kept — contact those customers, then cancel the day:\n\n'
+        + data.kept.map((k) => `• ${fmtDate(k.startsAt)} — ${k.title} (${k.people} ${k.people === 1 ? 'person' : 'people'})`).join('\n'));
+    } else {
+      toast(`Time off saved${data.removed ? ` — ${data.removed} day${data.removed === 1 ? '' : 's'} removed` : ''}`);
+    }
+    refresh();
+  }
+
+  async function removeTimeOff(id){
+    if (!confirm('Remove this time off? Repeating schedules will fill those dates again.')) return;
+    await api(`/api/admin/time-off/${id}/delete`, {method:'POST', body:'{}'});
+    toast('Time off removed');
+    refresh();
+  }
+
+  async function setNotice(hours){
+    const { data } = await api('/api/admin/settings', {method:'POST',
+      body: JSON.stringify({ minNoticeHours: Number(hours) })});
+    toast(data.ok ? 'Booking notice saved' : 'Could not save the notice');
   }
 
   async function cancelClass(id){
@@ -985,7 +1289,10 @@ const Admin = (() => {
     const el = $('tierPreview');
     if (!el) return;
 
-    const base = Math.round((parseFloat($('fPrice')?.value) || 0) * 100);
+    // An existing day's own price, or the first ticked course's.
+    const base = $('fPrice')
+      ? Math.round((parseFloat($('fPrice').value) || 0) * 100)
+      : (checkedCourses()[0]?.priceCents || 0);
     if (!base || !tierRows.length) { el.innerHTML = ''; return; }
 
     const priceAt = (n) => {
@@ -1183,7 +1490,9 @@ const Admin = (() => {
   return { login, logout, refresh, newClass, edit, save, cancelClass, reopen,
            roster, markPaid, dropStudent, cancelGroup, copyEmails, closeBox, toggleTheme,
            addTier, dropTier, editTier, previewTiers,
-           setMode, editWeek, previewWeek };
+           setMode, editWeek, previewWeek,
+           editSchedule, toggleSchedule, deleteSchedule,
+           newTimeOff, saveTimeOff, removeTimeOff, setNotice };
 })();
 window.Admin = Admin;
 </script>

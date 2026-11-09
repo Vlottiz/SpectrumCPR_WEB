@@ -43,9 +43,12 @@ function test(label, fn) {
  * fixture that needs three non-clashing visits needs sixteen hours. Not a
  * realistic shift, but these tests are about holds and payment, not rostering.
  */
-function makeDay({ capacity = 20, price = 8500, code = 'CPR', dayOffset = 7 } = {}) {
+// Each test day gets its own date: one instructor means days sharing a date
+// share her time, which isn't what these tests are about.
+let nextOffset = 7;
+function makeDay({ capacity = 20, price = 8500, code = 'CPR', dayOffset = null } = {}) {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() + dayOffset);
+  d.setUTCDate(d.getUTCDate() + (dayOffset ?? nextOffset++));
   d.setUTCHours(16, 0, 0, 0);
   const open = d.toISOString();
   const close = new Date(d.getTime() + 16 * 3600_000).toISOString();

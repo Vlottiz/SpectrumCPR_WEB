@@ -29,14 +29,15 @@ the other suites already cover from the inside, so skipping it on Windows
 costs little.
 
 ```bash
-npm run test:all        # everything that runs on Node — 318 checks
+npm run test:all        # everything that runs on Node — 379 checks
 npm test                # holds, payment, waitlist, groups (32)
 npm run test:slots      # the slot calendar and blocking (34)
 npm run test:pricing    # group bands, rounding, fallbacks (22)
 npm run test:zones      # travel zones, charges, trips per day (29)
+npm run test:schedule   # repeating schedules, time off, notice, shared instructor (24)
 npm run test:address    # address parsing, ZIP lookup, outages (19)
-npm run test:fe         # booking page in a headless DOM (131)
-npm run test:admin      # admin page and its API (51)
+npm run test:fe         # booking page in a headless DOM (138)
+npm run test:admin      # admin page and its API (86)
 
 npm run test:e2e        # full API flow over HTTP (37) — needs bash
 ```
@@ -59,6 +60,7 @@ decline a fake payment.
 | `BUFFER_MINUTES` | `90` | pack-up and travel, added to the block |
 | `BUSINESS_TZ` | `America/Los_Angeles` | whose calendar date "per day" zone limits count by |
 | `HOME_ZIP` | `97116` | where travel distances are measured from |
+| `MIN_NOTICE_HOURS` | `24` | booking notice until it's set on the admin page |
 | `SLOT_STEP_MINUTES` | `30` | spacing of offered start times |
 | `ADDRESS_PROVIDER` | `photon` | `photon`, `census` or `google` |
 | `GOOGLE_PLACES_KEY` | *(unset)* | switches address lookup to Google Places |
@@ -96,6 +98,29 @@ The customer is offered both a waitlist and other days. Alternatives come from
 days running the same course with room for the party, ordered so that a day
 offering **the time they asked for** comes first even if it's later — somebody
 who wanted 9am usually wants 9am more than they want that particular Tuesday.
+
+### One instructor, every course
+
+There's one certified instructor, so time is shared across courses: a CPR
+visit at 9:00 blocks Heartsaver and Babysitter at 9:00 that date too (plus the
+travel buffer). Headcount stays per course and day.
+
+### Repeating schedules, time off and notice
+
+- **Repeating schedule** (`schedules` table, `src/schedule.js`): weekly hours,
+  the courses taught in them with a price each, and how many weeks ahead to
+  keep open. It creates one day per course per open date and tops the
+  calendar up at startup and on every sweep, so new days appear by themselves.
+  Editing one rebuilds its unfinished days that nobody has booked; booked days
+  keep their hours and price. A day from a schedule that's cancelled and
+  cleared is remembered (`schedule_skips`) so it isn't recreated.
+  Schedule hours are wall-clock times in `BUSINESS_TZ`.
+- **Time off** (`time_off`): no schedule fills those dates, empty days already
+  there are removed, and days with bookings are kept and listed for staff to
+  contact. Those days take no new bookings. Removing time off refills them.
+- **Booking notice** (`settings.min_notice_hours`, default 24): start times
+  sooner than that aren't offered, and a day with nothing left past the
+  notice drops off the booking page.
 
 ### Travel zones
 
@@ -264,6 +289,11 @@ still display — they fall back to a neutral colour rather than breaking.
 
 `http://localhost:3000/admin.html` — sign in with `ADMIN_TOKEN`.
 
+- a **repeating schedule** panel (edit, pause, delete), **time off** (add a
+  date range with a note, remove it) and the **booking notice**
+- add training days for one or more courses at once, each course with its
+  own price: as a repeating schedule (the default), a fixed run of weeks, or
+  one day
 - add training days one at a time, or as **weekly hours**: tick the weekdays
   you're open, set each one's hours, choose a start date and 1–12 weeks, and
   every open day is created at once (`POST /api/admin/classes/bulk`, all or
@@ -301,6 +331,7 @@ src/
   address.js        address lookup providers
   calendar.js       .ics and Google Calendar links
   zones.js          travel zones and charges
+  schedule.js       repeating schedules and time off
   zip-centroids.json  ZIP locations within 100 miles of 97116
   seed.js           sample training days
   payments/         mock now, Converge later
@@ -389,6 +420,12 @@ POST /api/registrations/:ref/accept-offer
 GET  /api/admin/classes/:id/roster
 POST /api/admin/classes
 POST /api/admin/classes/bulk                  many days at once, from weekly hours
+GET  /api/admin/schedules                     schedules, time off and the notice
+POST /api/admin/schedules                     start a repeating schedule
+POST /api/admin/schedules/:id/update|pause|resume|delete
+POST /api/admin/time-off                      {startsOn, endsOn, note}
+POST /api/admin/time-off/:id/delete
+POST /api/admin/settings                      {minNoticeHours}
 POST /api/admin/classes/:id/cancel
 GET  /api/admin/outbox
 POST /api/admin/sweep

@@ -38,10 +38,13 @@ function test(label, fn) {
 }
 
 /** A working day, given as UTC hours so the assertions read plainly. */
+// Each test day gets its own date unless a test asks otherwise: one
+// instructor means days sharing a date share her time.
+let nextOffset = 7;
 function makeDay({ openHour = 16, closeHour = 26, capacity = 20, price = 8500,
-                   code = 'BLS', title = 'BLS Provider', dayOffset = 7 } = {}) {
+                   code = 'BLS', title = 'BLS Provider', dayOffset = null } = {}) {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() + dayOffset);
+  d.setUTCDate(d.getUTCDate() + (dayOffset ?? nextOffset++));
   d.setUTCHours(0, 0, 0, 0);
   const open = new Date(d.getTime() + openHour * 3600_000).toISOString();
   const close = new Date(d.getTime() + closeHour * 3600_000).toISOString();

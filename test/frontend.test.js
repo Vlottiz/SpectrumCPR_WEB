@@ -108,6 +108,16 @@ async function until(fn, timeoutMs = 4000) {
   check('times render in local form, not raw UTC',
     !firstRow.includes('T16:00:00'), firstRow.slice(0, 80));
 
+  const filterButtons = doc.querySelectorAll('#courseFilter button');
+  check('a course filter is offered', filterButtons.length === 4, `${filterButtons.length} buttons`);
+  window.Booking.showCourse('HEARTSAVER');
+  const filtered = [...doc.querySelectorAll('#scheduleRows .sched-class')].map((r) => r.textContent);
+  check('filtering shows only that course',
+    filtered.length === 1 && filtered[0].includes('Heartsaver'), filtered.join(' | ').slice(0, 120));
+  window.Booking.showCourse(null);
+  check('and All brings the rest back',
+    doc.querySelectorAll('#scheduleRows .sched-class').length === 4);
+
   const nextPanel = doc.getElementById('nextClasses')?.textContent || '';
   check('the home panel fills in', nextPanel.includes('CPR / AED'), nextPanel.slice(0, 80));
 
@@ -269,7 +279,7 @@ async function until(fn, timeoutMs = 4000) {
     headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
     body: JSON.stringify({
       courseCode: 'CPR', title: 'Tiny day',
-      startsAt: '2026-11-14T16:00:00Z', endsAt: '2026-11-15T02:00:00Z',
+      startsAt: '2027-05-04T16:00:00Z', endsAt: '2027-05-05T02:00:00Z',
       capacity: 1, priceCents: 8500,
     }),
   })).json();

@@ -68,6 +68,10 @@ CREATE TABLE IF NOT EXISTS classes (
   -- zone is closed that day. Counted per calendar date, so two days sharing a
   -- date share the limit — see zoneTripsLeft() in seats.js.
   zone_limits     TEXT,
+
+  -- The repeating schedule that created this day, if any. NULL for days
+  -- added by hand.
+  schedule_id     INTEGER,
   status          TEXT    NOT NULL DEFAULT 'open'
                           CHECK (status IN ('open','cancelled')),
   created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -139,6 +143,51 @@ CREATE TABLE IF NOT EXISTS events (
   kind            TEXT    NOT NULL,
   detail          TEXT    NOT NULL DEFAULT '',
   created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Repeating weekly schedules. Each keeps weeks_ahead weeks of days open,
+-- adding new ones as time moves on, so the calendar never runs dry.
+--
+--   courses  JSON [{ "code": "CPR", "title": "CPR / AED", "priceCents": 8500 }]
+--   week     JSON, 7 entries Sunday first: { "on": true, "open": "09:00", "close": "17:00" }
+--            times are wall-clock in BUSINESS_TZ
+--   filled_through  the last date (YYYY-MM-DD) days have been created up to
+CREATE TABLE IF NOT EXISTS schedules (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  courses         TEXT    NOT NULL,
+  week            TEXT    NOT NULL,
+  weeks_ahead     INTEGER NOT NULL DEFAULT 8,
+  capacity        INTEGER NOT NULL CHECK (capacity > 0),
+  pricing_tiers   TEXT,
+  zone_limits     TEXT,
+  starts_on       TEXT    NOT NULL,
+  filled_through  TEXT,
+  active          INTEGER NOT NULL DEFAULT 1,
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Dates a schedule must not recreate: a day from it that was cancelled and
+-- cleared. Without this, the next fill would put it straight back.
+CREATE TABLE IF NOT EXISTS schedule_skips (
+  schedule_id     INTEGER NOT NULL,
+  day             TEXT    NOT NULL,           -- YYYY-MM-DD
+  course_code     TEXT    NOT NULL,
+  PRIMARY KEY (schedule_id, day, course_code)
+);
+
+-- Time off: dates the instructor isn't working. Inclusive, YYYY-MM-DD.
+CREATE TABLE IF NOT EXISTS time_off (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  starts_on       TEXT    NOT NULL,
+  ends_on         TEXT    NOT NULL,
+  note            TEXT    NOT NULL DEFAULT '',
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Small site-wide settings, e.g. min_notice_hours.
+CREATE TABLE IF NOT EXISTS settings (
+  key             TEXT    PRIMARY KEY,
+  value           TEXT    NOT NULL
 );
 
 -- Outbound email queue. Nothing sends yet; the client's mail provider
@@ -270,6 +319,10 @@ function migrate(raw) {
   if (!classColumns.includes('service_zips')) {
     raw.exec('ALTER TABLE classes ADD COLUMN service_zips TEXT');
     console.log('[db] added classes.service_zips');
+  }
+  if (!classColumns.includes('schedule_id')) {
+    raw.exec('ALTER TABLE classes ADD COLUMN schedule_id INTEGER');
+    console.log('[db] added classes.schedule_id');
   }
   if (!classColumns.includes('zone_limits')) {
     raw.exec('ALTER TABLE classes ADD COLUMN zone_limits TEXT');

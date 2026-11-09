@@ -241,7 +241,7 @@ test('two days on the same date share the limit', () => {
   const a = makeDay({ limits: { 3: 1 }, dayOffset: 80 });
   const b = makeDay({ limits: { 3: 1 }, dayOffset: 80, code: 'BABYSIT' });
   assert.strictEqual(book(a, ZONE3).ok, true);
-  assert.strictEqual(book(b, ZONE3B).reason, 'zone_full');
+  assert.strictEqual(book(b, ZONE3B, { slot: 11 }).reason, 'zone_full');
 });
 
 test('the stricter of two same-date limits wins', () => {

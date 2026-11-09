@@ -17,12 +17,13 @@ $downloads = Join-Path $env:USERPROFILE 'Downloads'
 # file name -> where it belongs, and a string proving it's current
 $files = @(
   @{ name = 'index.html';   dest = '.';             marker = 'checkZone' }
-  @{ name = 'admin.html';   dest = '.';             marker = 'zoneFields' }
+  @{ name = 'admin.html';   dest = '.';             marker = 'editSchedule' }
   @{ name = 'guide.html';   dest = '.';             marker = 'Travel zones' }
   @{ name = 'db.js';        dest = 'src';           marker = 'zone_limits' }
   @{ name = 'seats.js';     dest = 'src';           marker = 'zoneTripsLeft' }
-  @{ name = 'server.js';    dest = 'src';           marker = 'bulk-days' }
+  @{ name = 'server.js';    dest = 'src';           marker = 'schedules' }
   @{ name = 'zones.js';     dest = 'src';           marker = 'zoneForZip' }
+  @{ name = 'schedule.js';  dest = 'src';           marker = 'fillSchedules' }
   @{ name = 'zip-centroids.json'; dest = 'src';     marker = '"97116"' }
   @{ name = 'calendar.js';  dest = 'src';           marker = 'BEGIN:VCALENDAR' }
   @{ name = 'address.js';   dest = 'src';           marker = 'PHOTON_URL' }
@@ -38,6 +39,7 @@ $files = @(
   @{ name = 'e2e.sh';           dest = 'test';      marker = 'created from the admin API' }
   @{ name = 'pricing.test.js';  dest = 'test';      marker = 'the OS will clear it' }
   @{ name = 'zones.test.js';    dest = 'test';      marker = 'trips per zone per day' }
+  @{ name = 'schedule.test.js'; dest = 'test';      marker = 'one instructor, every course' }
 )
 
 # Selecting several files at once makes the browser hand back a single zip,

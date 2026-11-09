@@ -100,6 +100,36 @@ function availability(classId, now = nowIso()) {
 
 
 
+// ----------------------------------------------------------------- settings
+
+function getSetting(key, fallback = null) {
+  const row = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? row.value : fallback;
+}
+
+function setSetting(key, value) {
+  getDb()
+    .prepare(`INSERT INTO settings (key, value) VALUES (?, ?)
+              ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+    .run(key, String(value));
+}
+
+/**
+ * How far ahead a booking has to be made. Set in the admin page; until then
+ * MIN_NOTICE_HOURS, then 24 — so nobody books tomorrow at 8am at 10pm tonight.
+ */
+function minNoticeHours() {
+  const v = Number(getSetting('min_notice_hours', process.env.MIN_NOTICE_HOURS ?? 24));
+  return Number.isFinite(v) && v >= 0 ? v : 24;
+}
+
+/** Is this calendar date (YYYY-MM-DD) inside any time off? */
+function isTimeOff(ymd) {
+  return Boolean(getDb()
+    .prepare('SELECT 1 FROM time_off WHERE starts_on <= ? AND ends_on >= ? LIMIT 1')
+    .get(ymd, ymd));
+}
+
 // -------------------------------------------------------------- travel zones
 
 /** "2026-11-16" — the calendar date of an instant, in the business's timezone. */
@@ -322,22 +352,34 @@ function slotGrid(cls) {
   return out;
 }
 
-/** Bookings that still hold time on a day's calendar. */
-function activeBookings(db, classId, now) {
+/** Bookings that still hold time, on one day or on several. */
+function activeBookings(db, classIds, now) {
+  const ids = Array.isArray(classIds) ? classIds : [classIds];
   return db
     .prepare(
       `SELECT slot_start, group_ref, public_ref, COUNT(*) AS seats
          FROM registrations
-        WHERE class_id = @classId
+        WHERE class_id IN (${ids.map(() => '?').join(',')})
           AND slot_start IS NOT NULL
           AND (
                 status = 'confirmed'
-             OR (status = 'held'    AND hold_expires_at  > @now)
-             OR (status = 'offered' AND offer_expires_at > @now)
+             OR (status = 'held'    AND hold_expires_at  > ?)
+             OR (status = 'offered' AND offer_expires_at > ?)
           )
-        GROUP BY slot_start, COALESCE(group_ref, public_ref)`
+        GROUP BY class_id, slot_start, COALESCE(group_ref, public_ref)`
     )
-    .all({ classId, now });
+    .all(...ids, now, now);
+}
+
+/**
+ * Everything the instructor is already booked for on this day's date, across
+ * every course.
+ *
+ * There is one instructor and one van. A CPR visit at 9:00 blocks Heartsaver
+ * and Babysitter at 9:00 that day just as surely as another CPR visit would.
+ */
+function instructorBookings(db, cls, now) {
+  return activeBookings(db, sameDateClasses(db, cls).map((c) => c.id), now);
 }
 
 const overlaps = (aStart, bStart) => {
@@ -364,18 +406,24 @@ function daySlots(classId, { partySize = 1, now = nowIso(), zone = null } = {}) 
   const trips = zone ? zoneTripsLeft(classId, zone, { now, db }) : null;
   const zoneFull = Boolean(trips && trips.left === 0);
 
-  const booked = activeBookings(db, classId, now);
-  const seatsTaken = booked.reduce((sum, b) => sum + b.seats, 0);
+  // Headcount is this day's own; time is shared with every course that date.
+  const own = activeBookings(db, classId, now);
+  const seatsTaken = own.reduce((sum, b) => sum + b.seats, 0);
   const seatsLeft = Math.max(0, cls.capacity - seatsTaken);
+  const booked = instructorBookings(db, cls, now);
 
   const nowMs = new Date(now).getTime();
+  const noticeMs = minNoticeHours() * 3600_000;
+  const offDay = isTimeOff(localDate(cls.starts_at));
 
   const slots = slotGrid(cls).map((start) => {
     const clash = booked.find((b) => overlaps(start, b.slot_start));
-    const inPast = new Date(start).getTime() <= nowMs;
+    const startMs = new Date(start).getTime();
 
     let reason = null;
-    if (inPast) reason = 'past';
+    if (startMs <= nowMs) reason = 'past';
+    else if (startMs < nowMs + noticeMs) reason = 'too_soon';
+    else if (offDay) reason = 'time_off';
     else if (clash) reason = 'booked';
     else if (seatsLeft < partySize) reason = seatsLeft === 0 ? 'day_full' : 'not_enough_seats';
     else if (zoneFull) reason = 'zone_full';
@@ -566,13 +614,22 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
     if (!grid.includes(args.slotStart)) {
       return { ok: false, reason: 'slot_not_offered', slots: grid };
     }
-    // ...still in the future...
-    if (new Date(args.slotStart).getTime() <= new Date(now).getTime()) {
+    // ...still in the future, with enough notice...
+    const startMs = new Date(args.slotStart).getTime();
+    if (startMs <= new Date(now).getTime()) {
       return { ok: false, reason: 'slot_in_past' };
     }
-    // ...and free. Checked inside the transaction, so two customers clicking
-    // the same time serialise instead of both being told yes.
-    const clash = activeBookings(db, args.classId, now)
+    const notice = minNoticeHours();
+    if (startMs < new Date(now).getTime() + notice * 3600_000) {
+      return { ok: false, reason: 'slot_too_soon', noticeHours: notice };
+    }
+    if (isTimeOff(localDate(cls.starts_at))) {
+      return { ok: false, reason: 'day_off' };
+    }
+    // ...and free, across every course that date. Checked inside the
+    // transaction, so two customers clicking the same time serialise instead
+    // of both being told yes.
+    const clash = instructorBookings(db, cls, now)
       .find((b) => overlaps(args.slotStart, b.slot_start));
     if (clash) {
       return { ok: false, reason: 'slot_taken', slotStart: args.slotStart };
@@ -1216,8 +1273,15 @@ function purgeEmptyCancelledDays(now = nowIso()) {
       .all({ now })
       .map((r) => r.id);
 
+    // A day a repeating schedule made must not be made again by the next fill.
+    const skip = db.prepare(
+      `INSERT OR IGNORE INTO schedule_skips (schedule_id, day, course_code)
+       SELECT schedule_id, ?, course_code FROM classes WHERE id = ? AND schedule_id IS NOT NULL`);
     const del = db.prepare('DELETE FROM classes WHERE id = ?');
-    for (const id of empty) del.run(id);
+    for (const id of empty) {
+      skip.run(localDate(getClass(id).starts_at), id);
+      del.run(id);
+    }
     return empty;
   })();
 }
@@ -1357,6 +1421,10 @@ function queueOfferEmail(db, reg, expiresAt) {
 }
 
 module.exports = {
+  getSetting,
+  setSetting,
+  minNoticeHours,
+  isTimeOff,
   BUSINESS_TZ,
   localDate,
   zoneLimitsFor,

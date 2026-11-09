@@ -227,6 +227,15 @@
   .seats-low{color:var(--red);font-weight:600;font-size:14px;}
   .seats-full{color:var(--ink-soft);font-size:14px;}
 
+  /* course filter above the schedule */
+  .course-filter{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 26px;}
+  .course-filter:empty{display:none;}
+  .course-filter button{
+    font:inherit;font-size:14px;font-weight:600;padding:8px 14px;border-radius:2px;cursor:pointer;
+    background:var(--paper);color:var(--ink);border:1.5px solid var(--rule);
+  }
+  .course-filter button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+
   /* schedule, grouped by week and then by day */
   .sched-week{margin:0 0 34px;}
   .sched-week h3{
@@ -830,6 +839,7 @@
       <h2 class="sec">Class schedule</h2>
       <p class="sec-note">Register any time — online booking is open 24/7. We come to you: pick a day, then a start time that suits. Travel is free within 25 miles of Forest Grove. Can't find a date that works? Ask about a private session.</p>
 
+      <div id="courseFilter" class="course-filter" role="group" aria-label="Show courses"></div>
       <div id="scheduleRows" class="sched">
         <p class="row-loading">Loading the schedule…</p>
       </div>
@@ -1090,17 +1100,46 @@ const Booking = (() => {
    * flat list turns into one long block. Grouping by date keeps it readable:
    * each date appears once, with whatever runs that day beneath it.
    */
+  // Which course the schedule is showing; null is all of them.
+  let courseShown = null;
+
+  /**
+   * Buttons to narrow the schedule to one course. With every course offered
+   * most days, the unfiltered list is three rows per date.
+   */
+  function renderFilter() {
+    const el = document.getElementById('courseFilter');
+    if (!el) return;
+    const codes = [...new Set(classes.map((c) => c.courseCode))];
+    if (codes.length < 2) { el.innerHTML = ''; courseShown = null; return; }
+    if (courseShown && !codes.includes(courseShown)) courseShown = null;
+    const label = (code) => classes.find((c) => c.courseCode === code).title;
+    el.innerHTML = [[null, 'All courses'], ...codes.map((c) => [c, label(c)])]
+      .map(([code, text]) => `
+        <button type="button" aria-pressed="${courseShown === code}"
+                onclick="Booking.showCourse(${code ? `'${code}'` : 'null'})">${esc(text)}</button>`)
+      .join('');
+  }
+
+  function showCourse(code) {
+    courseShown = code;
+    renderFilter();
+    renderSchedule();
+  }
+
   function renderSchedule() {
     const box = document.getElementById('scheduleRows');
     if (!box) return;
+    renderFilter();
+    const shown = courseShown ? classes.filter((c) => c.courseCode === courseShown) : classes;
 
-    if (!classes.length) {
+    if (!shown.length) {
       box.innerHTML = '<p class="row-loading">No classes scheduled right now. ' +
         'Get in touch and we will arrange one.</p>';
       return;
     }
 
-    const sorted = [...classes].sort((a, b) =>
+    const sorted = [...shown].sort((a, b) =>
       new Date(a.opensAt || a.startsAt) - new Date(b.opensAt || b.startsAt));
 
     // week -> day -> classes, in date order.
@@ -2205,7 +2244,7 @@ const Booking = (() => {
       }
 
       // Someone took that time while the form was open.
-      if (data.reason === 'slot_taken' || data.reason === 'slot_in_past') {
+      if (['slot_taken', 'slot_in_past', 'slot_too_soon', 'day_off'].includes(data.reason)) {
         showErr(data.message);
         chosenSlot = null;
         await loadSlots();
@@ -2495,7 +2534,7 @@ const Booking = (() => {
   setInterval(load, 60000);
 
   return { open, close, hold, pay, payConverge, joinWaitlist, load, setQty, toggleContact,
-           pickSlot, switchDay, loadSlots, loadQuote, checkZone,
+           pickSlot, switchDay, loadSlots, loadQuote, checkZone, showCourse,
            // exposed for tests
            _formatPhone: formatPhone, _showSuggest: showSuggest, _hideSuggest: hideSuggest,
            _composeAddress: composeAddress, _chooseAddress: chooseAddress,
