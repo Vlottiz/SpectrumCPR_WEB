@@ -29,7 +29,7 @@
   .brand{font-family:var(--cond);font-weight:700;font-size:23px;margin-right:auto;letter-spacing:.01em}
   .brand span{display:block;font-family:var(--sans);font-size:10.5px;font-weight:600;letter-spacing:.2em;color:var(--ink-soft)}
 
-  .btn{font:inherit;font-weight:600;font-size:14.5px;padding:9px 16px;border:0;border-radius:2px;cursor:pointer;background:var(--red);color:#fff;font-family:var(--sans)}
+  .btn{font:inherit;font-weight:600;font-size:14.5px;padding:9px 16px;border:0;border-radius:2px;cursor:pointer;background:var(--red);color:#fff;font-family:var(--sans);white-space:nowrap}
   .btn:hover{background:var(--red-dark)}
   .btn:disabled{opacity:.5;cursor:not-allowed}
   .btn-ghost{background:none;border:1.5px solid var(--ink);color:var(--ink)}
@@ -147,6 +147,29 @@
     font-weight:700;letter-spacing:.06em;color:#fff;background:var(--green);
     padding:1px 5px;border-radius:2px}
   @media (max-width:820px){ .visit-list li{grid-template-columns:1fr} }
+
+  /* Phones: each day becomes a card instead of a table row too wide to fit. */
+  @media (max-width:700px){
+    table, tbody#rows{display:block}
+    thead{display:none}
+    tr.week-head, tr.week-head td{display:block}
+    tr.day-row{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;
+      padding:14px 0;border-bottom:1px solid var(--rule)}
+    tr.day-row.has-visits{border-bottom:0;padding-bottom:6px}
+    tr.day-row td, tr.day-row td.hide-sm{display:block;border:0;padding:0;white-space:normal}
+    tr.day-row td.c-date{grid-column:1 / -1;font-family:var(--cond);font-size:19px;font-weight:700}
+    tr.day-row td.c-course{grid-column:1 / -1;margin-top:-6px}
+    tr.day-row td.c-actions{grid-column:1 / -1;display:flex;gap:8px}
+    tr.day-row td.c-actions .btn{flex:1;padding:9px}
+    tr.day-row td[data-label]::before{content:attr(data-label);display:block;font-size:11px;
+      font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:1px}
+    tr.visits-row, tr.visits-row td{display:block}
+    tr.visits-row td{padding:0 0 14px}
+    .visit-list{padding-left:11px}
+    .visit-list li{padding:5px 0}
+    .head-row{flex-wrap:wrap}
+    .head-row .btn{width:100%}
+  }
   tr.week-head td{background:var(--paper-2);font-family:var(--cond);font-size:15px;
     font-weight:600;padding:7px 10px;border-bottom:1px solid var(--rule);letter-spacing:.02em}
 
@@ -197,7 +220,17 @@
     .stats{grid-template-columns:repeat(2,1fr)}
     .two{grid-template-columns:1fr}
     .hide-sm{display:none}
-    .wk-row{grid-template-columns:90px 1fr 1fr}
+    .wk-row{grid-template-columns:76px 1fr 1fr;padding:7px 9px;gap:0 7px}
+    .wrap{padding:0 16px}
+    .bar{gap:10px}
+    .stat{padding:12px 14px}
+    .stat b{font-size:26px}
+    .veil{padding:12px 8px}
+    .box-body{padding:16px}
+    .tier,.tier-head{grid-template-columns:44px 44px 56px 1fr 24px;gap:0 6px;padding-left:8px;padding-right:8px}
+    .zone-row{grid-template-columns:1fr 92px}
+    /* 16px or larger stops iPhones zooming the page when a field is tapped. */
+    input,select,textarea,.tier input,.tier textarea,.zone-row input,.wk-row input[type=time]{font-size:16px}
   }
 </style>
 </head>
@@ -473,29 +506,29 @@ const Admin = (() => {
     const seatClass = c.available === 0 ? 'low' : 'ok';
     return `
       <tr class="day-row ${cls} ${(c.visits || []).length ? 'has-visits' : ''}">
-        <td class="nowrap">${fmtDate(c.startsAt)}</td>
-        <td>
+        <td class="c-date nowrap">${fmtDate(c.startsAt)}</td>
+        <td class="c-course">
           <span class="tag" style="background:${swatch(c.courseCode)}">${esc(c.courseCode)}</span>
           ${esc(c.title)}
           ${c.status === 'cancelled' ? ' <span class="muted">(cancelled)</span>' : ''}
         </td>
-        <td class="hide-sm nowrap">${fmtTime(c.startsAt)} – ${fmtTime(c.endsAt)}</td>
-        <td class="nowrap">
+        <td class="hide-sm nowrap" data-label="Hours">${fmtTime(c.startsAt)} – ${fmtTime(c.endsAt)}</td>
+        <td class="nowrap" data-label="Time slots">
           <span class="num ${c.availableSlots === 0 ? 'low' : 'ok'}">${c.availableSlots || 0}</span>
           time slot${c.availableSlots === 1 ? '' : 's'} available
           <div class="muted" style="font-size:12.5px">${c.bookedSlots || 0} booked</div>
         </td>
-        <td class="hide-sm nowrap">
+        <td class="hide-sm nowrap" data-label="Seats">
           <span class="num ${seatClass}">${c.available}</span>
           seat${c.available === 1 ? '' : 's'} available
           <div class="muted" style="font-size:12.5px">${c.taken}/${c.capacity} taken · ${c.confirmed} paid</div>
         </td>
-        <td class="hide-sm">${c.waitlist || '—'}</td>
-        <td class="hide-sm nowrap" title="Trips booked / allowed per zone on this date">
+        <td class="hide-sm" data-label="Waitlist">${c.waitlist || '—'}</td>
+        <td class="hide-sm nowrap" data-label="Zone trips" title="Trips booked / allowed per zone on this date">
           ${zoneSummary(c)}
         </td>
-        <td class="hide-sm nowrap">${money(c.priceCents)}</td>
-        <td class="nowrap">
+        <td class="hide-sm nowrap" data-label="Price">${money(c.priceCents)}</td>
+        <td class="c-actions nowrap">
           <button class="btn btn-ghost btn-sm" onclick="Admin.roster(${c.id})">Roster</button>
           <button class="btn btn-ghost btn-sm" onclick="Admin.edit(${c.id})">Edit</button>
         </td>
