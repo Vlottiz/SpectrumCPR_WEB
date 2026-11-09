@@ -29,7 +29,7 @@ the other suites already cover from the inside, so skipping it on Windows
 costs little.
 
 ```bash
-npm run test:all        # everything that runs on Node — 424 checks
+npm run test:all        # everything that runs on Node — 431 checks
 npm test                # holds, payment, waitlist, groups (32)
 npm run test:slots      # the slot calendar and blocking (39)
 npm run test:pricing    # group bands, rounding, fallbacks (22)
@@ -37,7 +37,7 @@ npm run test:zones      # travel zones, charges, trips per day (29)
 npm run test:schedule   # schedules, time off, notice, trainers, prices, travel (38)
 npm run test:address    # address parsing, ZIP lookup, outages (19)
 npm run test:fe         # booking page in a headless DOM (140)
-npm run test:admin      # admin page and its API (115)
+npm run test:admin      # admin page and its API (122)
 
 npm run test:e2e        # full API flow over HTTP (37) — needs bash
 ```
@@ -311,7 +311,8 @@ still display — they fall back to a neutral colour rather than breaking.
 `http://localhost:3000/admin.html` — sign in with `ADMIN_TOKEN`.
 
 - a **Tour** button (top right) for a step-by-step walkthrough of the page;
-  it also runs once the first time someone signs in on a device
+  it also runs once the first time someone signs in on a device. The Add
+  days form has its own walkthrough (**Show me how**), also run once by itself
 - a **repeating schedule** panel (edit, pause, delete), **time off** (add a
   date range with a note, remove it) and the **booking notice**
 - add training days for one or more courses at once, each course with its

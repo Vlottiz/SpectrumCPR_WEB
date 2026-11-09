@@ -130,6 +130,28 @@ async function until(fn, timeoutMs = 4000) {
   await sleep(150);
   check('the add form opens', $('veil').classList.contains('open'));
 
+  check('the Add days tour starts by itself the first time',
+    await until(() => !$('tour').hidden && $('tourTitle').textContent === 'Adding your days'),
+    $('tourTitle').textContent);
+  const formSteps = Number(($('tourStep').textContent.match(/of (\d+)/) || [])[1]);
+  check('in One day mode it skips the weekly-only steps', formSteps === 7, $('tourStep').textContent);
+  window.Admin.endTour();
+  check('and the form is still open behind it', $('veil').classList.contains('open'));
+
+  window.Admin.setMode('week');
+  $('formTourBtn').click();
+  const weekSteps = Number(($('tourStep').textContent.match(/of (\d+)/) || [])[1]);
+  check('Show me how runs it again, with every step for weekly hours', weekSteps === 11,
+    $('tourStep').textContent);
+  const formTitles = [];
+  for (let i = 0; i < weekSteps; i++) { formTitles.push($('tourTitle').textContent); window.Admin.tourStep(1); }
+  check('it goes courses, hours, people, prices, zones, save',
+    formTitles[1] === 'Which courses' && formTitles.includes('Your open hours')
+    && formTitles[formTitles.length - 1] === 'Save', formTitles.join(' > '));
+  check('Done closes only the tour', $('tour').hidden && $('veil').classList.contains('open'));
+  check('it is remembered', window.localStorage.getItem('spectrum_admin_adddays_tour_seen') === '1');
+  window.Admin.setMode('day');
+
   $('veil').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   await sleep(100);

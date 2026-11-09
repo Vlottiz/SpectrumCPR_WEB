@@ -333,6 +333,11 @@
     .veil{padding:12px 8px}
     .box-body{padding:16px}
     .tier,.tier-head{grid-template-columns:44px 44px 56px 1fr 24px;gap:0 6px;padding-left:8px;padding-right:8px}
+    /* The reason gets its own full-width line instead of a sliver. */
+    .tier{grid-template-columns:1fr 1fr 1fr 28px;gap:6px}
+    .tier textarea{grid-column:1 / -1;grid-row:2}
+    .tier-head{grid-template-columns:1fr 1fr 1fr 28px}
+    .tier-head span:nth-child(4){display:none}
     .zone-row{grid-template-columns:1fr 92px}
     /* 16px or larger stops iPhones zooming the page when a field is tapped. */
     input,select,textarea,.tier input,.tier textarea,.zone-row input,.wk-row input[type=time]{font-size:16px}
@@ -606,6 +611,42 @@ const Admin = (() => {
   ];
   const TOUR_SEEN = 'spectrum_admin_tour_seen';
 
+  /** The Add days form, one choice at a time. */
+  const FORM_TOUR = [
+    { el: null, title: 'Adding your days',
+      text: 'Four choices: which courses, which days and hours, for how long, and how many '
+          + 'people. This walks through each one — about a minute.' },
+    { el: '#courseList', title: 'Which courses',
+      text: 'Tick every course you’ll teach in these hours. Prices come from Course prices on '
+          + 'the main page, so every week is the same.' },
+    { el: '.box .mode', title: 'Weekly hours or one day',
+      text: 'Weekly hours is for your regular week. One day is for a one-off date — '
+          + 'just pick the date and the hours.' },
+    { el: '#weekWhen', title: 'Starting, and for how long',
+      text: 'Pick the first day. "Keep repeating" is the hands-off choice: new days are added by '
+          + 'themselves every week. Or choose a set number of weeks.' },
+    { el: '#aheadRow', title: 'How far ahead people can book',
+      text: 'How many weeks of days stay open for booking. 8 weeks is a good start.' },
+    { el: '#week', title: 'Your open hours',
+      text: 'Tick the days you work and set the hours. A day needs at least 4 hours for one class. '
+          + 'Customers never see times outside these hours.' },
+    { el: '#wkPreview', title: 'Check before saving',
+      text: 'This line says exactly what will be added, so you can catch a mistake first.' },
+    { el: '#capRow', title: 'How many people',
+      text: 'The most people you’ll take for each course on one day — think manikins, cards and energy.' },
+    { el: '#tiers', title: 'Group prices',
+      text: 'Smaller groups pay a bit more, bigger groups a bit less. Leave these as they are unless '
+          + 'you want to change the discounts. Customers see the reason you write.' },
+    { el: '.box .zones', title: 'Trips per zone',
+      text: 'Optional. For example 1 in Zone 3, so you’re never sent to two far-apart Zone 3 '
+          + 'visits on the same day. Leave blank for no limit.' },
+    { el: '#saveBtn', title: 'Save',
+      text: 'That’s it. With "Keep repeating" this starts your schedule — you can edit or pause it '
+          + 'later from Repeating schedule on the main page.' },
+  ];
+  const FORM_TOUR_SEEN = 'spectrum_admin_adddays_tour_seen';
+  let tourSeenKey = TOUR_SEEN;
+
   let tourSteps = [];
   let tourAt = 0;
 
@@ -614,6 +655,8 @@ const Admin = (() => {
     if (!sel) return true;
     const el = document.querySelector(sel);
     if (!el || el.closest('[hidden]')) return false;
+    // Inside a part switched off on the form (weekly fields in One day mode).
+    if (el.closest('[style*="display:none"], [style*="display: none"]')) return false;
     // No layout at all (a test harness): being on the page is enough.
     if (!document.body.getClientRects().length) return true;
     return el.getClientRects().length > 0;
@@ -621,7 +664,17 @@ const Admin = (() => {
 
   function tour(){
     closeBox();
-    tourSteps = TOUR.filter((t) => visible(t.el));
+    runTour(TOUR, TOUR_SEEN);
+  }
+
+  /** The Add days tour, over the open form. */
+  function formTour(){
+    runTour(FORM_TOUR, FORM_TOUR_SEEN);
+  }
+
+  function runTour(steps, seenKey){
+    tourSteps = steps.filter((t) => visible(t.el));
+    tourSeenKey = seenKey;
     tourAt = 0;
     $('tour').hidden = false;
     document.addEventListener('keydown', tourKeys);
@@ -635,7 +688,7 @@ const Admin = (() => {
     document.removeEventListener('keydown', tourKeys);
     window.removeEventListener('resize', placeTour);
     window.removeEventListener('scroll', placeTour, true);
-    try { localStorage.setItem(TOUR_SEEN, '1'); } catch { /* private window */ }
+    try { localStorage.setItem(tourSeenKey, '1'); } catch { /* private window */ }
   }
 
   function tourStep(delta){
@@ -1087,7 +1140,7 @@ const Admin = (() => {
       </div>
 
       <div id="weekFields" style="${formMode === 'week' ? '' : 'display:none'}">
-        <div class="two">
+        <div class="two" id="weekWhen">
           <div><label for="fFrom">Starting</label>
             <input id="fFrom" type="date" value="${s ? s.startsOn : today}" onchange="Admin.previewWeek()"></div>
           <div><label for="fWeeks">For how long</label>
@@ -1280,6 +1333,8 @@ const Admin = (() => {
     const s = editingSchedule;
     return `
       <div class="err" id="fErr"></div>
+      ${c ? '' : `<button type="button" class="btn btn-ghost btn-sm" id="formTourBtn"
+          style="float:right;margin:-2px 0 8px 12px" onclick="Admin.formTour()">Show me how</button>`}
       <p class="sub" style="margin:-4px 0 16px">
         You travel to the customer, so set the hours you're willing to work.
         Sessions are booked inside those hours.
@@ -1299,7 +1354,7 @@ const Admin = (() => {
 
       <input id="fLoc" type="hidden" value="">
 
-      <div class="two">
+      <div class="two" id="capRow">
         <div>
           <label for="fCap">People per course, per day</label>
           <input id="fCap" type="number" min="1" value="${c?.capacity ?? s?.capacity ?? 20}">
@@ -1361,6 +1416,9 @@ const Admin = (() => {
     openBox('Add training days', classForm(null));
     renderTiers();
     renderWeek();
+    let seen = true;
+    try { seen = Boolean(localStorage.getItem(FORM_TOUR_SEEN)); } catch { /* private window */ }
+    if (!seen && $('tour').hidden) setTimeout(formTour, 150);
   }
 
   function edit(id){
@@ -1984,7 +2042,7 @@ const Admin = (() => {
   if (saved){ token = saved; show(); }
 
   return { login, logout, refresh, newClass, edit, save, cancelClass, reopen,
-           tour, tourStep, endTour,
+           tour, formTour, tourStep, endTour,
            roster, markPaid, dropStudent, cancelGroup, copyEmails, closeBox, toggleTheme,
            addTier, dropTier, editTier, previewTiers,
            setMode, editWeek, previewWeek,
