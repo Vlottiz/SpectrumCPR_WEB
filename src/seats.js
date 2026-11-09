@@ -1147,6 +1147,43 @@ function listUpcomingClasses({ includeFull = true, from = nowIso() } = {}) {
     .filter((c) => (includeFull ? true : !c.seats.isFull));
 }
 
+/**
+ * The visits booked on a day, in time order: when, where, who and how many.
+ * One row per visit — a group of four at one address is one visit.
+ */
+function dayVisits(classId, now = nowIso()) {
+  return getDb()
+    .prepare(
+      `SELECT slot_start, address, travel_zone, travel_miles,
+              COALESCE(group_ref, public_ref) AS visit_ref,
+              COUNT(*) AS people,
+              MAX(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS paid,
+              COALESCE(MAX(organiser_name),
+                       MAX(CASE WHEN seat_index = 0 THEN student_name END)) AS contact
+         FROM registrations
+        WHERE class_id = @classId
+          AND slot_start IS NOT NULL
+          AND (
+                status = 'confirmed'
+             OR (status = 'held'    AND hold_expires_at  > @now)
+             OR (status = 'offered' AND offer_expires_at > @now)
+          )
+        GROUP BY slot_start, COALESCE(group_ref, public_ref)
+        ORDER BY slot_start ASC`
+    )
+    .all({ classId, now })
+    .map((v) => ({
+      slotStart: v.slot_start,
+      slotEnd: addMinutes(v.slot_start, SESSION_MINUTES),
+      address: v.address,
+      zone: v.travel_zone,
+      miles: v.travel_miles,
+      people: v.people,
+      paid: Boolean(v.paid),
+      contact: v.contact || '',
+    }));
+}
+
 function roster(classId) {
   return getDb()
     .prepare(
@@ -1319,4 +1356,5 @@ module.exports = {
   getClass,
   listUpcomingClasses,
   roster,
+  dayVisits,
 };

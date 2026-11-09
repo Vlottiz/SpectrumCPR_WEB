@@ -790,6 +790,8 @@ app.get('/api/admin/classes', requireAdmin, (req, res) => {
         status: c.status,
         pricingTiers: seats_.tiersFor(c),
         zoneLimits: seats_.zoneLimitsFor(c),
+        // Where and when the instructor is going that day, for the list view.
+        visits: seats_.dayVisits(c.id),
         // Trips already taken into each zone on this day's date.
         zoneTrips: Object.fromEntries(zones.ZONES.map((z) => {
           const t = seats_.zoneTripsLeft(c.id, z.zone);

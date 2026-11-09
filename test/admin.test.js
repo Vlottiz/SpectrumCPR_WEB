@@ -89,7 +89,7 @@ async function until(fn, timeoutMs = 4000) {
   check('it counts the seeded days',
     ($('stats').textContent || '').includes('4'), $('stats').textContent);
 
-  const dayRows = () => doc.querySelectorAll('#rows tr:not(.week-head)');
+  const dayRows = () => doc.querySelectorAll('#rows tr.day-row');
   check('the day table fills',
     await until(() => dayRows().length === 4),
     `${dayRows().length} rows`);
@@ -100,12 +100,21 @@ async function until(fn, timeoutMs = 4000) {
   const firstRow = dayRows()[0]?.textContent || '';
   check('seat counts show as taken/capacity', /\d+\/\d+/.test(firstRow), firstRow.slice(0, 90));
   check('a price shows', firstRow.includes('$'), firstRow.slice(0, 90));
+  check('free time slots are labelled',
+    /\d+ time slots? available/.test(firstRow.replace(/\s+/g, ' ')), firstRow.slice(0, 160));
+  check('free seats are labelled',
+    /\d+ seats? available/.test(firstRow.replace(/\s+/g, ' ')), firstRow.slice(0, 200));
 
   console.log('\nadding a class');
 
   window.Admin.newClass('day');
   await sleep(150);
   check('the add form opens', $('veil').classList.contains('open'));
+
+  $('veil').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await sleep(100);
+  check('a click outside or Escape does not close it', $('veil').classList.contains('open'));
 
   $('fTitle').value = 'X';
   $('fDate').value = '2026-12-01';
@@ -335,6 +344,17 @@ async function until(fn, timeoutMs = 4000) {
 
   await window.Admin.refresh();
   await sleep(200);
+
+  // The day's visits show under its row: time, then where to drive.
+  const visitList = [...doc.querySelectorAll('#rows tr.visits-row')]
+    .map((r) => r.textContent.replace(/\s+/g, ' ')).find((t) => t.includes('Person a')) || '';
+  check('booked visits are listed under their day', visitList.includes('Hillsboro'),
+    visitList.slice(0, 200));
+  check('with the session time', /\d{1,2}:\d{2} [AP]M – \d{1,2}:\d{2} [AP]M/.test(visitList),
+    visitList.slice(0, 200));
+  check('and the zone', visitList.includes('Zone 1'), visitList.slice(0, 200));
+  check('the next visit is marked',
+    !!doc.querySelector('#rows tr.visits-row li.next'));
   window.Admin.roster(small.classId);
 
   check('the run sheet lists people',

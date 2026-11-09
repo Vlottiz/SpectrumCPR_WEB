@@ -134,6 +134,19 @@
   .wk-preview b{color:var(--ink)}
 
   /* week headings in the day table */
+  /* the day's visits, listed under its row */
+  tr.visits-row td{padding:0 10px 12px 10px;border-bottom:1px solid var(--rule)}
+  tr.day-row.has-visits td{border-bottom:0}
+  .visit-list{list-style:none;margin:0;padding:8px 0 0 14px;border-left:3px solid var(--blue);
+    font-size:13.5px}
+  .visit-list li{display:grid;grid-template-columns:160px 1fr;gap:0 14px;padding:3px 0}
+  .visit-list .when{font-weight:600;white-space:nowrap}
+  .visit-list .where a{color:var(--ink)}
+  .visit-list .who{color:var(--ink-soft)}
+  .visit-list li.next .when::after{content:'NEXT';margin-left:7px;font-size:10.5px;
+    font-weight:700;letter-spacing:.06em;color:#fff;background:var(--green);
+    padding:1px 5px;border-radius:2px}
+  @media (max-width:820px){ .visit-list li{grid-template-columns:1fr} }
   tr.week-head td{background:var(--paper-2);font-family:var(--cond);font-size:15px;
     font-weight:600;padding:7px 10px;border-bottom:1px solid var(--rule);letter-spacing:.02em}
 
@@ -231,7 +244,7 @@
       <thead>
         <tr>
           <th>Date</th><th>Course</th><th class="hide-sm">Hours</th>
-          <th>Booked</th><th class="hide-sm">People</th><th class="hide-sm">Waitlist</th>
+          <th>Time slots</th><th class="hide-sm">Seats</th><th class="hide-sm">Waitlist</th>
           <th class="hide-sm">Zone trips</th><th class="hide-sm">Price</th><th></th>
         </tr>
       </thead>
@@ -242,7 +255,8 @@
   </div>
 </main>
 
-<div class="veil" id="veil" onclick="if(event.target.id==='veil')Admin.closeBox()">
+<!-- Closes only from its × button, so a stray click outside can't lose a half-filled form. -->
+<div class="veil" id="veil">
   <div class="box">
     <div class="box-head">
       <h3 id="boxTitle">—</h3>
@@ -400,7 +414,7 @@ const Admin = (() => {
       const head = week !== lastWeek
         ? `<tr class="week-head"><td colspan="9">Week of ${week}</td></tr>` : '';
       lastWeek = week;
-      return head + dayRow(c, now);
+      return head + dayRow(c, now) + visitRows(c, now);
     }).join('') : '<tr><td colspan="9" class="muted">No training days yet. Add some to get started.</td></tr>';
   }
 
@@ -423,12 +437,42 @@ const Admin = (() => {
     return parts.length ? parts.join(' · ') : '<span class="muted">no limits</span>';
   }
 
+  /**
+   * The day's booked visits as a short list under its row — time, then the
+   * address to drive to — so the whole run of travel is visible without
+   * opening each run sheet. The first visit still to come is marked NEXT.
+   */
+  function visitRows(c, now){
+    const visits = c.visits || [];
+    if (!visits.length) return '';
+    const next = visits.find((v) => new Date(v.slotEnd).getTime() > now);
+    return `
+      <tr class="visits-row"><td colspan="9">
+        <ul class="visit-list">
+          ${visits.map((v) => `
+            <li class="${v === next ? 'next' : ''}">
+              <span class="when">${fmtTime(v.slotStart)} – ${fmtTime(v.slotEnd)}</span>
+              <span>
+                <span class="where">${v.address
+                  ? `<a href="https://www.google.com/maps/search/?api=1&query=${
+                      encodeURIComponent(v.address)}" target="_blank" rel="noopener">${esc(v.address)}</a>`
+                  : '<span class="muted">No address on file</span>'}</span>
+                <span class="who"> ·
+                  ${v.zone ? `Zone ${v.zone}${v.miles != null ? ` (${v.miles} mi)` : ''} · ` : ''}
+                  ${esc(v.contact)}${v.people > 1 ? ` + ${v.people - 1}` : ''}
+                  ${v.paid ? '' : ' · unpaid'}</span>
+              </span>
+            </li>`).join('')}
+        </ul>
+      </td></tr>`;
+  }
+
   function dayRow(c, now){
     const past = new Date(c.endsAt).getTime() < now;
     const cls = c.status === 'cancelled' ? 'cancelled' : (past ? 'past' : '');
     const seatClass = c.available === 0 ? 'low' : 'ok';
     return `
-      <tr class="${cls}">
+      <tr class="day-row ${cls} ${(c.visits || []).length ? 'has-visits' : ''}">
         <td class="nowrap">${fmtDate(c.startsAt)}</td>
         <td>
           <span class="tag" style="background:${swatch(c.courseCode)}">${esc(c.courseCode)}</span>
@@ -437,12 +481,14 @@ const Admin = (() => {
         </td>
         <td class="hide-sm nowrap">${fmtTime(c.startsAt)} – ${fmtTime(c.endsAt)}</td>
         <td class="nowrap">
-          <span class="num ${c.availableSlots === 0 ? 'low' : 'ok'}">${c.bookedSlots || 0}</span>
-          <span class="muted">of ${(c.bookedSlots || 0) + (c.availableSlots || 0)} times</span>
+          <span class="num ${c.availableSlots === 0 ? 'low' : 'ok'}">${c.availableSlots || 0}</span>
+          time slot${c.availableSlots === 1 ? '' : 's'} available
+          <div class="muted" style="font-size:12.5px">${c.bookedSlots || 0} booked</div>
         </td>
         <td class="hide-sm nowrap">
-          <span class="num ${seatClass}">${c.taken}/${c.capacity}</span>
-          <span class="muted">(${c.confirmed} paid)</span>
+          <span class="num ${seatClass}">${c.available}</span>
+          seat${c.available === 1 ? '' : 's'} available
+          <div class="muted" style="font-size:12.5px">${c.taken}/${c.capacity} taken · ${c.confirmed} paid</div>
         </td>
         <td class="hide-sm">${c.waitlist || '—'}</td>
         <td class="hide-sm nowrap" title="Trips booked / allowed per zone on this date">
@@ -1022,7 +1068,8 @@ const Admin = (() => {
     $('boxBody').innerHTML = `
       <p class="sub">
         ${visits.size} visit${visits.size === 1 ? '' : 's'} ·
-        ${data.seats.taken} of ${data.seats.capacity} places booked
+        ${data.seats.available} seat${data.seats.available === 1 ? '' : 's'} available
+        (${data.seats.taken} of ${data.seats.capacity} taken)
         ${waiting.length ? ` · ${waiting.length} waiting` : ''}
       </p>
       ${visitHtml}
@@ -1086,7 +1133,6 @@ const Admin = (() => {
     localStorage.setItem('spectrum_admin_theme', dark ? 'light' : 'dark');
   }
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeBox(); });
 
   // boot
   const savedTheme = localStorage.getItem('spectrum_admin_theme');

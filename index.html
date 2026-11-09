@@ -1019,8 +1019,8 @@ const Booking = (() => {
     }
     const tight = c.availableSlots <= 2 || c.seatsAvailable <= 3;
     return `<span class="${tight ? 'seats-low' : 'seats-ok'}">
-      ${c.availableSlots} time${c.availableSlots === 1 ? '' : 's'} ·
-      ${c.seatsAvailable} place${c.seatsAvailable === 1 ? '' : 's'}
+      ${c.availableSlots} time slot${c.availableSlots === 1 ? '' : 's'} available ·
+      ${c.seatsAvailable} seat${c.seatsAvailable === 1 ? '' : 's'} available
     </span>`;
   }
 
@@ -1128,11 +1128,11 @@ const Booking = (() => {
           <div class="slot-name">${esc(c.title)}</div>
           <div class="slot-meta">
             ${fmtTime(c.opensAt || c.startsAt)}–${fmtTime(c.closesAt || c.endsAt)} ·
-            ${c.availableSlots} time${c.availableSlots === 1 ? '' : 's'} open
+            ${c.availableSlots} time slot${c.availableSlots === 1 ? '' : 's'} available
           </div>
         </div>
         <div class="slot-seats ${c.isFull || c.availableSlots <= 2 ? 'low' : ''}">
-          ${c.isFull ? 'Booked' : c.availableSlots + ' times'}
+          ${c.isFull ? 'Booked' : `${c.availableSlots} slot${c.availableSlots === 1 ? '' : 's'}`}
         </div>
       </div>`).join('');
   }
@@ -1353,6 +1353,15 @@ const Booking = (() => {
       }
     });
 
+    // The browser's own autofill can fill the ZIP without an input event,
+    // so check the zone on change too.
+    root.addEventListener('change', (e) => {
+      if (e.target.id === 'fZip') {
+        lookupZip(e.target);
+        checkZone();
+      }
+    });
+
     root.addEventListener('keydown', (e) => {
       if (e.target.id === 'fAddress' && addrEl().classList.contains('open')) {
         if (e.key === 'ArrowDown') { e.preventDefault(); moveAddr(1); }
@@ -1564,6 +1573,8 @@ const Booking = (() => {
 
     hideAddr();
     document.getElementById('addrHint').textContent = 'Looks good.';
+    // A filled-in ZIP needs its zone and travel charge just like a typed one.
+    checkZone();
     document.getElementById('fUnit')?.focus();
   }
 
@@ -1863,7 +1874,7 @@ const Booking = (() => {
         : daySlots.seatsLeft === 0
           ? 'This day is fully booked.'
           : daySlots.seatsLeft < qty
-            ? `Only ${daySlots.seatsLeft} place${daySlots.seatsLeft === 1 ? '' : 's'} left this day.`
+            ? `Only ${daySlots.seatsLeft} seat${daySlots.seatsLeft === 1 ? '' : 's'} available this day.`
             : 'Every time on this day is taken.';
       area.innerHTML = `<p class="group-note">${why}</p>`;
       showAlternatives(null, travel && travel.ok ? travel.zip : null);
@@ -1918,7 +1929,7 @@ const Booking = (() => {
           <span>
             ${fmtTime(a.suggestedSlot)}
             ${a.matchesPreferredTime ? '<span class="match">· the time you wanted</span>' : ''}
-            · ${a.seatsLeft} place${a.seatsLeft === 1 ? '' : 's'} left
+            · ${a.seatsLeft} seat${a.seatsLeft === 1 ? '' : 's'} available
           </span>
         </div>`).join('')}`;
     area.appendChild(wrap);
@@ -2118,7 +2129,7 @@ const Booking = (() => {
     renderPrice();
 
     const btn = document.querySelector('#bookBody > .btn');
-    if (btn) btn.textContent = qty > 1 ? `Hold ${qty} places` : 'Hold my seat';
+    if (btn) btn.textContent = qty > 1 ? `Hold ${qty} seats` : 'Hold my seat';
   }
 
   // step 2 — seat held, pay now
@@ -2385,7 +2396,7 @@ const Booking = (() => {
             <span>
               ${fmtTime(a.suggestedSlot)}
               ${a.matchesPreferredTime ? '<span class="match">· the time you wanted</span>' : ''}
-              · ${a.seatsLeft} place${a.seatsLeft === 1 ? '' : 's'} left
+              · ${a.seatsLeft} seat${a.seatsLeft === 1 ? '' : 's'} available
             </span>
           </div>`).join('')}` : ''}
 
@@ -2430,20 +2441,17 @@ const Booking = (() => {
 
   // ------------------------------------------------------------------- init
 
+  // Escape only dismisses the suggestion lists. The booking window itself
+  // closes from its × alone, so a stray key or click can't lose a booking
+  // halfway through.
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      if (suggestBox?.classList.contains('open')) { hideSuggest(); return; }
-      close();
-    }
+    if (e.key === 'Escape') { hideSuggest(); hideAddr(); }
   });
 
   // The list is fixed-position, so it would drift away from its field.
   window.addEventListener('scroll', () => { hideSuggest(); hideAddr(); }, true);
   window.addEventListener('resize', () => { hideSuggest(); hideAddr(); });
 
-  document.getElementById('bookVeil')?.addEventListener('click', (e) => {
-    if (e.target.id === 'bookVeil') close();
-  });
 
   checkServer();
   load();

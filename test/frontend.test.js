@@ -101,7 +101,8 @@ async function until(fn, timeoutMs = 4000) {
 
   const firstRow = rows[0]?.textContent || '';
   check('a course title appears', firstRow.includes('CPR / AED'), firstRow.slice(0, 80));
-  check('availability appears', /\d+ times? · \d+ places?/.test(firstRow.replace(/\s+/g, ' ')),
+  check('availability appears',
+    /\d+ time slots? available · \d+ seats? available/.test(firstRow.replace(/\s+/g, ' ')),
     firstRow.replace(/\s+/g, ' ').slice(0, 100));
 
   check('times render in local form, not raw UTC',
@@ -116,6 +117,12 @@ async function until(fn, timeoutMs = 4000) {
   await sleep(400);
 
   check('the modal opens', doc.getElementById('bookVeil').classList.contains('open'));
+
+  doc.getElementById('bookVeil').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await sleep(100);
+  check('a click outside or Escape does not close it',
+    doc.getElementById('bookVeil').classList.contains('open'));
   check('it names the course', doc.getElementById('bookTitle').textContent === 'CPR / AED');
   check('the price shows', (doc.getElementById('bookBody').textContent || '').includes('85.00'));
   check('a solo booking is told about the surcharge',
@@ -643,6 +650,20 @@ async function until(fn, timeoutMs = 4000) {
   check('and the city', doc.getElementById('fCity').value === 'Hillsboro');
   check('and the state', doc.getElementById('fState').value === 'OR');
   check('and the ZIP', doc.getElementById('fZip').value === '97123');
+  check('an autofilled address shows its zone',
+    await until(() => (doc.getElementById('addrHint').textContent || '').includes('Zone 1')),
+    doc.getElementById('addrHint').textContent);
+  check('and the travel line fills in',
+    (doc.getElementById('totalLine').textContent || '').includes('Zone 1'),
+    doc.getElementById('totalLine').textContent);
+
+  // The browser's own autofill may fill the field and fire only "change".
+  const autoZip = doc.getElementById('fZip');
+  autoZip.value = '97301';
+  autoZip.dispatchEvent(new window.Event('change', { bubbles: true }));
+  check('a browser-autofilled ZIP shows its zone too',
+    await until(() => (doc.getElementById('addrHint').textContent || '').includes('Zone 2')),
+    doc.getElementById('addrHint').textContent);
 
   doc.getElementById('fAddress').value = '12';
   window.Booking._queryAddress(doc.getElementById('fAddress'));
