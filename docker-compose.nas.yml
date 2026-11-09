@@ -36,7 +36,8 @@ services:
       - HOLD_MINUTES=20
       - OFFER_HOURS=24
       - SESSION_MINUTES=240
-      - BUFFER_MINUTES=90
+      # Travel between visits until it's changed under Booking rules.
+      - BUFFER_MINUTES=60
       - ORG_NAME=Spectrum CPR + First Aid
       # CHANGE THIS. Anyone with it can read every customer's name, phone and
       # home address.
