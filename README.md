@@ -29,9 +29,9 @@ the other suites already cover from the inside, so skipping it on Windows
 costs little.
 
 ```bash
-npm run test:all        # everything that runs on Node — 403 checks
+npm run test:all        # everything that runs on Node — 408 checks
 npm test                # holds, payment, waitlist, groups (32)
-npm run test:slots      # the slot calendar and blocking (34)
+npm run test:slots      # the slot calendar and blocking (39)
 npm run test:pricing    # group bands, rounding, fallbacks (22)
 npm run test:zones      # travel zones, charges, trips per day (29)
 npm run test:schedule   # schedules, time off, notice, trainers, course prices (34)
@@ -86,6 +86,13 @@ inside that window at their own address.
   the day doesn't need to be inside working hours.
 - A booking is **exclusive**: one van, one address, one time. Unlike a
   classroom, nobody else can join a booked slot.
+- **Starts that would waste the day aren't offered.** A visit holds a
+  trainer for the session plus travel (5.5 hours by default), so a start in
+  the middle of the day can leave too little room either side for anyone
+  else. A time is only offered if booking it still leaves room for as many
+  visits as the day could otherwise take (`wastesDay()` in `seats.js`). On
+  an 8am–9pm day that hides roughly 12:00–1:00; on a day that only fits one
+  visit anyway, every time is offered.
 - `capacity` on a day is how many people the instructor will train that day in
   total, across every visit. A party of six draws six from it.
 

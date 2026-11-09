@@ -144,8 +144,10 @@ async function until(fn, timeoutMs = 4000) {
 
   check('times load', await until(() => doc.querySelectorAll('.slot-btn').length > 0),
     doc.getElementById('slotArea')?.textContent);
-  check('a ten hour day offers 13 starts',
-    doc.querySelectorAll('.slot-btn').length === 13,
+  // 13 half-hour starts fit in ten hours, but a visit holds the trainer for
+  // 5.5: only the starts that leave room for a second visit are offered.
+  check('a ten hour day offers the 4 starts that fit two visits',
+    doc.querySelectorAll('.slot-btn').length === 4,
     `${doc.querySelectorAll('.slot-btn').length} buttons`);
   check('an address field is asked for', !!doc.getElementById('fAddress'));
 

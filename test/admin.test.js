@@ -480,7 +480,7 @@ async function until(fn, timeoutMs = 4000) {
         name: `Person ${who}`, email: `${who}@example.com`,
         // Separate visits: each booking owns its time outright, and a
         // session plus travel blocks 5.5 hours.
-        slotStart: freeTimes[i * 11],
+        slotStart: i === 0 ? freeTimes[0] : freeTimes[freeTimes.length - 1],
         address: '1200 SW Main St, Hillsboro, OR 97123',
       }),
     });

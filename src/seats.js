@@ -243,6 +243,38 @@ function trainerFree(visits, start, trainers) {
   return points.every((p) => depthAt(visits, p) + 1 <= trainers);
 }
 
+/**
+ * How many more visits fit into these start times, on top of the ones booked.
+ *
+ * Taking the earliest start that fits, again and again, packs equal-length
+ * visits as tightly as they can go, so the count is the most the day can
+ * still take.
+ */
+function roomFor(visits, starts, trainers) {
+  const placed = [...visits];
+  let n = 0;
+  for (const start of starts) {
+    if (trainerFree(placed, start, trainers)) {
+      placed.push({ slot_start: start });
+      n++;
+    }
+  }
+  return n;
+}
+
+/**
+ * Would booking this start throw away a visit the day could otherwise take?
+ *
+ * A visit holds a trainer for the session plus travel — 5.5 hours by default
+ * — so a start in the middle of the day can leave too little room either
+ * side for anyone else. Those starts aren't offered: what's left is every
+ * time that still lets the day fit as many visits as it could.
+ */
+function wastesDay(visits, starts, start, trainers, before = roomFor(visits, starts, trainers)) {
+  const after = roomFor([...visits, { slot_start: start }], starts, trainers);
+  return after + 1 < before;
+}
+
 /** Is this calendar date (YYYY-MM-DD) inside any time off? */
 function isTimeOff(ymd) {
   return Boolean(getDb()
@@ -472,6 +504,13 @@ function slotGrid(cls) {
   return out;
 }
 
+/** A day's start times that are still in the future and past the notice. */
+function bookableStarts(cls, now) {
+  const cutoff = new Date(now).getTime() + minNoticeHours() * 3600_000;
+  return slotGrid(cls).filter((t) => new Date(t).getTime() >= cutoff
+    && new Date(t).getTime() > new Date(now).getTime());
+}
+
 /** Bookings that still hold time, on one day or on several. */
 function activeBookings(db, classIds, now) {
   const ids = Array.isArray(classIds) ? classIds : [classIds];
@@ -531,6 +570,10 @@ function daySlots(classId, { partySize = 1, now = nowIso(), zone = null } = {}) 
   const offDay = isTimeOff(localDate(cls.starts_at));
   const trainers = trainersOn(localDate(cls.starts_at));
 
+  // Starts still open to anyone, for working out what would waste the day.
+  const open = bookableStarts(cls, now);
+  const room = roomFor(booked, open, trainers);
+
   const slots = slotGrid(cls).map((start) => {
     const startMs = new Date(start).getTime();
 
@@ -540,6 +583,7 @@ function daySlots(classId, { partySize = 1, now = nowIso(), zone = null } = {}) 
     else if (offDay) reason = 'time_off';
     else if (trainers === 0) reason = 'no_trainer';
     else if (!trainerFree(booked, start, trainers)) reason = 'booked';
+    else if (wastesDay(booked, open, start, trainers, room)) reason = 'gap';
     else if (seatsLeft < partySize) reason = seatsLeft === 0 ? 'day_full' : 'not_enough_seats';
     else if (zoneFull) reason = 'zone_full';
 
@@ -746,7 +790,12 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
     // inside the transaction, so two customers clicking the same time
     // serialise instead of both being told yes.
     const trainers = trainersOn(localDate(cls.starts_at));
-    if (!trainerFree(instructorBookings(db, cls, now), args.slotStart, trainers)) {
+    const others = instructorBookings(db, cls, now);
+    if (!trainerFree(others, args.slotStart, trainers)) {
+      return { ok: false, reason: 'slot_taken', slotStart: args.slotStart };
+    }
+    // ...and doesn't leave the rest of the day too broken up to use.
+    if (wastesDay(others, bookableStarts(cls, now), args.slotStart, trainers)) {
       return { ok: false, reason: 'slot_taken', slotStart: args.slotStart };
     }
     // ...and the day still has a trip left into their zone. Inside the
