@@ -390,6 +390,51 @@ test('the usual number can be raised for every day', () => {
   seats.setSetting('default_trainers', 1);
 });
 
+console.log('\ntravel time between visits');
+
+/** A one-off CPR day on a far-off date, hours in local time. */
+function oneDay(ymd, open, close) {
+  const info = getDb().prepare(
+    `INSERT INTO classes (course_code, title, starts_at, ends_at, location, capacity, price_cents)
+     VALUES ('CPR', 'CPR / AED', ?, ?, '', 20, 8500)`)
+    .run(schedule.zonedToUtc(ymd, open), schedule.zonedToUtc(ymd, close));
+  return seats.getClass(Number(info.lastInsertRowid));
+}
+const localTime = (iso) => new Date(iso).toLocaleTimeString('en-US',
+  { timeZone: seats.BUSINESS_TZ, hour: 'numeric', minute: '2-digit' });
+const openTimes = (cls) => seats.daySlots(cls.id).slots.filter((x) => x.available).map((x) => localTime(x.start));
+
+test('travel defaults to one hour', () => {
+  clearAll();
+  assert.strictEqual(seats.bufferMinutes(), 60);
+});
+
+test('8am-9pm with a 1pm visit still fits an 8am one: class 8-12, drive 12-1', () => {
+  clearAll();
+  const cls = oneDay('2027-06-07', '08:00', '21:00');
+  const one = seats.slotGrid(cls).find((t) => localTime(t) === '1:00 PM');
+  getDb().prepare(`INSERT INTO registrations (public_ref, class_id, status, student_name, student_email,
+      amount_cents, slot_start, address) VALUES ('SPC-TEST01', ?, 'confirmed', 'Billy', 'b@x.com', 10000, ?, 'x')`)
+    .run(cls.id, one);
+  assert.deepStrictEqual(openTimes(cls), ['8:00 AM']);
+  assert.strictEqual(book(cls, 0).ok, true);
+});
+
+test('with 1.5 hours of travel the same day has no room left', () => {
+  seats.setSetting('buffer_minutes', 90);
+  const cls = getDb().prepare(`SELECT * FROM classes WHERE starts_at LIKE '2027-06-07%'`).get();
+  getDb().prepare(`DELETE FROM registrations WHERE class_id = ? AND public_ref != 'SPC-TEST01'`).run(cls.id);
+  assert.deepStrictEqual(openTimes(cls), []);
+  seats.setSetting('buffer_minutes', 60);
+});
+
+test('an empty 8am-9pm day now fits two visits with more choice of time', () => {
+  clearAll();
+  const cls = oneDay('2027-06-08', '08:00', '21:00');
+  const times = openTimes(cls);
+  assert.ok(times.includes('8:00 AM') && times.includes('12:00 PM') && times.includes('5:00 PM'), times.join(' '));
+});
+
 console.log('\nminimum notice');
 
 test('times inside the notice period are not offered', () => {

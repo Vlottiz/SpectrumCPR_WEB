@@ -17,6 +17,7 @@ for (const f of [TMP, `${TMP}-wal`, `${TMP}-shm`]) {
   if (fs.existsSync(f)) fs.unlinkSync(f);
 }
 process.env.DB_PATH = TMP;
+process.env.BUFFER_MINUTES = '90';   // the figures below assume 1.5h travel
 process.env.HOLD_MINUTES = '20';
 
 const { getDb, closeDb } = require('../src/db');

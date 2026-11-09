@@ -46,6 +46,7 @@ async function until(fn, timeoutMs = 4000) {
   process.env.PORT = String(PORT);
   process.env.PAYMENT_PROVIDER = 'mock';
   process.env.ADMIN_TOKEN = 'fe-test';
+  process.env.BUFFER_MINUTES = '90';   // the suite's figures assume 1.5h travel
 
   // Fresh database with the sample classes.
   for (const f of [process.env.DB_PATH, `${process.env.DB_PATH}-wal`, `${process.env.DB_PATH}-shm`]) {

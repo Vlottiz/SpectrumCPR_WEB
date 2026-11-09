@@ -56,7 +56,7 @@ check "and advertises slot booking"      "$OUT" 'slots'
 OUT=$(curl -s -m 5 "$API/api/classes/1/slots")
 check "a day offers bookable times" "$OUT" '"available":true'
 check "it reports the session length" "$OUT" '"sessionMinutes":240'
-check "and the travel buffer"         "$OUT" '"bufferMinutes":90'
+check "and the travel buffer"         "$OUT" '"bufferMinutes":60'
 
 echo
 echo "booking flow"

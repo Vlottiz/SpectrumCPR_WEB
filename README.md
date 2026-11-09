@@ -29,15 +29,15 @@ the other suites already cover from the inside, so skipping it on Windows
 costs little.
 
 ```bash
-npm run test:all        # everything that runs on Node — 407 checks
+npm run test:all        # everything that runs on Node — 413 checks
 npm test                # holds, payment, waitlist, groups (32)
 npm run test:slots      # the slot calendar and blocking (39)
 npm run test:pricing    # group bands, rounding, fallbacks (22)
 npm run test:zones      # travel zones, charges, trips per day (29)
-npm run test:schedule   # schedules, time off, notice, trainers, course prices (34)
+npm run test:schedule   # schedules, time off, notice, trainers, prices, travel (38)
 npm run test:address    # address parsing, ZIP lookup, outages (19)
 npm run test:fe         # booking page in a headless DOM (140)
-npm run test:admin      # admin page and its API (102)
+npm run test:admin      # admin page and its API (104)
 
 npm run test:e2e        # full API flow over HTTP (37) — needs bash
 ```
@@ -57,7 +57,7 @@ decline a fake payment.
 | `DB_PATH` | `./data/booking.db` | SQLite file |
 | `HOLD_MINUTES` | `20` | seat reservation window |
 | `SESSION_MINUTES` | `240` | how long the instructor is on site |
-| `BUFFER_MINUTES` | `90` | pack-up and travel, added to the block |
+| `BUFFER_MINUTES` | `60` | travel between visits until it's set on the admin page |
 | `BUSINESS_TZ` | `America/Los_Angeles` | whose calendar date "per day" zone limits count by |
 | `HOME_ZIP` | `97116` | where travel distances are measured from |
 | `MIN_NOTICE_HOURS` | `24` | booking notice until it's set on the admin page |
@@ -87,12 +87,12 @@ inside that window at their own address.
 - A booking is **exclusive**: one van, one address, one time. Unlike a
   classroom, nobody else can join a booked slot.
 - **Starts that would waste the day aren't offered.** A visit holds a
-  trainer for the session plus travel (5.5 hours by default), so a start in
+  trainer for the session plus travel (5 hours with the default hour, set
+  under Booking rules on the admin page), so a start in
   the middle of the day can leave too little room either side for anyone
   else. A time is only offered if booking it still leaves room for as many
-  visits as the day could otherwise take (`wastesDay()` in `seats.js`). On
-  an 8am–9pm day that hides roughly 12:00–1:00; on a day that only fits one
-  visit anyway, every time is offered.
+  visits as the day could otherwise take (`wastesDay()` in `seats.js`). On a
+  day that only fits one visit anyway, every time is offered.
 - `capacity` on a day is how many people the instructor will train that day in
   total, across every visit. A party of six draws six from it.
 

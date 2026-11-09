@@ -37,6 +37,7 @@ async function until(fn, timeoutMs = 4000) {
   process.env.PORT = String(PORT);
   process.env.PAYMENT_PROVIDER = 'mock';
   process.env.ADMIN_TOKEN = TOKEN;
+  process.env.BUFFER_MINUTES = '90';   // the suite's figures assume 1.5h travel
 
   for (const f of [process.env.DB_PATH, `${process.env.DB_PATH}-wal`, `${process.env.DB_PATH}-shm`]) {
     if (fs.existsSync(f)) fs.unlinkSync(f);
@@ -413,6 +414,22 @@ async function until(fn, timeoutMs = 4000) {
   await fetch(`${BASE}/api/admin/settings`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
     body: JSON.stringify({ minNoticeHours: 24 }),
+  });
+
+  console.log('\ntravel time');
+
+  await window.Admin.refresh();
+  check('travel time is shown under booking rules', $('travel').value === '90', $('travel').value);
+  $('travel').value = '60';
+  $('travel').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(400);
+  const travelNow = await (await fetch(`${BASE}/api/admin/schedules`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json();
+  check('changing it saves', travelNow.bufferMinutes === 60, `got ${travelNow.bufferMinutes}`);
+  await fetch(`${BASE}/api/admin/settings`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: JSON.stringify({ bufferMinutes: 90 }),
   });
 
   const bulkBad = await (await fetch(`${BASE}/api/admin/classes/bulk`, {

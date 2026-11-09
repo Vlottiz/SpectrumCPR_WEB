@@ -369,6 +369,9 @@
         <h3>Booking rules</h3>
         <label for="notice" style="font-weight:400;color:var(--ink-soft)">How far ahead customers must book</label>
         <select id="notice" aria-label="Minimum booking notice" onchange="Admin.setNotice(this.value)"></select>
+        <label for="travel" style="font-weight:400;color:var(--ink-soft);margin-top:12px">
+          Travel time between visits</label>
+        <select id="travel" onchange="Admin.setTravel(this.value)"></select>
         <label for="trainersDefault" style="font-weight:400;color:var(--ink-soft);margin-top:12px">
           Trainers on a normal day</label>
         <select id="trainersDefault" onchange="Admin.setDefaultTrainers(this.value)"></select>
@@ -1392,6 +1395,13 @@ const Admin = (() => {
                onchange="Admin.setPrice('${c.code}', this.value)">
       </div>`).join('');
 
+    const travel = data.bufferMinutes ?? 60;
+    const TRAVEL = [[30, '30 minutes'], [45, '45 minutes'], [60, '1 hour'], [75, '1¼ hours'],
+                    [90, '1½ hours'], [120, '2 hours']];
+    $('travel').innerHTML = TRAVEL.map(([m, label]) =>
+      `<option value="${m}" ${m === travel ? 'selected' : ''}>${label}</option>`).join('') +
+      (TRAVEL.some(([m]) => m === travel) ? '' : `<option value="${travel}" selected>${travel} minutes</option>`);
+
     $('trainersDefault').innerHTML = Array.from({ length: 11 }, (_, i) =>
       `<option value="${i}" ${i === defaultTrainers ? 'selected' : ''}>${i}</option>`).join('');
 
@@ -1496,6 +1506,13 @@ const Admin = (() => {
       body: JSON.stringify({ priceCents: cents })});
     toast(data.ok ? `Price saved — ${data.daysUpdated} upcoming day${data.daysUpdated === 1 ? '' : 's'} updated`
                   : (data.message || 'Could not save the price'));
+    refresh();
+  }
+
+  async function setTravel(value){
+    const { data } = await api('/api/admin/settings', {method:'POST',
+      body: JSON.stringify({ bufferMinutes: Number(value) })});
+    toast(data.ok ? 'Travel time saved — open times updated' : (data.message || 'Could not save'));
     refresh();
   }
 
@@ -1799,7 +1816,7 @@ const Admin = (() => {
            setMode, editWeek, previewWeek,
            editSchedule, toggleSchedule, deleteSchedule,
            newTimeOff, saveTimeOff, removeTimeOff, setNotice,
-           setPrice, setDefaultTrainers,
+           setPrice, setDefaultTrainers, setTravel,
            editTrainers, stepTrainers, resetTrainers, saveTrainers, bumpTrainers };
 })();
 window.Admin = Admin;

@@ -806,6 +806,7 @@ app.get('/api/admin/schedules', requireAdmin, (req, res) => {
       .all(seats.localDate(new Date(Date.now() - 86400_000).toISOString()))
       .map((r) => [r.day, r.trainers])),
     minNoticeHours: seats.minNoticeHours(),
+    bufferMinutes: seats.bufferMinutes(),
     sessionMinutes: seats.SESSION_MINUTES,
     maxWeeksAhead: schedule.MAX_WEEKS_AHEAD,
   });
@@ -913,7 +914,14 @@ app.post('/api/admin/trainers', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/settings', requireAdmin, (req, res) => {
-  const { minNoticeHours, defaultTrainers } = req.body || {};
+  const { minNoticeHours, defaultTrainers, bufferMinutes } = req.body || {};
+  if (bufferMinutes !== undefined) {
+    const n = Number(bufferMinutes);
+    if (!Number.isInteger(n) || n < 0 || n > 240) {
+      return bad(res, 400, 'buffer_invalid', { message: 'Pick a travel time.' });
+    }
+    seats.setSetting('buffer_minutes', n);
+  }
   if (defaultTrainers !== undefined) {
     const n = Number(defaultTrainers);
     if (!Number.isInteger(n) || n < 0 || n > 20) {
@@ -929,7 +937,7 @@ app.post('/api/admin/settings', requireAdmin, (req, res) => {
     seats.setSetting('min_notice_hours', n);
   }
   res.json({ ok: true, minNoticeHours: seats.minNoticeHours(),
-             defaultTrainers: seats.defaultTrainers() });
+             defaultTrainers: seats.defaultTrainers(), bufferMinutes: seats.bufferMinutes() });
 });
 
 /** What would have been emailed. Replace with a real mail provider later. */

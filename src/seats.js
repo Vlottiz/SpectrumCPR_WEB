@@ -14,15 +14,26 @@ const MAX_GROUP_SEATS = Number(process.env.MAX_GROUP_SEATS || 12);
 // How long the instructor is on site teaching.
 const SESSION_MINUTES = Number(process.env.SESSION_MINUTES || 240);
 
-// Setting up beforehand, packing down and driving to the next customer. Added
-// to the session, so a booking occupies 5.5 hours of the calendar even though
-// the customer has the instructor for 4.
-const BUFFER_MINUTES = Number(process.env.BUFFER_MINUTES || 90);
+// Travel between visits: packing down and driving to the next customer.
+// Added after the session, so with the default hour a booking holds the
+// instructor for 5 hours though the customer has them for 4. Set on the
+// admin page (settings.buffer_minutes); BUFFER_MINUTES is only the starting
+// value.
+const BUFFER_MINUTES = Number(process.env.BUFFER_MINUTES || 60);
 
 // Spacing of the offered start times.
 const SLOT_STEP_MINUTES = Number(process.env.SLOT_STEP_MINUTES || 30);
 
 const BLOCK_MINUTES = SESSION_MINUTES + BUFFER_MINUTES;
+
+/** Travel time between visits, in minutes, as currently set. */
+function bufferMinutes() {
+  const v = Number(getSetting('buffer_minutes', BUFFER_MINUTES));
+  return Number.isFinite(v) && v >= 0 && v <= 240 ? v : BUFFER_MINUTES;
+}
+
+/** How long one visit holds a trainer: the session plus travel. */
+const blockMinutes = () => SESSION_MINUTES + bufferMinutes();
 
 // The business's own timezone. "Per day" limits are counted by the calendar
 // date here, not by UTC — a 5pm Pacific visit is 01:00 UTC the next day.
@@ -221,7 +232,7 @@ function overbooked(ymd, now = nowIso()) {
 /** How many of these visits are in progress (session plus travel) at an instant. */
 function depthAt(visits, iso) {
   const t = new Date(iso).getTime();
-  const block = BLOCK_MINUTES * 60_000;
+  const block = blockMinutes() * 60_000;
   return visits.filter((v) => {
     const s = new Date(v.slot_start).getTime();
     return s <= t && t < s + block;
@@ -236,7 +247,7 @@ function depthAt(visits, iso) {
 function trainerFree(visits, start, trainers) {
   if (trainers <= 0) return false;
   const s = new Date(start).getTime();
-  const block = BLOCK_MINUTES * 60_000;
+  const block = blockMinutes() * 60_000;
   const points = [start, ...visits
     .map((v) => v.slot_start)
     .filter((p) => { const t = new Date(p).getTime(); return t >= s && t < s + block; })];
@@ -600,7 +611,7 @@ function daySlots(classId, { partySize = 1, now = nowIso(), zone = null } = {}) 
     opensAt: cls.starts_at,
     closesAt: cls.ends_at,
     sessionMinutes: SESSION_MINUTES,
-    bufferMinutes: BUFFER_MINUTES,
+    bufferMinutes: bufferMinutes(),
     trainers,
     capacity: cls.capacity,
     seatsTaken,
@@ -1585,6 +1596,7 @@ function queueOfferEmail(db, reg, expiresAt) {
 }
 
 module.exports = {
+  bufferMinutes,
   COURSES,
   courses,
   coursePrice,
