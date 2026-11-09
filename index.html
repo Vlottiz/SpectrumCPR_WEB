@@ -235,6 +235,16 @@
     background:var(--paper);color:var(--ink);border:1.5px solid var(--rule);
   }
   .course-filter button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  /* Each course in its own colour, matching its tag on the schedule: a dot
+     when it's not picked, the whole button when it is. */
+  .course-filter button[data-code]::before{
+    content:"";display:inline-block;width:10px;height:10px;border-radius:50%;
+    background:var(--c);margin-right:8px;vertical-align:0;
+  }
+  .course-filter button[data-code]{border-color:var(--c);}
+  .course-filter button[data-code]:hover{background:color-mix(in srgb, var(--c) 12%, var(--paper));}
+  .course-filter button[data-code][aria-pressed="true"]{background:var(--c);border-color:var(--c);color:#fff;}
+  .course-filter button[data-code][aria-pressed="true"]::before{background:#fff;}
 
   /* schedule, grouped by week and then by day */
   .sched-week{margin:0 0 34px;}
@@ -1117,6 +1127,7 @@ const Booking = (() => {
     el.innerHTML = [[null, 'All courses'], ...codes.map((c) => [c, label(c)])]
       .map(([code, text]) => `
         <button type="button" aria-pressed="${courseShown === code}"
+                ${code ? `data-code="${code}" style="--c:${swatch(code)}"` : ''}
                 onclick="Booking.showCourse(${code ? `'${code}'` : 'null'})">${esc(text)}</button>`)
       .join('');
   }

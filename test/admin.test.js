@@ -323,33 +323,62 @@ async function until(fn, timeoutMs = 4000) {
 
   await window.Admin.refresh();
   check('the usual trainers default to 1', $('trainersDefault').value === '1');
-  const dayPicker = () => doc.querySelector('.trainer-strip select[data-day]');
-  check('each week heading has a trainer picker per day', !!dayPicker());
-  const pickDay = dayPicker().dataset.day;
-  dayPicker().value = '2';
-  dayPicker().dispatchEvent(new window.Event('change', { bubbles: true }));
-  await sleep(400);
+  const line = () => doc.querySelector('.trainer-line');
+  check('each week says who is working in words',
+    (line()?.textContent || '').includes('1 trainer each day'), line()?.textContent);
+
+  const changeBtn = line().querySelector('button');
+  const weekStart = changeBtn.dataset.week;
+  changeBtn.click();
+  await sleep(150);
+  check('Change opens a simple editor', $('veil').classList.contains('open')
+    && doc.querySelectorAll('#steps .step-row[data-day]').length >= 1);
+
+  // One more on the first day, and a call-out on the second if there is one.
+  const rows = () => [...doc.querySelectorAll('#steps .step-row[data-day]')];
+  const plus = (r) => r.querySelector('button[aria-label="One more"]');
+  const minus = (r) => r.querySelector('button[aria-label="One fewer"]');
+  plus(rows()[0]).click();
+  check('+ adds a trainer to that day', rows()[0].querySelector('output').textContent === '2');
+  check('and it is marked as more than usual', rows()[0].textContent.includes('More than usual'));
+  const second = rows()[1];
+  if (second) {
+    minus(second).click();
+    check('− down to 0 says nobody is booking that day',
+      rows()[1].textContent.includes('Nobody') && rows()[1].querySelector('output').textContent === '0');
+  }
+  window.Admin.saveTrainers();
+  await until(() => !$('veil').classList.contains('open'));
+  await sleep(300);
+
   const sched = await (await fetch(`${BASE}/api/admin/schedules`, {
     headers: { 'x-admin-token': TOKEN },
   })).json();
-  check('a day can be given more trainers', sched.trainerDays[pickDay] === 2,
+  check('the changed days are saved', sched.trainerDays[weekStart] === 2,
     JSON.stringify(sched.trainerDays));
-  check('and it shows as changed',
-    doc.querySelector(`.trainer-strip select[data-day="${pickDay}"]`)?.classList.contains('changed'));
+  check('the week heading lists the exceptions',
+    /except .*: 2/.test(doc.querySelector(`.trainer-line button[data-week="${weekStart}"]`)
+      ?.closest('.trainer-line')?.textContent.replace(/\s+/g, ' ') || ''),
+    doc.querySelector(`.trainer-line button[data-week="${weekStart}"]`)?.closest('.trainer-line')?.textContent);
 
-  const weekPicker = doc.querySelector('.trainer-strip select[aria-label="Trainers for the whole week"]');
-  weekPicker.value = '0';
-  weekPicker.dispatchEvent(new window.Event('change', { bubbles: true }));
-  await sleep(400);
-  const allOff = await (await fetch(`${BASE}/api/admin/schedules`, {
+  doc.querySelector(`.trainer-line button[data-week="${weekStart}"]`).click();
+  await sleep(150);
+  const all = doc.querySelector('#steps .step-row.all');
+  plus(all).click();
+  check('the every-day stepper sets the whole week',
+    rows().every((r) => r.querySelector('output').textContent === '3'),
+    rows().map((r) => r.querySelector('output').textContent).join(','));
+  window.Admin.resetTrainers();
+  check('back to usual resets every day',
+    rows().every((r) => r.querySelector('output').textContent === '1'));
+  window.Admin.saveTrainers();
+  await until(() => !$('veil').classList.contains('open'));
+  await sleep(300);
+  const cleared = await (await fetch(`${BASE}/api/admin/schedules`, {
     headers: { 'x-admin-token': TOKEN },
   })).json();
-  check('a whole week can be set at once', allOff.trainerDays[pickDay] === 0,
-    JSON.stringify(allOff.trainerDays));
-  await fetch(`${BASE}/api/admin/trainers`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
-    body: JSON.stringify({ days: Object.keys(allOff.trainerDays), trainers: null }),
-  });
+  check('the usual number clears the days back', !(weekStart in cleared.trainerDays),
+    JSON.stringify(cleared.trainerDays));
 
   console.log('\ntime off');
 

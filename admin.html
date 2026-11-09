@@ -124,13 +124,30 @@
   .price-row input{margin:0;padding:7px 8px}
   /* trainers per day, in each week heading */
   tr.week-head td{line-height:1.3}
-  .trainer-strip{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin-top:6px;
-    font-family:var(--sans);font-size:12.5px;font-weight:500;letter-spacing:0}
-  .trainer-strip label{display:flex;align-items:center;gap:4px;margin:0;font-size:12.5px;font-weight:500}
-  .trainer-strip select{width:auto;margin:0;padding:3px 4px;font-size:13px}
-  .trainer-strip select.changed{border-color:var(--blue);font-weight:700}
-  .trainer-strip select.none{border-color:var(--red);color:var(--red)}
-  .trainer-strip b{font-weight:600}
+  .trainer-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:5px;
+    font-family:var(--sans);font-size:13.5px;font-weight:500;letter-spacing:0}
+  .trainer-line .who{color:var(--ink-soft)}
+  .trainer-line .who b{color:var(--ink);font-weight:600}
+  .trainer-line .who .none{color:var(--red);font-weight:600}
+  .trainer-line .who .more{color:var(--blue);font-weight:600}
+  .trainer-line .btn{padding:3px 10px;font-size:12.5px}
+
+  /* the week's trainers, one stepper per day */
+  .steps{border:1.5px solid var(--rule);margin:0 0 14px}
+  .step-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;
+    padding:9px 12px;border-bottom:1px solid var(--rule)}
+  .step-row:last-child{border-bottom:0}
+  .step-row.all{background:var(--paper-2)}
+  .step-row .day b{display:block;font-size:15px}
+  .step-row .day span{font-size:12.5px;color:var(--ink-soft)}
+  .step-row .day span.none{color:var(--red);font-weight:600}
+  .step-row .day span.more{color:var(--blue);font-weight:600}
+  .stepper{display:flex;align-items:center;border:1.5px solid var(--rule);border-radius:2px}
+  .stepper button{background:none;border:0;font:inherit;font-size:20px;font-weight:600;
+    width:40px;height:38px;cursor:pointer;color:var(--ink);line-height:1}
+  .stepper button:disabled{opacity:.3;cursor:not-allowed}
+  .stepper output{font-family:var(--cond);font-size:20px;font-weight:700;min-width:34px;
+    text-align:center;border-left:1px solid var(--rule);border-right:1px solid var(--rule);line-height:38px}
   .panel{border:1px solid var(--rule);padding:15px 17px}
   .panel h3{font-family:var(--cond);font-size:19px;margin:0 0 8px}
   .panel p{margin:0}
@@ -314,8 +331,8 @@
         <label for="trainersDefault" style="font-weight:400;color:var(--ink-soft);margin-top:12px">
           Trainers on a normal day</label>
         <select id="trainersDefault" onchange="Admin.setDefaultTrainers(this.value)"></select>
-        <p class="muted" style="font-size:12.5px;margin-top:6px">Change single days in the
-          week headings below — for someone joining or calling out.</p>
+        <p class="muted" style="font-size:12.5px;margin-top:6px">Someone joining or calling
+          out? Use <b>Change</b> next to that week's trainers below.</p>
       </section>
       <section class="panel">
         <h3>Course prices</h3>
@@ -508,7 +525,7 @@ const Admin = (() => {
     $('rows').innerHTML = classes.length ? classes.map((c) => {
       const week = weekOf(c.startsAt);
       const head = week !== lastWeek
-        ? `<tr class="week-head"><td colspan="9">Week of ${week}${trainerStrip(c.startsAt)}</td></tr>` : '';
+        ? `<tr class="week-head"><td colspan="9">Week of ${week}${trainerLine(c.startsAt)}</td></tr>` : '';
       lastWeek = week;
       return head + dayRow(c, now) + visitRows(c, now);
     }).join('') : '<tr><td colspan="9" class="muted">No training days yet. Add some to get started.</td></tr>';
@@ -520,38 +537,131 @@ const Admin = (() => {
   /** Trainers working a date: its own number, or the usual one. */
   const trainersOn = (ymd) => trainerDays[ymd] ?? defaultTrainers;
 
-  /**
-   * A picker per day of the week, plus one for the whole week, so staff can
-   * staff up a week or mark a mid-week call-out in one click.
-   */
-  function trainerStrip(iso){
+  const MAX_TRAINERS = 10;
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  /** The Monday-to-Sunday dates of the week an instant falls in, from today on. */
+  function weekDates(iso){
     const d = new Date(iso);
     const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
-    const days = Array.from({ length: 7 }, (_, i) =>
-      new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
-    const todayYmd = ymdOf(new Date());
-    const opts = (n) => Array.from({ length: 11 }, (_, i) =>
-      `<option value="${i}" ${i === n ? 'selected' : ''}>${i}</option>`).join('');
-    const week = days.map((x) => ymdOf(x)).filter((x) => x >= todayYmd);
-    if (!week.length) return '';
+    const today = ymdOf(new Date());
+    return Array.from({ length: 7 }, (_, i) =>
+      new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i))
+      .filter((x) => ymdOf(x) >= today);
+  }
+
+  /**
+   * One line per week: who's working, in words, and a button to change it.
+   * "1 trainer each day", or "1 trainer each day, except Wed: 2 · Thu: nobody".
+   */
+  function trainerLine(iso){
+    const days = weekDates(iso);
+    if (!days.length) return '';
+    const odd = days.filter((x) => trainersOn(ymdOf(x)) !== defaultTrainers);
+    const label = (x) => {
+      const n = trainersOn(ymdOf(x));
+      return `${WEEKDAYS[x.getDay()]}: <span class="${n === 0 ? 'none' : 'more'}">${
+        n === 0 ? 'nobody' : n}</span>`;
+    };
     return `
-      <div class="trainer-strip">
-        <b>Trainers:</b>
-        <label>Whole week
-          <select aria-label="Trainers for the whole week"
-                  onchange="Admin.setTrainers(${JSON.stringify(week).replace(/"/g, "'")}, this.value)">
-            <option value="">–</option>${opts(-1)}
-          </select></label>
-        ${days.map((x) => {
-          const ymd = ymdOf(x);
-          if (ymd < todayYmd) return '';
-          const n = trainersOn(ymd);
-          return `<label>${WEEKDAYS[x.getDay()]} ${x.getDate()}
-            <select class="${ymd in trainerDays ? 'changed' : ''} ${n === 0 ? 'none' : ''}"
-                    aria-label="Trainers on ${ymd}" data-day="${ymd}"
-                    onchange="Admin.setTrainers(['${ymd}'], this.value)">${opts(n)}</select></label>`;
-        }).join('')}
+      <div class="trainer-line">
+        <span class="who">Trainers: <b>${plural(defaultTrainers, 'trainer')} each day</b>${
+          odd.length ? `, except ${odd.map(label).join(' · ')}` : ''}</span>
+        <button class="btn btn-ghost btn-sm" data-week="${ymdOf(days[0])}"
+                onclick="Admin.editTrainers('${days[0].toISOString()}')">Change</button>
       </div>`;
+  }
+
+  // The week open in the trainers editor: [{ ymd, date, n }]
+  let trainerEdit = [];
+
+  /** A simple editor: the whole week at once, or day by day, with + and −. */
+  function editTrainers(iso){
+    trainerEdit = weekDates(iso).map((x) => ({ ymd: ymdOf(x), date: x, n: trainersOn(ymdOf(x)) }));
+    openBox(`Trainers — week of ${weekOf(iso)}`, `
+      <div class="err" id="fErr"></div>
+      <p class="sub" style="margin:-4px 0 14px">How many people are teaching each
+        day. Each trainer can do one visit at a time. Set a day to 0 if nobody's
+        available — it stops taking bookings.</p>
+      <div class="steps" id="steps"></div>
+      <button class="btn" style="width:100%" onclick="Admin.saveTrainers()">Save</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:9px"
+              onclick="Admin.resetTrainers()">Back to the usual (${plural(defaultTrainers, 'trainer')})</button>`);
+    renderSteps();
+  }
+
+  function renderSteps(){
+    const box = $('steps');
+    if (!box) return;
+    const same = trainerEdit.every((x) => x.n === trainerEdit[0].n);
+    const stepper = (n, onMinus, onPlus, label) => `
+      <div class="stepper" role="group" aria-label="${label}">
+        <button type="button" onclick="${onMinus}" ${n <= 0 ? 'disabled' : ''} aria-label="One fewer">−</button>
+        <output>${n}</output>
+        <button type="button" onclick="${onPlus}" ${n >= MAX_TRAINERS ? 'disabled' : ''} aria-label="One more">+</button>
+      </div>`;
+    const note = (n) => n === 0 ? '<span class="none">Nobody — no bookings</span>'
+      : n !== defaultTrainers ? `<span class="more">${n > defaultTrainers ? 'More' : 'Fewer'} than usual</span>`
+      : '<span>Usual</span>';
+    const all = same ? trainerEdit[0].n : null;
+    box.innerHTML = `
+      <div class="step-row all">
+        <div class="day"><b>Every day this week</b>
+          <span>${same ? 'Change them all at once' : 'Days differ — set them all the same'}</span></div>
+        ${stepper(all ?? '–', `Admin.stepTrainers(-1, -1)`, `Admin.stepTrainers(-1, 1)`, 'Every day')}
+      </div>
+      ${trainerEdit.map((x, i) => `
+        <div class="step-row" data-day="${x.ymd}">
+          <div class="day"><b>${x.date.toLocaleDateString(undefined, {weekday:'long', month:'short', day:'numeric'})}</b>
+            ${note(x.n)}</div>
+          ${stepper(x.n, `Admin.stepTrainers(${i}, -1)`, `Admin.stepTrainers(${i}, 1)`, `Trainers on ${x.ymd}`)}
+        </div>`).join('')}`;
+  }
+
+  /** i = -1 changes every day; otherwise just that one. */
+  function stepTrainers(i, delta){
+    const clamp = (n) => Math.max(0, Math.min(MAX_TRAINERS, n));
+    if (i < 0){
+      const base = trainerEdit.every((x) => x.n === trainerEdit[0].n)
+        ? trainerEdit[0].n : Math.max(...trainerEdit.map((x) => x.n));
+      trainerEdit.forEach((x) => { x.n = clamp(base + delta); });
+    } else {
+      trainerEdit[i].n = clamp(trainerEdit[i].n + delta);
+    }
+    renderSteps();
+  }
+
+  function resetTrainers(){
+    trainerEdit.forEach((x) => { x.n = defaultTrainers; });
+    renderSteps();
+  }
+
+  async function saveTrainers(){
+    // One request per distinct number; the usual number clears the day back.
+    const groups = new Map();
+    for (const x of trainerEdit){
+      const key = x.n === defaultTrainers ? 'usual' : x.n;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(x.ymd);
+    }
+    const over = [];
+    for (const [key, days] of groups){
+      const { data } = await api('/api/admin/trainers', {method:'POST',
+        body: JSON.stringify({ days, trainers: key === 'usual' ? null : key })});
+      if (!data.ok) return formErr(data.message || 'Could not save.');
+      over.push(...(data.overbooked || []));
+    }
+    closeBox();
+    if (over.length){
+      alert('Saved — but on these days more visits are already booked at the same time '
+        + 'than there are trainers:\n\n'
+        + over.map((o) => `• ${fmtYmd(o.day, {weekday:'long', month:'short', day:'numeric'})}: `
+          + `${o.mostAtOnce} at once, ${plural(o.trainers, 'trainer')}`).join('\n')
+        + '\n\nOpen that day\'s Roster to move or cancel a visit.');
+    } else {
+      toast('Trainers saved');
+    }
+    refresh();
   }
 
   /** "Mon, Nov 16" — the Monday starting the week a date falls in. */
@@ -1293,25 +1403,6 @@ const Admin = (() => {
     refresh();
   }
 
-  async function setTrainers(days, value){
-    if (value === '') return;
-    const n = Number(value);
-    const { data } = await api('/api/admin/trainers', {method:'POST',
-      body: JSON.stringify({ days, trainers: n })});
-    if (!data.ok){ toast(data.message || 'Could not save'); return refresh(); }
-    if (data.overbooked && data.overbooked.length){
-      alert('Saved — but these days already have more visits running at once than trainers:\n\n'
-        + data.overbooked.map((o) => `• ${fmtYmd(o.day, {weekday:'short', month:'short', day:'numeric'})}: `
-          + `${o.mostAtOnce} at once, ${o.trainers} trainer${o.trainers === 1 ? '' : 's'}`).join('\n')
-        + '\n\nOpen that day\'s Roster to move or cancel a visit.');
-    } else {
-      toast(days.length > 1 ? `${n} trainer${n === 1 ? '' : 's'} all week`
-        : n === 0 ? 'No trainers that day — it takes no new bookings'
-        : `${n} trainer${n === 1 ? '' : 's'} that day`);
-    }
-    refresh();
-  }
-
   async function setDefaultTrainers(value){
     const { data } = await api('/api/admin/settings', {method:'POST',
       body: JSON.stringify({ defaultTrainers: Number(value) })});
@@ -1612,7 +1703,8 @@ const Admin = (() => {
            setMode, editWeek, previewWeek,
            editSchedule, toggleSchedule, deleteSchedule,
            newTimeOff, saveTimeOff, removeTimeOff, setNotice,
-           setPrice, setTrainers, setDefaultTrainers };
+           setPrice, setDefaultTrainers,
+           editTrainers, stepTrainers, resetTrainers, saveTrainers };
 })();
 window.Admin = Admin;
 </script>

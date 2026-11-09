@@ -29,7 +29,7 @@ the other suites already cover from the inside, so skipping it on Windows
 costs little.
 
 ```bash
-npm run test:all        # everything that runs on Node — 396 checks
+npm run test:all        # everything that runs on Node — 402 checks
 npm test                # holds, payment, waitlist, groups (32)
 npm run test:slots      # the slot calendar and blocking (34)
 npm run test:pricing    # group bands, rounding, fallbacks (22)
@@ -37,7 +37,7 @@ npm run test:zones      # travel zones, charges, trips per day (29)
 npm run test:schedule   # schedules, time off, notice, trainers, course prices (34)
 npm run test:address    # address parsing, ZIP lookup, outages (19)
 npm run test:fe         # booking page in a headless DOM (140)
-npm run test:admin      # admin page and its API (96)
+npm run test:admin      # admin page and its API (102)
 
 npm run test:e2e        # full API flow over HTTP (37) — needs bash
 ```
