@@ -301,6 +301,20 @@ test('oversized groups are refused', () => {
   assert.strictEqual(r.reason, 'too_many_seats');
 });
 
+test('a group bigger than the day\'s max group size is refused', () => {
+  const day = makeDay({ capacity: 4 });
+  const r = hold(day, 0, ['A', 'B', 'C', 'D', 'E']);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'too_many_seats');
+  assert.strictEqual(r.max, 4);
+});
+
+test('a group of exactly the max group size is fine, past the old 12', () => {
+  const day = makeDay({ capacity: 15 });
+  const r = hold(day, 0, Array.from({ length: 15 }, (_, i) => `P${i}`));
+  assert.strictEqual(r.ok, true, r.reason);
+});
+
 test('blank attendee names are dropped', () => {
   const day = makeDay();
   assert.strictEqual(hold(day, 0, ['Real Name', '', '   ']).seats, 1);

@@ -40,12 +40,20 @@ function weekday(ymd) {
 }
 
 /** Offset of a timezone from UTC at an instant, in ms (Pacific is negative). */
+const offsetFormats = new Map();
+
 function tzOffsetMs(instant, tz) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hourCycle: 'h23',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).formatToParts(instant).map((p) => [p.type, p.value]));
+  // One formatter per timezone, reused: building one per call is slow.
+  let fmt = offsetFormats.get(tz);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+    offsetFormats.set(tz, fmt);
+  }
+  const parts = Object.fromEntries(fmt.formatToParts(instant).map((p) => [p.type, p.value]));
   const asUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day,
                          +parts.hour, +parts.minute, +parts.second);
   return asUtc - Math.floor(instant.getTime() / 1000) * 1000;
@@ -119,7 +127,7 @@ function fillSchedule(id, now = new Date().toISOString()) {
   // What this schedule already has in range, so nothing is made twice.
   const have = new Set(db
     .prepare(`SELECT course_code, starts_at FROM classes
-               WHERE schedule_id = ? AND starts_at >= ?`)
+               WHERE schedule_id = ? AND starts_at >= ? AND archived = 0`)
     .all(id, zonedToUtc(first, '00:00'))
     .map((c) => `${seats.localDate(c.starts_at)}|${c.course_code}`));
   const skipped = new Set(db
@@ -177,7 +185,7 @@ function clearFutureDays(id, now = new Date().toISOString()) {
   const ids = db
     .prepare(
       `SELECT c.id FROM classes c
-        WHERE c.schedule_id = ? AND c.ends_at > ?
+        WHERE c.schedule_id = ? AND c.ends_at > ? AND c.archived = 0
           AND NOT EXISTS (
             SELECT 1 FROM registrations r
              WHERE r.class_id = c.id
@@ -186,8 +194,7 @@ function clearFutureDays(id, now = new Date().toISOString()) {
                     OR (r.status = 'offered' AND r.offer_expires_at > ?)))`)
     .all(id, now, now, now)
     .map((r) => r.id);
-  const del = db.prepare('DELETE FROM classes WHERE id = ?');
-  db.transaction(() => ids.forEach((x) => del.run(x)))();
+  db.transaction(() => ids.forEach((x) => seats.retireDay(db, x)))();
   return ids.length;
 }
 
@@ -319,7 +326,6 @@ function addTimeOff({ startsOn, endsOn, note = '' }, now = new Date().toISOStrin
 
   const removed = [];
   const kept = [];
-  const del = db.prepare('DELETE FROM classes WHERE id = ?');
   db.transaction(() => {
     for (const c of inRange) {
       const people = db.prepare(
@@ -328,7 +334,7 @@ function addTimeOff({ startsOn, endsOn, note = '' }, now = new Date().toISOStrin
                 OR (status = 'held'    AND hold_expires_at  > ?)
                 OR (status = 'offered' AND offer_expires_at > ?))`).get(c.id, now, now).n;
       if (people) kept.push({ id: c.id, title: c.title, startsAt: c.starts_at, people });
-      else { del.run(c.id); removed.push(c.id); }
+      else { seats.retireDay(db, c.id); removed.push(c.id); }
     }
   })();
   return { id: Number(info.lastInsertRowid), removed: removed.length, kept };

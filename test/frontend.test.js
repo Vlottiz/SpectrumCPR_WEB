@@ -152,6 +152,13 @@ async function until(fn, timeoutMs = 4000) {
     `${doc.querySelectorAll('.slot-btn').length} buttons`);
   check('an address field is asked for', !!doc.getElementById('fAddress'));
 
+  /** Tick "Keeping your details", as a customer would. */
+  const agree = () => {
+    const box = doc.getElementById('fConsent');
+    box.checked = true;
+    box.dispatchEvent(new window.Event('change', { bubbles: true }));
+  };
+
   // Nothing should go through without a time.
   const fillAddress = () => {
     doc.getElementById('fAddress').value = '1200 SW Main St';
@@ -216,9 +223,22 @@ async function until(fn, timeoutMs = 4000) {
   check('a bad email is refused',
     (doc.getElementById('bookErr').textContent || '').includes('valid email'));
 
-  // The real thing.
+  // The real thing — but not before agreeing to the details being kept.
   doc.getElementById('fEmail').value = 'jane@example.com';
   doc.getElementById('fPhone').value = '5035551234';
+  check('the hold button stays off until the box is ticked', doc.getElementById('submitBtn').disabled);
+  check('the box explains the 2 years and the renewal email',
+    /2 years/.test(doc.getElementById('consentBox').textContent)
+    && /reminder/.test(doc.getElementById('consentBox').textContent)
+    && /Name|name/.test(doc.getElementById('consentBox').textContent)
+    && /address/.test(doc.getElementById('consentBox').textContent));
+  window.Booking.hold();
+  await sleep(250);
+  check('booking without agreeing is refused',
+    (doc.getElementById('bookErr').textContent || '').includes('tick the box')
+    && !doc.getElementById('holdClock'), doc.getElementById('bookErr').textContent);
+  agree();
+  check('ticking it turns the button on', !doc.getElementById('submitBtn').disabled);
   window.Booking.hold();
 
   const held = await until(() => doc.getElementById('holdClock'));
@@ -291,7 +311,7 @@ async function until(fn, timeoutMs = 4000) {
   await fetch(`${BASE}/api/classes/${made.classId}/hold`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body: JSON.stringify({ consent: true,
       name: 'Someone Else', email: 'else@example.com',
       slotStart: madeSlots.slots.find((s) => s.available).start,
       address: '900 NE Oak St, Hillsboro OR 97124',
@@ -312,6 +332,11 @@ async function until(fn, timeoutMs = 4000) {
   doc.getElementById('fName0').value = 'Waiting Person';
   doc.getElementById('fEmail').value = 'waiting@example.com';
   window.Booking.joinWaitlist();
+  await sleep(250);
+  check('the waitlist asks for the same agreement',
+    (doc.getElementById('bookErr').textContent || '').includes('tick the box'));
+  agree();
+  window.Booking.joinWaitlist();
 
   const joined = await until(() =>
     (doc.getElementById('bookBody').textContent || '').includes("You're on the list"));
@@ -330,6 +355,7 @@ async function until(fn, timeoutMs = 4000) {
     doc.getElementById('fCity').value = 'Hillsboro';
     doc.getElementById('fState').value = 'OR';
     doc.getElementById('fZip').value = '97123';
+    agree();
   }
 
   console.log('\ngroup booking');
@@ -425,6 +451,27 @@ async function until(fn, timeoutMs = 4000) {
     new Set(roster.roster.map((r) => r.student_name)).size === 3);
 
   console.log('\ngroup limits');
+
+  // Max group size 15: customers can choose up to 15, not a fixed 12.
+  const fifteen = await (await fetch(`${BASE}/api/admin/classes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
+    body: JSON.stringify({
+      courseCode: 'CPR', title: 'Big groups',
+      startsAt: '2027-05-11T16:00:00Z', endsAt: '2027-05-12T02:00:00Z',
+      capacity: 15, priceCents: 8500,
+    }),
+  })).json();
+  window.Booking.close();
+  await window.Booking.load();
+  await sleep(200);
+  window.Booking.open(fifteen.classId);
+  await sleep(400);
+  for (let i = 0; i < 20; i++) window.Booking.setQty(1);
+  await sleep(200);
+  check('the people picker goes up to the max group size',
+    doc.getElementById('qtyVal').textContent === '15' && doc.getElementById('qtyUp').disabled,
+    `qty ${doc.getElementById('qtyVal').textContent}`);
 
   // A class with 2 seats left can't take a group of 3.
   const tight = await (await fetch(`${BASE}/api/admin/classes`, {
@@ -785,6 +832,7 @@ async function until(fn, timeoutMs = 4000) {
   await until(() => doc.querySelectorAll('.slot-btn').length > 0);
   doc.querySelector('.slot-btn').click();
   await sleep(80);
+  agree();
   window.Booking.hold();
   check('a Zone 3 booking goes through',
     await until(() => doc.getElementById('holdClock')),
@@ -821,7 +869,7 @@ async function until(fn, timeoutMs = 4000) {
   const first = await (await fetch(`${BASE}/api/classes/${limited.classId}/hold`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body: JSON.stringify({ consent: true,
       name: 'Coast One', email: 'coast@example.com',
       slotStart: limitedSlots.slots[0].start,
       address: '1 Beach Rd, Otis, OR 97368', zip: '97368',
@@ -854,7 +902,7 @@ async function until(fn, timeoutMs = 4000) {
   const direct = await (await fetch(`${BASE}/api/classes/${limited.classId}/hold`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body: JSON.stringify({ consent: true,
       name: 'Coast Two', email: 'coast2@example.com',
       slotStart: limitedSlots.slots[12].start,
       address: '5 River Rd, Hood River, OR 97031', zip: '97031',

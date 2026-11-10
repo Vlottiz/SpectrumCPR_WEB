@@ -337,14 +337,19 @@
     position:fixed;inset:0;z-index:100;display:none;
     background:rgba(20,24,33,.55);
     align-items:flex-start;justify-content:center;
-    padding:6vh 20px 20px;overflow-y:auto;
+    padding:6vh 20px 20px;overflow:hidden;
   }
   .modal-veil.open{display:flex;}
+  /* The booking window scrolls inside itself, with its own scroll bar; the
+     page behind stays still and the × stays in view. */
   .modal{
     background:var(--paper);border:1.5px solid var(--ink);
     width:100%;max-width:470px;position:relative;
+    display:flex;flex-direction:column;
+    max-height:calc(94vh - 20px);max-height:calc(94dvh - 20px);
   }
   .modal-head{
+    flex:none;
     padding:18px 22px;border-bottom:1px solid var(--rule);
     display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
   }
@@ -355,7 +360,7 @@
     color:var(--ink-soft);padding:0 2px;flex-shrink:0;
   }
   .modal-close:hover{color:var(--ink);}
-  .modal-body{padding:22px;}
+  .modal-body{padding:22px;overflow-y:auto;overscroll-behavior:contain;min-height:0;}
   .modal-body label{margin-top:2px;}
   .modal-body input{margin-bottom:14px;}
   .modal-price{
@@ -373,6 +378,15 @@
   [data-theme="dark"] .modal-err{background:#3a1519;color:#ffb3ba;}
   .modal-err.show{display:block;}
   .modal-note{font-size:13.5px;color:var(--ink-soft);margin:14px 0 0;}
+
+  /* agreeing to the details being kept */
+  .consent{display:flex;gap:11px;align-items:flex-start;margin:4px 0 16px;padding:12px 13px;
+    border:1.5px solid var(--rule);border-radius:2px;background:var(--paper-2);
+    font-size:13.5px;line-height:1.5;cursor:pointer}
+  .consent input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--red);cursor:pointer}
+  .consent b{display:block;font-size:14px;margin-bottom:2px}
+  .consent.missing{border-color:var(--red)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
 
   /* countdown on the hold */
   .hold-bar{
@@ -578,8 +592,8 @@
 
     /* The booking window becomes a full-screen sheet with the × always in reach. */
     .modal-veil{padding:0;}
-    .modal{max-width:none;min-height:100%;border:0;}
-    .modal-head{position:sticky;top:0;z-index:2;background:var(--paper);padding:14px 16px;}
+    .modal{max-width:none;height:100%;max-height:100%;border:0;}
+    .modal-head{background:var(--paper);padding:14px 16px;}
     .modal-head h3{font-size:20px;}
     .modal-close{font-size:30px;padding:0 4px;}
     .modal-body{padding:16px 16px 28px;}
@@ -998,7 +1012,10 @@ const Booking = (() => {
   // the site. Point it at the API's URL once the pages move to a static host,
   // e.g. 'https://booking.spectrumcpr.com'.
   const API = window.BOOKING_API_BASE || '';
-  const MAX_GROUP = 12;   // mirrors MAX_GROUP_SEATS on the server
+  // The most people one booking can bring: the day's max group size, or
+  // fewer if that many seats aren't left.
+  const maxGroup = () => Math.max(1, Math.min(current.seatsAvailable, current.capacity || 1));
+  const FIELD_LIMIT = 100;   // how far to look for name fields already drawn
 
   // Server features this page relies on. Checked against /health on load, so a
   // mismatched pair says so plainly instead of failing mid-booking.
@@ -1768,7 +1785,11 @@ const Booking = (() => {
     load();
   }
 
-  const body = (html) => { document.getElementById('bookBody').innerHTML = html; };
+  const body = (html) => {
+    const el = document.getElementById('bookBody');
+    el.innerHTML = html;
+    el.scrollTop = 0;   // each step starts at the top of the window
+  };
 
   function showErr(msg) {
     const el = document.getElementById('bookErr');
@@ -1786,6 +1807,39 @@ const Booking = (() => {
     <input id="fPhone" type="tel" autocomplete="tel" placeholder="(000) 000-0000">`;
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  /**
+   * The agreement to keep the customer's details. Nothing can be booked, or
+   * waitlisted, until it's ticked; the server checks too.
+   */
+  const consentBox = (what) => `
+    <label class="consent" id="consentBox">
+      <input type="checkbox" id="fConsent" onchange="Booking.consentChanged()">
+      <span>
+        <b>Keeping your details</b>
+        I agree that Spectrum CPR + First Aid may store the names, email, phone
+        number and address given here for up to 2 years, for our booking and
+        payment records. Certification cards are valid for 2 years, so we'll
+        email a reminder shortly before ${what} expires.
+      </span>
+    </label>`;
+
+  function consentChanged() {
+    const ok = document.getElementById('fConsent')?.checked;
+    document.getElementById('consentBox')?.classList.toggle('missing', false);
+    const btn = document.getElementById('submitBtn');
+    if (btn) btn.disabled = !ok;
+    if (ok) document.getElementById('bookErr')?.classList.remove('show');
+  }
+
+  /** True when ticked; otherwise says why nothing happened. */
+  function consentGiven() {
+    if (document.getElementById('fConsent')?.checked) return true;
+    showErr('Please tick the box to agree to us keeping your details — we can’t book you in without it.');
+    document.getElementById('consentBox')?.classList.add('missing');
+    document.getElementById('consentBox')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    return false;
+  }
 
   /**
    * Collect the form.
@@ -1874,10 +1928,13 @@ const Booking = (() => {
       }
     }
 
+    if (!consentGiven()) return null;
+
     return {
       attendees: people, email, phone,
       slotStart: chosenSlot, address, addressNotes,
       zip: zip.slice(0, 5),
+      consent: true,
     };
   }
 
@@ -1934,7 +1991,8 @@ const Booking = (() => {
       <input id="fPhone" type="tel" autocomplete="tel" placeholder="(000) 000-0000">
 
       <div id="totalLine"></div>
-      <button class="btn" style="width:100%" onclick="Booking.hold()">Hold my seat</button>
+      ${consentBox('your card')}
+      <button class="btn" id="submitBtn" style="width:100%" onclick="Booking.hold()" disabled>Hold my seat</button>
       <p class="modal-note">Your time is reserved for 20 minutes while you pay.</p>
     `);
 
@@ -2164,7 +2222,7 @@ const Booking = (() => {
 
   /** Change the party size, keeping names already typed. */
   function setQty(delta) {
-    const max = Math.min(current.seatsAvailable, MAX_GROUP);
+    const max = maxGroup();
     const next = Math.max(1, Math.min(max, qty + delta));
     if (next === qty) return;
     qty = next;
@@ -2181,13 +2239,13 @@ const Booking = (() => {
    * staff is the common case.
    */
   function renderSeats() {
-    const max = Math.min(current.seatsAvailable, MAX_GROUP);
+    const max = maxGroup();
 
     // Keep anything already typed when the party size changes.
     const existing = [];
     const existingEmails = [];
     const existingPhones = [];
-    for (let i = 0; i < MAX_GROUP; i++) {
+    for (let i = 0; i < FIELD_LIMIT; i++) {
       const n = document.getElementById(`fName${i}`);
       if (!n) break;
       existing.push(n.value);
@@ -2233,7 +2291,7 @@ const Booking = (() => {
 
     renderPrice();
 
-    const btn = document.querySelector('#bookBody > .btn');
+    const btn = document.getElementById('submitBtn');
     if (btn) btn.textContent = qty > 1 ? `Hold ${qty} seats` : 'Hold my seat';
   }
 
@@ -2242,7 +2300,7 @@ const Booking = (() => {
     const fields = readFields();
     if (!fields) return;
 
-    const btn = document.querySelector('#bookBody > .btn');
+    const btn = document.getElementById('submitBtn');
     btn.disabled = true;
     btn.textContent = qty > 1 ? `Holding ${qty} seats…` : 'Holding your seat…';
 
@@ -2452,7 +2510,8 @@ const Booking = (() => {
       <label for="fWantTime">What time would suit you? <span
         style="font-weight:400;color:var(--ink-soft)">(optional)</span></label>
       <input id="fWantTime" type="time" step="1800">
-      <button class="btn" style="width:100%" onclick="Booking.joinWaitlist()">Join the waitlist</button>
+      ${consentBox('your card')}
+      <button class="btn" id="submitBtn" style="width:100%" onclick="Booking.joinWaitlist()" disabled>Join the waitlist</button>
       <p class="modal-note">No payment now. You only pay if you claim a time.</p>
       <div id="waitAlts"></div>
     `);
@@ -2462,7 +2521,7 @@ const Booking = (() => {
     const fields = readFields({ requireBooking: false });
     if (!fields) return;
 
-    const btn = document.querySelector('#bookBody .btn');
+    const btn = document.getElementById('submitBtn');
     btn.disabled = true;
     btn.textContent = 'Adding you…';
 
@@ -2473,6 +2532,7 @@ const Booking = (() => {
         name: fields.attendees[0].name, email: fields.email, phone: fields.phone,
         preferredTime: document.getElementById('fWantTime')?.value || null,
         partySize: qty,
+        consent: true,
       }),
     });
 
@@ -2564,7 +2624,7 @@ const Booking = (() => {
   setInterval(load, 60000);
 
   return { open, close, hold, pay, payConverge, joinWaitlist, load, setQty, toggleContact,
-           pickSlot, switchDay, loadSlots, loadQuote, checkZone, showCourse,
+           pickSlot, switchDay, loadSlots, loadQuote, checkZone, showCourse, consentChanged,
            // exposed for tests
            _formatPhone: formatPhone, _showSuggest: showSuggest, _hideSuggest: hideSuggest,
            _composeAddress: composeAddress, _chooseAddress: chooseAddress,

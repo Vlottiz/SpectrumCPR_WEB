@@ -7,9 +7,9 @@ const zones = require('./zones');
 const HOLD_MINUTES = Number(process.env.HOLD_MINUTES || 20);
 const OFFER_HOURS = Number(process.env.OFFER_HOURS || 24);
 
-// Cap on a single group booking. Large enough for a daycare or dental practice,
-// small enough that a typo can't reserve a whole day.
-const MAX_GROUP_SEATS = Number(process.env.MAX_GROUP_SEATS || 12);
+// The real cap on a group is each day's "Max group size" (classes.capacity).
+// This is only a guard against a typo or a script asking for hundreds.
+const MAX_GROUP_SEATS = Number(process.env.MAX_GROUP_SEATS || 100);
 
 // How long the instructor is on site teaching.
 const SESSION_MINUTES = Number(process.env.SESSION_MINUTES || 240);
@@ -230,13 +230,25 @@ function overbooked(ymd, now = nowIso()) {
 }
 
 /** How many of these visits are in progress (session plus travel) at an instant. */
-function depthAt(visits, iso) {
-  const t = new Date(iso).getTime();
-  const block = blockMinutes() * 60_000;
-  return visits.filter((v) => {
-    const s = new Date(v.slot_start).getTime();
-    return s <= t && t < s + block;
-  }).length;
+function depthAt(visits, iso, block = blockMinutes() * 60_000) {
+  return depthAtMs(visits.map((v) => Date.parse(v.slot_start)), Date.parse(iso), block);
+}
+
+// The same checks on plain millisecond numbers. These run thousands of times
+// when a long list of days is drawn, so they avoid parsing dates in the loop.
+function depthAtMs(starts, t, block) {
+  let n = 0;
+  for (const s of starts) if (s <= t && t < s + block) n++;
+  return n;
+}
+
+function freeAtMs(starts, s, trainers, block) {
+  if (trainers <= 0) return false;
+  if (depthAtMs(starts, s, block) + 1 > trainers) return false;
+  for (const p of starts) {
+    if (p >= s && p < s + block && depthAtMs(starts, p, block) + 1 > trainers) return false;
+  }
+  return true;
 }
 
 /**
@@ -245,13 +257,8 @@ function depthAt(visits, iso) {
  * be running, fewer than `trainers` others are.
  */
 function trainerFree(visits, start, trainers) {
-  if (trainers <= 0) return false;
-  const s = new Date(start).getTime();
-  const block = blockMinutes() * 60_000;
-  const points = [start, ...visits
-    .map((v) => v.slot_start)
-    .filter((p) => { const t = new Date(p).getTime(); return t >= s && t < s + block; })];
-  return points.every((p) => depthAt(visits, p) + 1 <= trainers);
+  return freeAtMs(visits.map((v) => Date.parse(v.slot_start)), Date.parse(start),
+                  trainers, blockMinutes() * 60_000);
 }
 
 /**
@@ -262,11 +269,13 @@ function trainerFree(visits, start, trainers) {
  * still take.
  */
 function roomFor(visits, starts, trainers) {
-  const placed = [...visits];
+  const block = blockMinutes() * 60_000;
+  const placed = visits.map((v) => Date.parse(v.slot_start));
   let n = 0;
   for (const start of starts) {
-    if (trainerFree(placed, start, trainers)) {
-      placed.push({ slot_start: start });
+    const s = Date.parse(start);
+    if (freeAtMs(placed, s, trainers, block)) {
+      placed.push(s);
       n++;
     }
   }
@@ -296,10 +305,21 @@ function isTimeOff(ymd) {
 // -------------------------------------------------------------- travel zones
 
 /** "2026-11-16" — the calendar date of an instant, in the business's timezone. */
+// Built once: making a new formatter on every call was the single biggest
+// cost (time and memory) of listing a few months of days.
+const DAY_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+});
+const localDates = new Map();
+
 function localDate(iso) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date(iso));
+  let d = localDates.get(iso);
+  if (d === undefined) {
+    d = DAY_FORMAT.format(new Date(iso));
+    if (localDates.size > 20000) localDates.clear();   // keep it bounded
+    localDates.set(iso, d);
+  }
+  return d;
 }
 
 /**
@@ -476,7 +496,7 @@ function priceFor(cls, partySize) {
 }
 
 /** The whole ladder, for showing a customer what a bigger group would cost. */
-function priceLadder(cls, maxSize = MAX_GROUP_SEATS) {
+function priceLadder(cls, maxSize = cls.capacity || MAX_GROUP_SEATS) {
   return tiersFor(cls).map((t) => {
     const size = Math.max(1, t.minSize ?? 1);
     const quote = priceFor(cls, size);
@@ -724,7 +744,7 @@ function holdSeat({ classId, name, email, phone = '', notes = '',
  */
 function holdSeats({ classId, attendees, email, phone = '', notes = '',
                      organiserName = null, slotStart = null,
-                     address = '', addressNotes = '', zip = '' }) {
+                     address = '', addressNotes = '', zip = '', consent = false }) {
   const db = getDb();
 
   // An attendee is either a bare name or { name, email, phone }. Anyone
@@ -753,6 +773,10 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
 
     if (!cls) return { ok: false, reason: 'no_such_class' };
     if (cls.status !== 'open') return { ok: false, reason: 'class_cancelled' };
+    // The day's max group size is the most one booking can bring.
+    if (args.people.length > cls.capacity) {
+      return { ok: false, reason: 'too_many_seats', max: cls.capacity };
+    }
 
     // Where they are decides whether we go at all, and what the trip costs.
     // Checked here, inside the transaction, as well as on the way in — a
@@ -845,6 +869,7 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
         organiserName: groupRef ? args.organiserName : null,
         travelZone: where.zone,
         travelMiles: where.miles,
+        consentAt: args.consent ? now : null,
         // One trip, one charge — carried on the organiser's seat only.
         travelCents: i === 0 ? where.feeCents : 0,
       });
@@ -886,6 +911,7 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
     classId, people, email, phone, notes, organiserName,
     slotStart, address: String(address).trim(), addressNotes: String(addressNotes).trim(),
     zip: (String(zip || '').trim() || zipFromAddress(address)).slice(0, 5),
+    consent: Boolean(consent),
   });
 }
 
@@ -901,18 +927,18 @@ function insertRegistration(db, r) {
               student_phone, notes, amount_cents, hold_expires_at, offer_expires_at,
               group_ref, seat_index, organiser_name,
               slot_start, address, address_notes,
-              travel_zone, travel_miles, travel_cents)
+              travel_zone, travel_miles, travel_cents, consent_at)
            VALUES
              (@ref, @classId, @status, @name, @email,
               @phone, @notes, @amountCents, @holdExpiresAt, @offerExpiresAt,
               @groupRef, @seatIndex, @organiserName,
               @slotStart, @address, @addressNotes,
-              @travelZone, @travelMiles, @travelCents)`
+              @travelZone, @travelMiles, @travelCents, @consentAt)`
         )
         .run({
           groupRef: null, seatIndex: 0, organiserName: null,
           slotStart: null, address: '', addressNotes: '',
-          travelZone: null, travelMiles: null, travelCents: 0,
+          travelZone: null, travelMiles: null, travelCents: 0, consentAt: null,
           ...r, ref,
         });
       return db
@@ -1092,9 +1118,9 @@ function cancelGroup(groupRef, { reason = '' } = {}) {
     db.prepare(
       `UPDATE registrations
           SET status = 'cancelled', hold_expires_at = NULL,
-              offer_expires_at = NULL, updated_at = ?
+              offer_expires_at = NULL, updated_at = ?, cancelled_at = ?
         WHERE id = ?`
-    ).run(now, row.id);
+    ).run(now, now, row.id);
 
     logEvent(db, {
       registrationId: row.id,
@@ -1121,9 +1147,9 @@ function cancelRegistration(publicRef, { reason = '' } = {}) {
   db.prepare(
     `UPDATE registrations
         SET status = 'cancelled', hold_expires_at = NULL,
-            offer_expires_at = NULL, updated_at = ?
+            offer_expires_at = NULL, updated_at = ?, cancelled_at = ?
       WHERE id = ?`
-  ).run(now, reg.id);
+  ).run(now, now, reg.id);
 
   logEvent(db, {
     registrationId: reg.id,
@@ -1139,7 +1165,7 @@ function cancelRegistration(publicRef, { reason = '' } = {}) {
 // ------------------------------------------------------------------ waitlist
 
 function joinWaitlist({ classId, name, email, phone = '', notes = '',
-                        preferredTime = null, partySize = 1, address = '' }) {
+                        preferredTime = null, partySize = 1, address = '', consent = false }) {
   const db = getDb();
   const cls = getClass(classId);
   if (!cls) return { ok: false, reason: 'no_such_class' };
@@ -1170,6 +1196,7 @@ function joinWaitlist({ classId, name, email, phone = '', notes = '',
     holdExpiresAt: null,
     offerExpiresAt: null,
     address,
+    consentAt: consent ? nowIso() : null,
   });
 
   logEvent(db, {
@@ -1391,19 +1418,22 @@ function dayVisits(classId, now = nowIso()) {
       `SELECT slot_start, address, travel_zone, travel_miles,
               COALESCE(group_ref, public_ref) AS visit_ref,
               COUNT(*) AS people,
-              MAX(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS paid,
+              status = 'cancelled' AS removed,
+              MAX(cancelled_at) AS removed_at,
+              MAX(CASE WHEN status = 'confirmed' OR confirmed_at IS NOT NULL THEN 1 ELSE 0 END) AS paid,
               COALESCE(MAX(organiser_name),
-                       MAX(CASE WHEN seat_index = 0 THEN student_name END)) AS contact
+                       MAX(CASE WHEN seat_index = 0 THEN student_name END),
+                       MAX(student_name)) AS contact
          FROM registrations
         WHERE class_id = @classId
           AND slot_start IS NOT NULL
           AND (
-                status = 'confirmed'
+                status IN ('confirmed','cancelled')
              OR (status = 'held'    AND hold_expires_at  > @now)
              OR (status = 'offered' AND offer_expires_at > @now)
           )
-        GROUP BY slot_start, COALESCE(group_ref, public_ref)
-        ORDER BY slot_start ASC`
+        GROUP BY slot_start, COALESCE(group_ref, public_ref), status = 'cancelled'
+        ORDER BY status = 'cancelled', slot_start ASC`
     )
     .all({ classId, now })
     .map((v) => ({
@@ -1415,6 +1445,9 @@ function dayVisits(classId, now = nowIso()) {
       people: v.people,
       paid: Boolean(v.paid),
       contact: v.contact || '',
+      // Removed by staff or the customer: kept, crossed out, for the records.
+      removed: Boolean(v.removed),
+      removedAt: v.removed_at || null,
     }));
 }
 
@@ -1434,7 +1467,7 @@ function purgeEmptyCancelledDays(now = nowIso()) {
     const empty = db
       .prepare(
         `SELECT c.id FROM classes c
-          WHERE c.status = 'cancelled'
+          WHERE c.status = 'cancelled' AND c.archived = 0
             AND NOT EXISTS (
               SELECT 1 FROM registrations r
                WHERE r.class_id = c.id
@@ -1452,13 +1485,27 @@ function purgeEmptyCancelledDays(now = nowIso()) {
     const skip = db.prepare(
       `INSERT OR IGNORE INTO schedule_skips (schedule_id, day, course_code)
        SELECT schedule_id, ?, course_code FROM classes WHERE id = ? AND schedule_id IS NOT NULL`);
-    const del = db.prepare('DELETE FROM classes WHERE id = ?');
     for (const id of empty) {
       skip.run(localDate(getClass(id).starts_at), id);
-      del.run(id);
+      retireDay(db, id);
     }
     return empty;
   })();
+}
+
+/**
+ * Take a day off the calendar. With any booking history at all it's
+ * archived — hidden but kept, since those bookings are billing records.
+ * Only a day nobody ever booked is actually deleted.
+ */
+function retireDay(db, id) {
+  const history = db.prepare('SELECT 1 FROM registrations WHERE class_id = ? LIMIT 1').get(id);
+  if (history) {
+    db.prepare(`UPDATE classes SET status = 'cancelled', archived = 1 WHERE id = ?`).run(id);
+    return 'archived';
+  }
+  db.prepare('DELETE FROM classes WHERE id = ?').run(id);
+  return 'deleted';
 }
 
 function roster(classId) {
@@ -1468,10 +1515,11 @@ function roster(classId) {
               status, amount_cents, confirmed_at, created_at,
               group_ref, seat_index, organiser_name,
               slot_start, address, address_notes, notes,
-              travel_zone, travel_miles, travel_cents
+              travel_zone, travel_miles, travel_cents, cancelled_at
          FROM registrations
-        WHERE class_id = ? AND status IN ('confirmed','held','offered','waitlist')
+        WHERE class_id = ? AND status IN ('confirmed','held','offered','waitlist','cancelled')
         ORDER BY
+          status = 'cancelled',
           slot_start IS NULL, slot_start ASC,
           CASE status
             WHEN 'confirmed' THEN 0 WHEN 'held' THEN 1
@@ -1648,4 +1696,5 @@ module.exports = {
   roster,
   dayVisits,
   purgeEmptyCancelledDays,
+  retireDay,
 };

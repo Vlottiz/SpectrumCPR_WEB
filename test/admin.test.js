@@ -227,6 +227,8 @@ async function until(fn, timeoutMs = 4000) {
   window.Admin.newClass();
   await sleep(150);
   check('weekly hours is the default', $('weekFields').style.display !== 'none');
+  check('the headcount is called Max group size',
+    (doc.querySelector('label[for="fCap"]')?.textContent || '') === 'Max group size');
   check('and it repeats by default', $('fWeeks').value === 'repeat');
   check('Monday to Friday start ticked',
     $('wkOn1').checked && $('wkOn5').checked && !$('wkOn6').checked && !$('wkOn0').checked);
@@ -519,7 +521,7 @@ async function until(fn, timeoutMs = 4000) {
     await fetch(`${BASE}/api/classes/${small.classId}/hold`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: JSON.stringify({ consent: true,
         name: `Person ${who}`, email: `${who}@example.com`,
         // Separate visits: each booking owns its time outright, and a
         // session plus travel blocks 5.5 hours.
@@ -565,7 +567,7 @@ async function until(fn, timeoutMs = 4000) {
   const tinySlots = await (await fetch(`${BASE}/api/classes/${tiny.classId}/slots`)).json();
   await fetch(`${BASE}/api/classes/${tiny.classId}/hold`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body: JSON.stringify({ consent: true,
       name: 'First In', email: 'first@example.com',
       slotStart: tinySlots.slots.find((s) => s.available).start,
       address: '1200 SW Main St, Hillsboro, OR 97123',
@@ -573,7 +575,7 @@ async function until(fn, timeoutMs = 4000) {
   });
   await fetch(`${BASE}/api/classes/${tiny.classId}/waitlist`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Hopeful', email: 'hopeful@example.com' }),
+    body: JSON.stringify({ consent: true, name: 'Hopeful', email: 'hopeful@example.com' }),
   });
 
   const bumped = await (await fetch(`${BASE}/api/admin/classes/${tiny.classId}/update`, {
@@ -633,6 +635,49 @@ async function until(fn, timeoutMs = 4000) {
   })).json();
   check('a student can be removed', dropped.ok === true);
 
+  console.log('\nremoved people stay on the record');
+
+  window.Admin.roster(small.classId);
+  check('the removed person stays on the run sheet',
+    await until(() => !!doc.querySelector('#boxBody .removed-row')),
+    $('boxBody').textContent.slice(0, 200));
+  check('crossed out, with what they paid',
+    doc.querySelector('#boxBody .removed-row').textContent.includes('Paid $')
+    && $('boxBody').textContent.includes('kept for your records'));
+  check('and no Remove or Mark paid buttons on them',
+    !doc.querySelector('#boxBody .removed-row button'));
+  window.Admin.closeBox();
+  await window.Admin.refresh();
+  check('the day card shows the removed visit greyed out',
+    !!doc.querySelector('#rows .visits-row li.removed')
+    && doc.querySelector('#rows .visits-row li.removed').textContent.includes('REMOVED'));
+
+  console.log('\ncustomer records');
+
+  const billing = await (await fetch(`${BASE}/api/admin/records?type=billing`, {
+    headers: { 'x-admin-token': TOKEN },
+  })).json();
+  const paidThenRemoved = billing.rows.find((r) => r.ref === someone);
+  check('the billing record keeps a paid person who was removed',
+    paidThenRemoved && paidThenRemoved.removed && paidThenRemoved.paidBy === 'manual',
+    JSON.stringify(paidThenRemoved)?.slice(0, 160));
+  check('with their contact details and address',
+    paidThenRemoved?.email.includes('@') && paidThenRemoved?.address.includes('Hillsboro'));
+
+  $('recordsBtn').click();
+  check('Records opens on the paid bookings',
+    await until(() => (doc.querySelector('#recList')?.textContent || '').includes('paid booking')),
+    $('boxBody').textContent.slice(0, 160));
+  check('removed people show crossed out there too', !!doc.querySelector('#recList .rec-row.removed'));
+  window.Admin.records('renewals');
+  check('the renewals tab lists certified customers and when their cards expire',
+    await until(() => /No certified customers yet|Expires/.test(doc.querySelector('#recList')?.textContent || '')),
+    doc.querySelector('#recList')?.textContent);
+  check('and explains the automatic reminder',
+    /automatically 30 days/.test($('recNote').textContent), $('recNote').textContent);
+  window.Admin.closeBox();
+
+
   console.log('\ncancelled days clear themselves');
 
   const adminPost = async (path, body = {}) => (await fetch(`${BASE}${path}`, {
@@ -660,14 +705,14 @@ async function until(fn, timeoutMs = 4000) {
   const busySlots = await (await fetch(`${BASE}/api/classes/${busy.classId}/slots`)).json();
   const booked = await (await fetch(`${BASE}/api/classes/${busy.classId}/hold`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body: JSON.stringify({ consent: true,
       name: 'Still Booked', email: 'still@example.com',
       slotStart: busySlots.slots[0].start, address: '1200 SW Main St, Hillsboro, OR 97123',
     }),
   })).json();
   await fetch(`${BASE}/api/classes/${busy.classId}/waitlist`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Waiting Here', email: 'waithere@example.com' }),
+    body: JSON.stringify({ consent: true, name: 'Waiting Here', email: 'waithere@example.com' }),
   });
 
   const cancelledBusy = await adminPost(`/api/admin/classes/${busy.classId}/cancel`);
@@ -694,7 +739,7 @@ async function until(fn, timeoutMs = 4000) {
   await window.Admin.refresh();
   $('tourBtn').click();
   const total = Number(($('tourStep').textContent.match(/of (\d+)/) || [])[1]);
-  check('the Tour button runs it again, covering every part', total === 13, $('tourStep').textContent);
+  check('the Tour button runs it again, covering every part', total === 14, $('tourStep').textContent);
   const titles = [];
   for (let i = 0; i < total; i++) {
     titles.push($('tourTitle').textContent);
