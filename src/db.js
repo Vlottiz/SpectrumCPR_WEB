@@ -72,6 +72,11 @@ CREATE TABLE IF NOT EXISTS classes (
   -- The repeating schedule that created this day, if any. NULL for days
   -- added by hand.
   schedule_id     INTEGER,
+
+  -- Hidden from the admin list but kept, because bookings on it are records:
+  -- a cancelled day whose customers have all been removed. A day nobody ever
+  -- booked is deleted outright instead.
+  archived        INTEGER NOT NULL DEFAULT 0,
   status          TEXT    NOT NULL DEFAULT 'open'
                           CHECK (status IN ('open','cancelled')),
   created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -105,6 +110,16 @@ CREATE TABLE IF NOT EXISTS registrations (
   travel_zone       INTEGER,
   travel_miles      REAL,
   travel_cents      INTEGER NOT NULL DEFAULT 0,
+
+  -- Records. consent_at: when the customer agreed to their details being kept
+  -- (up to 2 years) and to a card-renewal email. cancelled_at: when they were
+  -- removed — the row stays, crossed out, for billing. reminder_sent_at: the
+  -- renewal email was queued. anonymized_at: personal details cleared once
+  -- the 2 years were up.
+  consent_at        TEXT,
+  cancelled_at      TEXT,
+  reminder_sent_at  TEXT,
+  anonymized_at     TEXT,
 
   -- Group bookings: one organiser reserves several seats in one payment.
   -- Every seat is still its own row (each attendee needs their own name on
@@ -318,6 +333,10 @@ function migrate(raw) {
     ['travel_zone', 'ALTER TABLE registrations ADD COLUMN travel_zone INTEGER'],
     ['travel_miles', 'ALTER TABLE registrations ADD COLUMN travel_miles REAL'],
     ['travel_cents', 'ALTER TABLE registrations ADD COLUMN travel_cents INTEGER NOT NULL DEFAULT 0'],
+    ['consent_at', 'ALTER TABLE registrations ADD COLUMN consent_at TEXT'],
+    ['cancelled_at', 'ALTER TABLE registrations ADD COLUMN cancelled_at TEXT'],
+    ['reminder_sent_at', 'ALTER TABLE registrations ADD COLUMN reminder_sent_at TEXT'],
+    ['anonymized_at', 'ALTER TABLE registrations ADD COLUMN anonymized_at TEXT'],
   ];
 
   const classColumns = raw.prepare('PRAGMA table_info(classes)').all().map((c) => c.name);
@@ -328,6 +347,10 @@ function migrate(raw) {
   if (!classColumns.includes('service_zips')) {
     raw.exec('ALTER TABLE classes ADD COLUMN service_zips TEXT');
     console.log('[db] added classes.service_zips');
+  }
+  if (!classColumns.includes('archived')) {
+    raw.exec('ALTER TABLE classes ADD COLUMN archived INTEGER NOT NULL DEFAULT 0');
+    console.log('[db] added classes.archived');
   }
   if (!classColumns.includes('schedule_id')) {
     raw.exec('ALTER TABLE classes ADD COLUMN schedule_id INTEGER');

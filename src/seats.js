@@ -724,7 +724,7 @@ function holdSeat({ classId, name, email, phone = '', notes = '',
  */
 function holdSeats({ classId, attendees, email, phone = '', notes = '',
                      organiserName = null, slotStart = null,
-                     address = '', addressNotes = '', zip = '' }) {
+                     address = '', addressNotes = '', zip = '', consent = false }) {
   const db = getDb();
 
   // An attendee is either a bare name or { name, email, phone }. Anyone
@@ -849,6 +849,7 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
         organiserName: groupRef ? args.organiserName : null,
         travelZone: where.zone,
         travelMiles: where.miles,
+        consentAt: args.consent ? now : null,
         // One trip, one charge — carried on the organiser's seat only.
         travelCents: i === 0 ? where.feeCents : 0,
       });
@@ -890,6 +891,7 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
     classId, people, email, phone, notes, organiserName,
     slotStart, address: String(address).trim(), addressNotes: String(addressNotes).trim(),
     zip: (String(zip || '').trim() || zipFromAddress(address)).slice(0, 5),
+    consent: Boolean(consent),
   });
 }
 
@@ -905,18 +907,18 @@ function insertRegistration(db, r) {
               student_phone, notes, amount_cents, hold_expires_at, offer_expires_at,
               group_ref, seat_index, organiser_name,
               slot_start, address, address_notes,
-              travel_zone, travel_miles, travel_cents)
+              travel_zone, travel_miles, travel_cents, consent_at)
            VALUES
              (@ref, @classId, @status, @name, @email,
               @phone, @notes, @amountCents, @holdExpiresAt, @offerExpiresAt,
               @groupRef, @seatIndex, @organiserName,
               @slotStart, @address, @addressNotes,
-              @travelZone, @travelMiles, @travelCents)`
+              @travelZone, @travelMiles, @travelCents, @consentAt)`
         )
         .run({
           groupRef: null, seatIndex: 0, organiserName: null,
           slotStart: null, address: '', addressNotes: '',
-          travelZone: null, travelMiles: null, travelCents: 0,
+          travelZone: null, travelMiles: null, travelCents: 0, consentAt: null,
           ...r, ref,
         });
       return db
@@ -1096,9 +1098,9 @@ function cancelGroup(groupRef, { reason = '' } = {}) {
     db.prepare(
       `UPDATE registrations
           SET status = 'cancelled', hold_expires_at = NULL,
-              offer_expires_at = NULL, updated_at = ?
+              offer_expires_at = NULL, updated_at = ?, cancelled_at = ?
         WHERE id = ?`
-    ).run(now, row.id);
+    ).run(now, now, row.id);
 
     logEvent(db, {
       registrationId: row.id,
@@ -1125,9 +1127,9 @@ function cancelRegistration(publicRef, { reason = '' } = {}) {
   db.prepare(
     `UPDATE registrations
         SET status = 'cancelled', hold_expires_at = NULL,
-            offer_expires_at = NULL, updated_at = ?
+            offer_expires_at = NULL, updated_at = ?, cancelled_at = ?
       WHERE id = ?`
-  ).run(now, reg.id);
+  ).run(now, now, reg.id);
 
   logEvent(db, {
     registrationId: reg.id,
@@ -1143,7 +1145,7 @@ function cancelRegistration(publicRef, { reason = '' } = {}) {
 // ------------------------------------------------------------------ waitlist
 
 function joinWaitlist({ classId, name, email, phone = '', notes = '',
-                        preferredTime = null, partySize = 1, address = '' }) {
+                        preferredTime = null, partySize = 1, address = '', consent = false }) {
   const db = getDb();
   const cls = getClass(classId);
   if (!cls) return { ok: false, reason: 'no_such_class' };
@@ -1174,6 +1176,7 @@ function joinWaitlist({ classId, name, email, phone = '', notes = '',
     holdExpiresAt: null,
     offerExpiresAt: null,
     address,
+    consentAt: consent ? nowIso() : null,
   });
 
   logEvent(db, {
@@ -1395,19 +1398,22 @@ function dayVisits(classId, now = nowIso()) {
       `SELECT slot_start, address, travel_zone, travel_miles,
               COALESCE(group_ref, public_ref) AS visit_ref,
               COUNT(*) AS people,
-              MAX(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS paid,
+              status = 'cancelled' AS removed,
+              MAX(cancelled_at) AS removed_at,
+              MAX(CASE WHEN status = 'confirmed' OR confirmed_at IS NOT NULL THEN 1 ELSE 0 END) AS paid,
               COALESCE(MAX(organiser_name),
-                       MAX(CASE WHEN seat_index = 0 THEN student_name END)) AS contact
+                       MAX(CASE WHEN seat_index = 0 THEN student_name END),
+                       MAX(student_name)) AS contact
          FROM registrations
         WHERE class_id = @classId
           AND slot_start IS NOT NULL
           AND (
-                status = 'confirmed'
+                status IN ('confirmed','cancelled')
              OR (status = 'held'    AND hold_expires_at  > @now)
              OR (status = 'offered' AND offer_expires_at > @now)
           )
-        GROUP BY slot_start, COALESCE(group_ref, public_ref)
-        ORDER BY slot_start ASC`
+        GROUP BY slot_start, COALESCE(group_ref, public_ref), status = 'cancelled'
+        ORDER BY status = 'cancelled', slot_start ASC`
     )
     .all({ classId, now })
     .map((v) => ({
@@ -1419,6 +1425,9 @@ function dayVisits(classId, now = nowIso()) {
       people: v.people,
       paid: Boolean(v.paid),
       contact: v.contact || '',
+      // Removed by staff or the customer: kept, crossed out, for the records.
+      removed: Boolean(v.removed),
+      removedAt: v.removed_at || null,
     }));
 }
 
@@ -1438,7 +1447,7 @@ function purgeEmptyCancelledDays(now = nowIso()) {
     const empty = db
       .prepare(
         `SELECT c.id FROM classes c
-          WHERE c.status = 'cancelled'
+          WHERE c.status = 'cancelled' AND c.archived = 0
             AND NOT EXISTS (
               SELECT 1 FROM registrations r
                WHERE r.class_id = c.id
@@ -1456,13 +1465,27 @@ function purgeEmptyCancelledDays(now = nowIso()) {
     const skip = db.prepare(
       `INSERT OR IGNORE INTO schedule_skips (schedule_id, day, course_code)
        SELECT schedule_id, ?, course_code FROM classes WHERE id = ? AND schedule_id IS NOT NULL`);
-    const del = db.prepare('DELETE FROM classes WHERE id = ?');
     for (const id of empty) {
       skip.run(localDate(getClass(id).starts_at), id);
-      del.run(id);
+      retireDay(db, id);
     }
     return empty;
   })();
+}
+
+/**
+ * Take a day off the calendar. With any booking history at all it's
+ * archived — hidden but kept, since those bookings are billing records.
+ * Only a day nobody ever booked is actually deleted.
+ */
+function retireDay(db, id) {
+  const history = db.prepare('SELECT 1 FROM registrations WHERE class_id = ? LIMIT 1').get(id);
+  if (history) {
+    db.prepare(`UPDATE classes SET status = 'cancelled', archived = 1 WHERE id = ?`).run(id);
+    return 'archived';
+  }
+  db.prepare('DELETE FROM classes WHERE id = ?').run(id);
+  return 'deleted';
 }
 
 function roster(classId) {
@@ -1472,10 +1495,11 @@ function roster(classId) {
               status, amount_cents, confirmed_at, created_at,
               group_ref, seat_index, organiser_name,
               slot_start, address, address_notes, notes,
-              travel_zone, travel_miles, travel_cents
+              travel_zone, travel_miles, travel_cents, cancelled_at
          FROM registrations
-        WHERE class_id = ? AND status IN ('confirmed','held','offered','waitlist')
+        WHERE class_id = ? AND status IN ('confirmed','held','offered','waitlist','cancelled')
         ORDER BY
+          status = 'cancelled',
           slot_start IS NULL, slot_start ASC,
           CASE status
             WHEN 'confirmed' THEN 0 WHEN 'held' THEN 1
@@ -1652,4 +1676,5 @@ module.exports = {
   roster,
   dayVisits,
   purgeEmptyCancelledDays,
+  retireDay,
 };

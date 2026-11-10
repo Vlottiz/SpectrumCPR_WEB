@@ -26,6 +26,12 @@
 
   header{border-bottom:1px solid var(--rule);background:var(--paper);position:sticky;top:0;z-index:20}
   .bar{display:flex;align-items:center;gap:18px;height:64px}
+  @media (max-width:560px){
+    /* Logo on its own line, the four buttons in a row under it. */
+    .bar{flex-wrap:wrap;height:auto;padding:10px 0;gap:8px}
+    .brand{width:100%;margin-right:0}
+    .bar .btn-sm{flex:1;padding:7px 4px;font-size:13px}
+  }
   .brand{font-family:var(--cond);font-weight:700;font-size:23px;margin-right:auto;letter-spacing:.01em}
   .brand span{display:block;font-family:var(--sans);font-size:10.5px;font-weight:600;letter-spacing:.2em;color:var(--ink-soft)}
 
@@ -256,6 +262,36 @@
   .vtag.z1{background:var(--green)}
   .vtag.z2{background:var(--amber);color:#2d2400}
   .vtag.z3{background:var(--red)}
+  /* removed: kept for records, greyed and crossed out */
+  .visit-list li.removed{opacity:.5;border-left-color:var(--rule);background:none}
+  .visit-list li.removed .when, .visit-list li.removed .where, .visit-list li.removed .who{
+    text-decoration:line-through}
+  .vtag.gone{background:none;color:var(--ink-soft);border:1.5px solid var(--rule)}
+  .roster-row.removed-row{opacity:.55}
+  .roster-row.removed-row .who b, .roster-row.removed-row .who span{text-decoration:line-through}
+  .roster-row .who span{display:block}
+  .p-removed{background:var(--paper-2);color:var(--ink-soft);border:1px solid var(--rule)}
+
+  /* customer records */
+  .rec-tabs{display:flex;gap:0;border:1.5px solid var(--ink);width:max-content;margin:0 0 14px}
+  .rec-tabs button{font:inherit;font-weight:600;font-size:14px;padding:8px 14px;border:0;
+    background:none;color:var(--ink);cursor:pointer}
+  .rec-tabs button.on{background:var(--ink);color:var(--paper)}
+  .rec-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+  .rec-bar input,.rec-bar select{width:auto;margin:0;padding:7px 9px;font-size:14px}
+  .rec-bar input{flex:1;min-width:150px}
+  .rec-list{border:1px solid var(--rule)}
+  .rec-row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:9px 11px;
+    border-bottom:1px solid var(--rule);font-size:13.5px}
+  .rec-row:last-child{border-bottom:0}
+  .rec-row b{font-size:14.5px}
+  .rec-row .r{text-align:right;white-space:nowrap}
+  .rec-row .d{color:var(--ink-soft)}
+  .rec-row.removed{opacity:.55}
+  .rec-row.removed b{text-decoration:line-through}
+  .rec-row .soon{color:var(--amber);font-weight:700}
+  .rec-row .late{color:var(--red);font-weight:700}
+  .rec-note{font-size:12.5px;color:var(--ink-soft);margin:10px 0 0}
   .vtag.paid{background:none;color:var(--green);border:1.5px solid var(--green)}
   .vtag.unpaid{background:none;color:var(--amber);border:1.5px solid var(--amber)}
   @media (max-width:820px){
@@ -370,6 +406,7 @@
 <header id="topbar" style="display:none">
   <div class="wrap bar">
     <div class="brand">SPECTRUM<span>ADMIN</span></div>
+    <button class="btn btn-ghost btn-sm" id="recordsBtn" onclick="Admin.records()">Records</button>
     <button class="btn btn-ghost btn-sm" id="tourBtn" onclick="Admin.tour()">Tour</button>
     <button class="btn btn-ghost btn-sm" onclick="Admin.toggleTheme()">Theme</button>
     <button class="btn btn-ghost btn-sm" onclick="Admin.logout()">Sign out</button>
@@ -610,6 +647,9 @@ const Admin = (() => {
     { el: '.visit-list li', title: 'Booked visits',
       text: 'Each booking: when, the address (tap it for directions), the travel zone and whether '
           + 'it’s paid. The next one is marked NEXT UP in green.' },
+    { el: '#recordsBtn', title: 'Customer records',
+      text: 'Everyone who has paid, for your books, and everyone whose card is due for renewal. '
+          + 'Both download as a spreadsheet. Removed people stay on the record, crossed out.' },
     { el: '#tourBtn', title: 'That’s it',
       text: 'Most weeks you’ll only glance at your days and adjust trainers. '
           + 'Press Tour any time to see this again.' },
@@ -1024,12 +1064,13 @@ const Admin = (() => {
   function visitRows(c, now){
     const visits = c.visits || [];
     if (!visits.length) return '';
-    const next = visits.find((v) => new Date(v.slotEnd).getTime() > now);
+    const next = visits.find((v) => !v.removed && new Date(v.slotEnd).getTime() > now);
     return `
         <ul class="visit-list visits-row">
           ${visits.map((v) => `
-            <li class="${v === next ? 'next' : ''}">
-              <span class="when"><small>${v === next ? 'NEXT UP' : 'VISIT'}</small>${
+            <li class="${v.removed ? 'removed' : v === next ? 'next' : ''}"
+                title="${v.removed ? 'Removed — kept for your records' : ''}">
+              <span class="when"><small>${v.removed ? 'REMOVED' : v === next ? 'NEXT UP' : 'VISIT'}</small>${
                 fmtTime(v.slotStart)} – ${fmtTime(v.slotEnd)}</span>
               <span>
                 <span class="where">${v.address
@@ -1042,6 +1083,7 @@ const Admin = (() => {
               <span class="tags">
                 ${v.zone ? `<span class="vtag z${v.zone}">Zone ${v.zone}${
                   v.miles != null ? ` · ${Math.round(v.miles)} mi` : ''}</span>` : ''}
+                ${v.removed ? `<span class="vtag gone">Removed${v.removedAt ? ` ${fmtYmd(v.removedAt.slice(0, 10), {month:'short', day:'numeric'})}` : ''}</span>` : ''}
                 <span class="vtag ${v.paid ? 'paid' : 'unpaid'}">${v.paid ? 'Paid' : 'Unpaid'}</span>
               </span>
             </li>`).join('')}
@@ -1906,8 +1948,10 @@ const Admin = (() => {
     const { data } = await api(`/api/admin/classes/${id}/roster`);
     if (!data.ok) return;
 
-    const people = data.roster;
-    if (!people.length){
+    // Removed people stay on the record, crossed out, below everyone else.
+    const removed = data.roster.filter((p) => p.status === 'cancelled');
+    const people = data.roster.filter((p) => p.status !== 'cancelled');
+    if (!people.length && !removed.length){
       $('boxBody').innerHTML = '<p class="muted">Nothing booked yet.</p>';
       return;
     }
@@ -1981,6 +2025,19 @@ const Admin = (() => {
         ${waiting.length ? ` · ${waiting.length} waiting` : ''}
       </p>
       ${visitHtml}
+      ${removed.length ? `<div class="solo-head">Removed — kept for your records</div>
+        ${removed.map((p) => `
+          <div class="roster-row removed-row">
+            <div class="who">
+              <b>${esc(p.student_name)}</b>
+              <span>${esc(p.student_email)}${p.student_phone ? ' · ' + esc(p.student_phone) : ''}</span>
+              <span>${p.slot_start ? `${fmtTime(p.slot_start)} · ` : ''}${esc(p.address || '')}</span>
+            </div>
+            <span class="pill p-removed">${p.confirmed_at
+              ? `Paid ${money(p.amount_cents + (p.travel_cents || 0))}` : 'Not paid'}</span>
+            <span class="muted" style="font-size:12.5px;white-space:nowrap">Removed ${
+              p.cancelled_at ? fmtDate(p.cancelled_at) : ''}</span>
+          </div>`).join('')}` : ''}
       ${waiting.length ? `<div class="solo-head">Waiting list</div>
         ${waiting.map((p) => `
           <div class="roster-row">
@@ -2004,6 +2061,134 @@ const Admin = (() => {
       })()}`;
   }
 
+  // ------------------------------------------------------------- records
+
+  let recTab = 'billing';
+  let recRows = [];
+  let recMeta = {};
+
+  /**
+   * Customer records: everyone who paid (for the books) and everyone whose
+   * card is coming up for renewal (for the reminder email). Both download as
+   * a spreadsheet.
+   */
+  async function records(tab = recTab){
+    recTab = tab;
+    openBox('Customer records', `
+      <div class="rec-tabs" role="tablist">
+        <button type="button" class="${tab === 'billing' ? 'on' : ''}" onclick="Admin.records('billing')">Paid bookings</button>
+        <button type="button" class="${tab === 'renewals' ? 'on' : ''}" onclick="Admin.records('renewals')">Card renewals</button>
+      </div>
+      <div class="rec-bar">
+        <input id="recSearch" type="search" placeholder="Search name, email, address" oninput="Admin.drawRecords()">
+        ${tab === 'renewals' ? `<select id="recWithin" onchange="Admin.drawRecords()" aria-label="Expiring within">
+          <option value="30">Expiring in 30 days</option>
+          <option value="60">Expiring in 60 days</option>
+          <option value="90" selected>Expiring in 90 days</option>
+          <option value="">Everyone</option>
+        </select>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="Admin.downloadRecords()">Download spreadsheet</button>
+        ${tab === 'renewals' ? '<button class="btn btn-ghost btn-sm" onclick="Admin.copyRecordEmails()">Copy emails</button>' : ''}
+      </div>
+      <div id="recList"><p class="muted">Loading…</p></div>
+      <p class="rec-note" id="recNote"></p>`);
+    const { data } = await api(`/api/admin/records?type=${tab}`);
+    if (!data.ok){ $('recList').innerHTML = '<p class="muted">Could not load records.</p>'; return; }
+    recRows = data.rows;
+    recMeta = data;
+    drawRecords();
+  }
+
+  /** The rows matching the search (and, for renewals, the date window). */
+  function shownRecords(){
+    const q = ($('recSearch')?.value || '').trim().toLowerCase();
+    const within = $('recWithin')?.value;
+    return recRows.filter((r) =>
+      (!q || [r.name, r.email, r.phone, r.address, r.course].join(' ').toLowerCase().includes(q))
+      && (recTab !== 'renewals' || !within || r.daysLeft <= Number(within)));
+  }
+
+  function drawRecords(){
+    const rows = shownRecords();
+    if (!rows.length){
+      $('recList').innerHTML = `<p class="muted">${recRows.length ? 'Nobody matches.'
+        : recTab === 'billing' ? 'No paid bookings yet.' : 'No certified customers yet.'}</p>`;
+    } else if (recTab === 'billing'){
+      const total = rows.filter((r) => !r.removed).reduce((n, r) => n + r.seatCents + (r.travelCents || 0), 0);
+      $('recList').innerHTML = `<p class="sub" style="margin:0 0 8px">${rows.length} paid booking${
+          rows.length === 1 ? '' : 's'} · ${money(total)} kept${
+          rows.some((r) => r.removed) ? ' · removed people shown crossed out' : ''}</p>
+        <div class="rec-list">${rows.map((r) => `
+          <div class="rec-row ${r.removed ? 'removed' : ''}">
+            <div><b>${esc(r.name)}</b>
+              <div class="d">${esc(r.email)}${r.phone ? ` · ${esc(r.phone)}` : ''}</div>
+              <div class="d">${esc(r.address || '')}</div>
+              <div class="d">${esc(r.course)} · ${fmtDate(r.classAt)}${r.groupRef ? ` · group ${esc(r.groupRef)}` : ''}</div>
+            </div>
+            <div class="r"><b>${money(r.seatCents + (r.travelCents || 0))}</b>
+              <div class="d">paid ${fmtDate(r.paidAt)}</div>
+              <div class="d">${esc(r.paidBy === 'manual' ? 'cash / cheque' : r.paidBy || '')}</div>
+              ${r.removed ? `<div class="d">removed ${r.removedAt ? fmtDate(r.removedAt) : ''}</div>` : ''}
+            </div>
+          </div>`).join('')}</div>`;
+    } else {
+      $('recList').innerHTML = `<p class="sub" style="margin:0 0 8px">${rows.length}
+          ${rows.length === 1 ? 'person' : 'people'}</p>
+        <div class="rec-list">${rows.map((r) => `
+          <div class="rec-row">
+            <div><b>${esc(r.name)}</b>
+              <div class="d">${esc(r.email)}${r.phone ? ` · ${esc(r.phone)}` : ''}</div>
+              <div class="d">${esc(r.course)} · certified ${fmtDate(r.classAt)}</div>
+            </div>
+            <div class="r"><b class="${r.daysLeft < 0 ? 'late' : r.daysLeft <= 60 ? 'soon' : ''}">
+                ${r.daysLeft < 0 ? 'Expired' : 'Expires'} ${fmtDate(r.expiresAt)}</b>
+              <div class="d">${r.daysLeft < 0 ? `${-r.daysLeft} days ago` : `in ${r.daysLeft} days`}</div>
+              <div class="d">${r.reminderSentAt ? `reminder queued ${fmtDate(r.reminderSentAt)}` : ''}</div>
+            </div>
+          </div>`).join('')}</div>`;
+    }
+    $('recNote').textContent = recTab === 'billing'
+      ? `Kept for ${Math.round(recMeta.retentionDays / 365)} years from the class, as customers agree at checkout; `
+        + 'after that names and contact details are cleared automatically and the amounts stay.'
+      : `A renewal reminder is written to each customer automatically ${recMeta.reminderDays} days `
+        + 'before their card expires. It goes out once email sending is connected.';
+  }
+
+  /** Download what's on screen as a spreadsheet (CSV opens in Excel and Sheets). */
+  function downloadRecords(){
+    const rows = shownRecords();
+    const cols = recTab === 'billing'
+      ? [['Name','name'],['Email','email'],['Phone','phone'],['Address','address'],['Course','course'],
+         ['Class date', (r) => r.classAt.slice(0, 10)],['Seat $', (r) => (r.seatCents / 100).toFixed(2)],
+         ['Travel $', (r) => ((r.travelCents || 0) / 100).toFixed(2)],['Zone','zone'],
+         ['Paid on', (r) => (r.paidAt || '').slice(0, 10)],['Paid by','paidBy'],['Payment ref','paymentRef'],
+         ['Booking ref','ref'],['Group ref','groupRef'],['Status', (r) => (r.removed ? 'removed' : 'paid')],
+         ['Removed on', (r) => (r.removedAt || '').slice(0, 10)],['Agreed to keep details', (r) => (r.consentAt || '').slice(0, 10)]]
+      : [['Name','name'],['Email','email'],['Phone','phone'],['Course','course'],
+         ['Certified on', (r) => r.classAt.slice(0, 10)],['Card expires', (r) => r.expiresAt.slice(0, 10)],
+         ['Days left','daysLeft'],['Reminder queued', (r) => (r.reminderSentAt || '').slice(0, 10)]];
+    const cell = (v) => {
+      const t = String(v ?? '');
+      return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
+    const csv = [cols.map(([h]) => h).join(','),
+      ...rows.map((r) => cols.map(([, k]) => cell(typeof k === 'function' ? k(r) : r[k])).join(','))]
+      .join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `spectrum-${recTab === 'billing' ? 'paid-bookings' : 'card-renewals'}-${ymdOf(new Date())}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast('Spreadsheet downloaded');
+  }
+
+  function copyRecordEmails(){
+    const emails = [...new Set(shownRecords().map((r) => r.email).filter(Boolean))];
+    if (!emails.length){ toast('No emails to copy'); return; }
+    copyEmails(emails.join(','));
+  }
+
   async function cancelGroup(ref, classId){
     if (!confirm('Cancel every seat in this group booking? The seats are freed and offered to the waitlist.')) return;
     const { data } = await api(`/api/admin/groups/${ref}/cancel`, {method:'POST', body:'{}'});
@@ -2021,7 +2206,8 @@ const Admin = (() => {
   }
 
   async function dropStudent(ref, classId){
-    if (!confirm('Remove this person? Their seat is freed and offered to the waitlist.')) return;
+    if (!confirm('Remove this person? Their seat is freed and offered to the waitlist. '
+               + 'They stay on the run sheet, crossed out, for your records.')) return;
     await api(`/api/admin/registrations/${ref}/cancel`, {method:'POST', body:'{}'});
     toast('Removed');
     await refresh();
@@ -2054,6 +2240,7 @@ const Admin = (() => {
 
   return { login, logout, refresh, newClass, edit, save, cancelClass, reopen,
            tour, formTour, tourStep, endTour,
+           records, drawRecords, downloadRecords, copyRecordEmails,
            roster, markPaid, dropStudent, cancelGroup, copyEmails, closeBox, toggleTheme,
            addTier, dropTier, editTier, previewTiers,
            setMode, editWeek, previewWeek,

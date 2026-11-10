@@ -379,6 +379,15 @@
   .modal-err.show{display:block;}
   .modal-note{font-size:13.5px;color:var(--ink-soft);margin:14px 0 0;}
 
+  /* agreeing to the details being kept */
+  .consent{display:flex;gap:11px;align-items:flex-start;margin:4px 0 16px;padding:12px 13px;
+    border:1.5px solid var(--rule);border-radius:2px;background:var(--paper-2);
+    font-size:13.5px;line-height:1.5;cursor:pointer}
+  .consent input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--red);cursor:pointer}
+  .consent b{display:block;font-size:14px;margin-bottom:2px}
+  .consent.missing{border-color:var(--red)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
   /* countdown on the hold */
   .hold-bar{
     background:var(--paper-2);border:1px solid var(--rule);
@@ -1800,6 +1809,39 @@ const Booking = (() => {
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   /**
+   * The agreement to keep the customer's details. Nothing can be booked, or
+   * waitlisted, until it's ticked; the server checks too.
+   */
+  const consentBox = (what) => `
+    <label class="consent" id="consentBox">
+      <input type="checkbox" id="fConsent" onchange="Booking.consentChanged()">
+      <span>
+        <b>Keeping your details</b>
+        I agree that Spectrum CPR + First Aid may store the names, email, phone
+        number and address given here for up to 2 years, for our booking and
+        payment records. Certification cards are valid for 2 years, so we'll
+        email a reminder shortly before ${what} expires.
+      </span>
+    </label>`;
+
+  function consentChanged() {
+    const ok = document.getElementById('fConsent')?.checked;
+    document.getElementById('consentBox')?.classList.toggle('missing', false);
+    const btn = document.getElementById('submitBtn');
+    if (btn) btn.disabled = !ok;
+    if (ok) document.getElementById('bookErr')?.classList.remove('show');
+  }
+
+  /** True when ticked; otherwise says why nothing happened. */
+  function consentGiven() {
+    if (document.getElementById('fConsent')?.checked) return true;
+    showErr('Please tick the box to agree to us keeping your details — we can’t book you in without it.');
+    document.getElementById('consentBox')?.classList.add('missing');
+    document.getElementById('consentBox')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    return false;
+  }
+
+  /**
    * Collect the form.
    *
    * The waitlist asks for none of the booking specifics — there's no time to
@@ -1886,10 +1928,13 @@ const Booking = (() => {
       }
     }
 
+    if (!consentGiven()) return null;
+
     return {
       attendees: people, email, phone,
       slotStart: chosenSlot, address, addressNotes,
       zip: zip.slice(0, 5),
+      consent: true,
     };
   }
 
@@ -1946,7 +1991,8 @@ const Booking = (() => {
       <input id="fPhone" type="tel" autocomplete="tel" placeholder="(000) 000-0000">
 
       <div id="totalLine"></div>
-      <button class="btn" style="width:100%" onclick="Booking.hold()">Hold my seat</button>
+      ${consentBox('your card')}
+      <button class="btn" id="submitBtn" style="width:100%" onclick="Booking.hold()" disabled>Hold my seat</button>
       <p class="modal-note">Your time is reserved for 20 minutes while you pay.</p>
     `);
 
@@ -2245,7 +2291,7 @@ const Booking = (() => {
 
     renderPrice();
 
-    const btn = document.querySelector('#bookBody > .btn');
+    const btn = document.getElementById('submitBtn');
     if (btn) btn.textContent = qty > 1 ? `Hold ${qty} seats` : 'Hold my seat';
   }
 
@@ -2254,7 +2300,7 @@ const Booking = (() => {
     const fields = readFields();
     if (!fields) return;
 
-    const btn = document.querySelector('#bookBody > .btn');
+    const btn = document.getElementById('submitBtn');
     btn.disabled = true;
     btn.textContent = qty > 1 ? `Holding ${qty} seats…` : 'Holding your seat…';
 
@@ -2464,7 +2510,8 @@ const Booking = (() => {
       <label for="fWantTime">What time would suit you? <span
         style="font-weight:400;color:var(--ink-soft)">(optional)</span></label>
       <input id="fWantTime" type="time" step="1800">
-      <button class="btn" style="width:100%" onclick="Booking.joinWaitlist()">Join the waitlist</button>
+      ${consentBox('your card')}
+      <button class="btn" id="submitBtn" style="width:100%" onclick="Booking.joinWaitlist()" disabled>Join the waitlist</button>
       <p class="modal-note">No payment now. You only pay if you claim a time.</p>
       <div id="waitAlts"></div>
     `);
@@ -2474,7 +2521,7 @@ const Booking = (() => {
     const fields = readFields({ requireBooking: false });
     if (!fields) return;
 
-    const btn = document.querySelector('#bookBody .btn');
+    const btn = document.getElementById('submitBtn');
     btn.disabled = true;
     btn.textContent = 'Adding you…';
 
@@ -2485,6 +2532,7 @@ const Booking = (() => {
         name: fields.attendees[0].name, email: fields.email, phone: fields.phone,
         preferredTime: document.getElementById('fWantTime')?.value || null,
         partySize: qty,
+        consent: true,
       }),
     });
 
@@ -2576,7 +2624,7 @@ const Booking = (() => {
   setInterval(load, 60000);
 
   return { open, close, hold, pay, payConverge, joinWaitlist, load, setQty, toggleContact,
-           pickSlot, switchDay, loadSlots, loadQuote, checkZone, showCourse,
+           pickSlot, switchDay, loadSlots, loadQuote, checkZone, showCourse, consentChanged,
            // exposed for tests
            _formatPhone: formatPhone, _showSuggest: showSuggest, _hideSuggest: hideSuggest,
            _composeAddress: composeAddress, _chooseAddress: chooseAddress,

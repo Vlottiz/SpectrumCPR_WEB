@@ -119,7 +119,7 @@ function fillSchedule(id, now = new Date().toISOString()) {
   // What this schedule already has in range, so nothing is made twice.
   const have = new Set(db
     .prepare(`SELECT course_code, starts_at FROM classes
-               WHERE schedule_id = ? AND starts_at >= ?`)
+               WHERE schedule_id = ? AND starts_at >= ? AND archived = 0`)
     .all(id, zonedToUtc(first, '00:00'))
     .map((c) => `${seats.localDate(c.starts_at)}|${c.course_code}`));
   const skipped = new Set(db
@@ -177,7 +177,7 @@ function clearFutureDays(id, now = new Date().toISOString()) {
   const ids = db
     .prepare(
       `SELECT c.id FROM classes c
-        WHERE c.schedule_id = ? AND c.ends_at > ?
+        WHERE c.schedule_id = ? AND c.ends_at > ? AND c.archived = 0
           AND NOT EXISTS (
             SELECT 1 FROM registrations r
              WHERE r.class_id = c.id
@@ -186,8 +186,7 @@ function clearFutureDays(id, now = new Date().toISOString()) {
                     OR (r.status = 'offered' AND r.offer_expires_at > ?)))`)
     .all(id, now, now, now)
     .map((r) => r.id);
-  const del = db.prepare('DELETE FROM classes WHERE id = ?');
-  db.transaction(() => ids.forEach((x) => del.run(x)))();
+  db.transaction(() => ids.forEach((x) => seats.retireDay(db, x)))();
   return ids.length;
 }
 
@@ -319,7 +318,6 @@ function addTimeOff({ startsOn, endsOn, note = '' }, now = new Date().toISOStrin
 
   const removed = [];
   const kept = [];
-  const del = db.prepare('DELETE FROM classes WHERE id = ?');
   db.transaction(() => {
     for (const c of inRange) {
       const people = db.prepare(
@@ -328,7 +326,7 @@ function addTimeOff({ startsOn, endsOn, note = '' }, now = new Date().toISOStrin
                 OR (status = 'held'    AND hold_expires_at  > ?)
                 OR (status = 'offered' AND offer_expires_at > ?))`).get(c.id, now, now).n;
       if (people) kept.push({ id: c.id, title: c.title, startsAt: c.starts_at, people });
-      else { del.run(c.id); removed.push(c.id); }
+      else { seats.retireDay(db, c.id); removed.push(c.id); }
     }
   })();
   return { id: Number(info.lastInsertRowid), removed: removed.length, kept };

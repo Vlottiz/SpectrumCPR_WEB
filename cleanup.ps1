@@ -22,6 +22,7 @@ $strays = @(
   @{ name = 'server.js';        home = 'src' }
   @{ name = 'zones.js';         home = 'src' }
   @{ name = 'schedule.js';      home = 'src' }
+  @{ name = 'records.js';       home = 'src' }
   @{ name = 'index.js';         home = 'src\payments' }
   @{ name = 'mock.js';          home = 'src\payments' }
   @{ name = 'converge.js';      home = 'src\payments' }

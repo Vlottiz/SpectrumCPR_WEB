@@ -10,14 +10,15 @@
     "seed": "node --disable-warning=ExperimentalWarning src/seed.js",
     "test": "node --disable-warning=ExperimentalWarning test/seats.test.js",
     "test:fe": "node --disable-warning=ExperimentalWarning test/frontend.test.js",
-    "test:all": "npm test && npm run test:slots && npm run test:pricing && npm run test:zones && npm run test:schedule && npm run test:address && npm run test:fe && npm run test:admin",
+    "test:all": "npm test && npm run test:slots && npm run test:pricing && npm run test:zones && npm run test:schedule && npm run test:records && npm run test:address && npm run test:fe && npm run test:admin",
     "test:admin": "node --disable-warning=ExperimentalWarning test/admin.test.js",
     "test:slots": "node --disable-warning=ExperimentalWarning test/slots.test.js",
     "test:address": "node --disable-warning=ExperimentalWarning test/address.test.js",
     "test:pricing": "node --disable-warning=ExperimentalWarning test/pricing.test.js",
     "test:e2e": "bash test/e2e.sh",
     "test:zones": "node --disable-warning=ExperimentalWarning test/zones.test.js",
-    "test:schedule": "node --disable-warning=ExperimentalWarning test/schedule.test.js"
+    "test:schedule": "node --disable-warning=ExperimentalWarning test/schedule.test.js",
+    "test:records": "node --disable-warning=ExperimentalWarning test/records.test.js"
   },
   "dependencies": {
     "express": "^4.21.2"

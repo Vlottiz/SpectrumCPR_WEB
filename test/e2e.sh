@@ -62,7 +62,7 @@ echo
 echo "booking flow"
 
 SLOT1=$(slot_of 1)
-OUT=$(post /api/classes/1/hold "{\"name\":\"Jane Doe\",\"email\":\"jane@example.com\",\"slotStart\":\"$SLOT1\",\"address\":\"$ADDR\"}")
+OUT=$(post /api/classes/1/hold "{\"consent\":true,\"name\":\"Jane Doe\",\"email\":\"jane@example.com\",\"slotStart\":\"$SLOT1\",\"address\":\"$ADDR\"}")
 JANE=$(refof "$OUT")
 check "a time can be held"            "$OUT" '"status":"held"'
 check "the hold window is 20 minutes" "$OUT" '"holdMinutes":20'
@@ -88,7 +88,7 @@ echo
 echo "declines"
 
 SLOT2=$(curl -s -m 5 "$API/api/classes/1/slots" | tr '}' '\n' | grep '"available":true' | head -1 | sed -n 's/.*"start":"\([^"]*\)".*/\1/p')
-OUT=$(post /api/classes/1/hold "{\"name\":\"Bob Smith\",\"email\":\"bob@example.com\",\"slotStart\":\"$SLOT2\",\"address\":\"$ADDR\"}")
+OUT=$(post /api/classes/1/hold "{\"consent\":true,\"name\":\"Bob Smith\",\"email\":\"bob@example.com\",\"slotStart\":\"$SLOT2\",\"address\":\"$ADDR\"}")
 BOB=$(refof "$OUT")
 OUT=$(post "/api/registrations/$BOB/confirm" '{"outcome":"decline"}')
 check "a declined payment is rejected" "$OUT" 'payment_not_approved'
@@ -99,28 +99,31 @@ check "the declined seat stays held until it expires" "$OUT" '"status":"held"'
 echo
 echo "validation"
 
-OUT=$(post /api/classes/1/hold "{\"name\":\"X\",\"email\":\"jane@example.com\",\"slotStart\":\"$SLOT1\",\"address\":\"$ADDR\"}")
+OUT=$(post /api/classes/1/hold "{\"consent\":true,\"name\":\"X\",\"email\":\"jane@example.com\",\"slotStart\":\"$SLOT1\",\"address\":\"$ADDR\"}")
 check "a one-character name is refused" "$OUT" 'name_required'
 
-OUT=$(post /api/classes/1/hold "{\"name\":\"Real Name\",\"email\":\"not-an-email\",\"slotStart\":\"$SLOT1\",\"address\":\"$ADDR\"}")
+OUT=$(post /api/classes/1/hold "{\"consent\":true,\"name\":\"Real Name\",\"email\":\"not-an-email\",\"slotStart\":\"$SLOT1\",\"address\":\"$ADDR\"}")
 check "a malformed email is refused" "$OUT" 'valid_email_required'
 
-OUT=$(post /api/classes/1/hold "{\"name\":\"Real Name\",\"email\":\"a@b.com\",\"address\":\"$ADDR\"}")
+OUT=$(post /api/classes/1/hold "{\"consent\":true,\"name\":\"Real Name\",\"email\":\"a@b.com\",\"address\":\"$ADDR\"}")
 check "a booking with no time is refused" "$OUT" 'slot_required'
 
-OUT=$(post /api/classes/1/hold "{\"name\":\"Real Name\",\"email\":\"a@b.com\",\"slotStart\":\"$SLOT1\"}")
+OUT=$(post /api/classes/1/hold "{\"consent\":true,\"name\":\"Real Name\",\"email\":\"a@b.com\",\"slotStart\":\"$SLOT1\"}")
 check "a booking with no address is refused" "$OUT" 'address_required'
 
-OUT=$(post /api/classes/9999/hold "{\"name\":\"Real Name\",\"email\":\"a@b.com\",\"slotStart\":\"$SLOT1\",\"address\":\"$ADDR\"}")
+OUT=$(post /api/classes/1/hold "{\"name\":\"No Consent\",\"email\":\"a@b.com\",\"slotStart\":\"$SLOT1\",\"address\":\"$ADDR\"}")
+check "a booking without agreeing to keep details is refused" "$OUT" 'consent_required'
+
+OUT=$(post /api/classes/9999/hold "{\"consent\":true,\"name\":\"Real Name\",\"email\":\"a@b.com\",\"slotStart\":\"$SLOT1\",\"address\":\"$ADDR\"}")
 check "an unknown day is refused" "$OUT" 'no_such_class'
 
 echo
 echo "clashing times"
 
 SLOT3=$(curl -s -m 5 "$API/api/classes/2/slots" | sed -n 's/.*"slots":\[{"start":"\([^"]*\)".*/\1/p')
-post /api/classes/2/hold "{\"name\":\"Early Bird\",\"email\":\"early@example.com\",\"slotStart\":\"$SLOT3\",\"address\":\"$ADDR\"}" >/dev/null
+post /api/classes/2/hold "{\"consent\":true,\"name\":\"Early Bird\",\"email\":\"early@example.com\",\"slotStart\":\"$SLOT3\",\"address\":\"$ADDR\"}" >/dev/null
 
-OUT=$(post /api/classes/2/hold "{\"name\":\"Late Comer\",\"email\":\"late@example.com\",\"slotStart\":\"$SLOT3\",\"address\":\"$ADDR\"}")
+OUT=$(post /api/classes/2/hold "{\"consent\":true,\"name\":\"Late Comer\",\"email\":\"late@example.com\",\"slotStart\":\"$SLOT3\",\"address\":\"$ADDR\"}")
 check "two bookings cannot share a time" "$OUT" 'slot_taken'
 check "and the message says so"           "$OUT" 'just booked that time'
 
@@ -134,20 +137,20 @@ MADE=$(apost /api/admin/classes "{\"courseCode\":\"CPR\",\"title\":\"Tiny day\",
 TINY=$(sed -n 's/.*"classId":\([0-9]*\).*/\1/p' <<<"$MADE")
 check "a day can be created from the admin API" "$MADE" '"ok":true'
 TSLOT=$(slot_of $TINY)
-OUT=$(post "/api/classes/$TINY/hold" "{\"name\":\"First Person\",\"email\":\"first@example.com\",\"slotStart\":\"$TSLOT\",\"address\":\"$ADDR\"}")
+OUT=$(post "/api/classes/$TINY/hold" "{\"consent\":true,\"name\":\"First Person\",\"email\":\"first@example.com\",\"slotStart\":\"$TSLOT\",\"address\":\"$ADDR\"}")
 FIRST=$(refof "$OUT")
 check "the single place is taken" "$OUT" '"status":"held"'
 
-OUT=$(post "/api/classes/$TINY/hold" "{\"name\":\"Second Person\",\"email\":\"second@example.com\",\"slotStart\":\"$TSLOT\",\"address\":\"$ADDR\"}")
+OUT=$(post "/api/classes/$TINY/hold" "{\"consent\":true,\"name\":\"Second Person\",\"email\":\"second@example.com\",\"slotStart\":\"$TSLOT\",\"address\":\"$ADDR\"}")
 check "the next person is blocked"      "$OUT" '"reason":"full"'
 check "and is pointed at the waitlist"  "$OUT" '"canJoinWaitlist":true'
 
-OUT=$(post "/api/classes/$TINY/waitlist" '{"name":"Second Person","email":"second@example.com","preferredTime":"09:00","partySize":2}')
+OUT=$(post "/api/classes/$TINY/waitlist" '{"consent":true,"name":"Second Person","email":"second@example.com","preferredTime":"09:00","partySize":2}')
 SECOND=$(refof "$OUT")
 check "they join the waitlist at position 1" "$OUT" '"position":1'
 check "and are offered other days"          "$OUT" '"alternatives"'
 
-OUT=$(post "/api/classes/$TINY/waitlist" '{"name":"Second Person","email":"second@example.com"}')
+OUT=$(post "/api/classes/$TINY/waitlist" '{"consent":true,"name":"Second Person","email":"second@example.com"}')
 check "the same email cannot double-join" "$OUT" 'already_registered'
 
 OUT=$(post "/api/registrations/$FIRST/cancel" '{"reason":"changed plans"}')

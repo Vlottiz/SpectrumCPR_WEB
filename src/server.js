@@ -9,6 +9,14 @@ const address = require('./address');
 const payments = require('./payments');
 const zones = require('./zones');
 const schedule = require('./schedule');
+const records = require('./records');
+
+/**
+ * What the customer agrees to before booking or joining a waitlist. Kept here
+ * so the server and the page say the same thing; the booking page shows it.
+ */
+const CONSENT_MESSAGE =
+  'Please tick the box to agree to us keeping your details, so we can book you in.';
 const { getDb } = require('./db');
 
 const app = express();
@@ -350,7 +358,7 @@ app.get('/api/classes/:id/quote', (req, res) => {
 app.post('/api/classes/:id/hold', async (req, res) => {
   const classId = Number(req.params.id);
   const { name, attendees, email, phone = '', notes = '', organiserName,
-          slotStart, address = '', addressNotes = '', zip = '' } = req.body || {};
+          slotStart, address = '', addressNotes = '', zip = '', consent } = req.body || {};
 
   // One seat sends `name`; a group sends `attendees`, either as plain names or
   // as objects carrying that person's own email and phone.
@@ -398,6 +406,10 @@ app.post('/api/classes/:id/hold', async (req, res) => {
   if (!slotStart) {
     return bad(res, 400, 'slot_required', { message: 'Please choose a time.' });
   }
+  // Nobody's details are kept without their say-so: no tick, no booking.
+  if (consent !== true) {
+    return bad(res, 400, 'consent_required', { message: CONSENT_MESSAGE });
+  }
   // The instructor drives here, so a vague address means a missed appointment.
   if (String(address).trim().length < 8) {
     return bad(res, 400, 'address_required', {
@@ -430,6 +442,7 @@ app.post('/api/classes/:id/hold', async (req, res) => {
     address: String(address).trim(),
     addressNotes: String(addressNotes).trim(),
     zip: zipUsed,
+    consent: true,
   });
 
   if (!result.ok) {
@@ -588,10 +601,11 @@ app.post('/api/registrations/:ref/cancel', (req, res) => {
 app.post('/api/classes/:id/waitlist', (req, res) => {
   const classId = Number(req.params.id);
   const { name, email, phone = '', notes = '',
-          preferredTime = null, partySize = 1, address = '' } = req.body || {};
+          preferredTime = null, partySize = 1, address = '', consent } = req.body || {};
 
   if (!name || String(name).trim().length < 2) return bad(res, 400, 'name_required');
   if (!validEmail(email)) return bad(res, 400, 'valid_email_required');
+  if (consent !== true) return bad(res, 400, 'consent_required', { message: CONSENT_MESSAGE });
 
   const result = seats.joinWaitlist({
     classId,
@@ -602,6 +616,7 @@ app.post('/api/classes/:id/waitlist', (req, res) => {
     preferredTime: preferredTime ? String(preferredTime) : null,
     partySize: Math.max(1, Number(partySize) || 1),
     address: String(address).trim(),
+    consent: true,
   });
 
   if (!result.ok) {
@@ -941,6 +956,27 @@ app.post('/api/admin/settings', requireAdmin, (req, res) => {
              defaultTrainers: seats.defaultTrainers(), bufferMinutes: seats.bufferMinutes() });
 });
 
+// ------------------------------------------------------- customer records
+
+/**
+ * billing:  everyone who paid, removed people included and marked.
+ * renewals: everyone certified, with when their card expires; ?within=N for
+ *           just those expiring in the next N days.
+ */
+app.get('/api/admin/records', requireAdmin, (req, res) => {
+  const type = req.query.type === 'renewals' ? 'renewals' : 'billing';
+  const within = req.query.within !== undefined ? Number(req.query.within) : null;
+  res.json({
+    ok: true,
+    type,
+    reminderDays: records.REMINDER_DAYS,
+    retentionDays: records.RETENTION_DAYS,
+    rows: type === 'renewals'
+      ? records.renewals({ withinDays: Number.isFinite(within) ? within : null })
+      : records.billing(),
+  });
+});
+
 /** What would have been emailed. Replace with a real mail provider later. */
 app.get('/api/admin/outbox', requireAdmin, (req, res) => {
   const rows = getDb()
@@ -965,7 +1001,7 @@ app.get('/api/admin/classes', requireAdmin, (req, res) => {
   seats_.purgeEmptyCancelledDays(now);
 
   const rows = getDb()
-    .prepare(`SELECT * FROM classes
+    .prepare(`SELECT * FROM classes WHERE archived = 0
                ORDER BY (ends_at < ?) ASC, starts_at ASC`)
     .all(now);
 
@@ -1290,7 +1326,7 @@ async function done(outcome){
  * a server from different builds announce themselves instead of failing with
  * a confusing error halfway through a booking.
  */
-const FEATURES = ['calendar', 'admin', 'groups', 'attendee-contacts', 'slots', 'travel', 'address-lookup', 'group-pricing', 'zones', 'bulk-days', 'schedules'];
+const FEATURES = ['calendar', 'admin', 'groups', 'attendee-contacts', 'slots', 'travel', 'address-lookup', 'group-pricing', 'zones', 'bulk-days', 'schedules', 'records'];
 
 app.get('/health', (req, res) => {
   res.json({
@@ -1374,6 +1410,12 @@ if (require.main === module) {
     try {
       const added = schedule.fillSchedules();
       if (added) console.log(`[schedules] added ${added} days`);
+      // Records: renewal reminders when cards are close to expiring, and
+      // personal details cleared once the 2 years customers agreed to are up.
+      const reminded = records.queueRenewalReminders();
+      if (reminded) console.log(`[records] queued ${reminded} renewal reminders`);
+      const cleared = records.anonymizeExpired();
+      if (cleared) console.log(`[records] cleared details on ${cleared} bookings over 2 years old`);
       const r = seats.sweepExpired();
       if (r.expiredHolds || r.expiredOffers || r.promoted) {
         console.log('[sweep]', r);

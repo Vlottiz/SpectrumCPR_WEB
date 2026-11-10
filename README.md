@@ -29,17 +29,18 @@ the other suites already cover from the inside, so skipping it on Windows
 costs little.
 
 ```bash
-npm run test:all        # everything that runs on Node — 435 checks
+npm run test:all        # everything that runs on Node — 453 checks
 npm test                # holds, payment, waitlist, groups (34)
 npm run test:slots      # the slot calendar and blocking (39)
 npm run test:pricing    # group bands, rounding, fallbacks (22)
 npm run test:zones      # travel zones, charges, trips per day (29)
 npm run test:schedule   # schedules, time off, notice, trainers, prices, travel (38)
+npm run test:records    # billing record, renewals, reminders, 2-year clean-up (12)
 npm run test:address    # address parsing, ZIP lookup, outages (19)
-npm run test:fe         # booking page in a headless DOM (141)
-npm run test:admin      # admin page and its API (123)
+npm run test:fe         # booking page in a headless DOM (146)
+npm run test:admin      # admin page and its API (133)
 
-npm run test:e2e        # full API flow over HTTP (37) — needs bash
+npm run test:e2e        # full API flow over HTTP (38) — needs bash
 ```
 
 The server also serves `index.html`, so open **http://localhost:3000** and the
@@ -142,6 +143,29 @@ made. Prices sent with a day or schedule are ignored for a known course.
 - **Booking notice** (`settings.min_notice_hours`, default 24): start times
   sooner than that aren't offered, and a day with nothing left past the
   notice drops off the booking page.
+
+### Customer records and consent
+
+- **Consent.** Booking (and joining a waitlist) needs the customer to tick
+  "Keeping your details": their names, email, phone and address are stored for
+  up to 2 years for booking and payment records, and they'll get a reminder
+  before their certification card expires. The button stays off until it's
+  ticked and the server refuses a booking without `consent: true`. The time is
+  stored on every row (`consent_at`).
+- **Removed people stay.** Removing someone frees their seat but keeps the row
+  (`status = 'cancelled'`, `cancelled_at`): they show greyed and crossed out on
+  the day and in the run sheet, with what they paid.
+- **Days with booking history are archived, not deleted** (`classes.archived`),
+  so cancelling a day never deletes its records. Only a day nobody ever booked
+  is deleted.
+- **Records** (admin, top right; `GET /api/admin/records?type=billing|renewals`,
+  `src/records.js`): everyone who paid — removed people included — and
+  everyone certified with the date their card expires (2 years after the
+  class). Both download as a CSV spreadsheet.
+- **Automatic, from the sweeper:** a renewal reminder is queued in the outbox
+  `REMINDER_DAYS` (30) before a card expires, once per inbox per class; and
+  `RETENTION_DAYS` (730) after the class, names, emails, phones and addresses
+  are cleared while amounts and payment references stay.
 
 ### Travel zones
 

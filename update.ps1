@@ -24,6 +24,7 @@ $files = @(
   @{ name = 'server.js';    dest = 'src';           marker = 'schedules' }
   @{ name = 'zones.js';     dest = 'src';           marker = 'zoneForZip' }
   @{ name = 'schedule.js';  dest = 'src';           marker = 'fillSchedules' }
+  @{ name = 'records.js';   dest = 'src';           marker = 'anonymizeExpired' }
   @{ name = 'zip-centroids.json'; dest = 'src';     marker = '"97116"' }
   @{ name = 'calendar.js';  dest = 'src';           marker = 'BEGIN:VCALENDAR' }
   @{ name = 'address.js';   dest = 'src';           marker = 'PHOTON_URL' }
@@ -40,6 +41,7 @@ $files = @(
   @{ name = 'pricing.test.js';  dest = 'test';      marker = 'the OS will clear it' }
   @{ name = 'zones.test.js';    dest = 'test';      marker = 'trips per zone per day' }
   @{ name = 'schedule.test.js'; dest = 'test';      marker = 'one instructor, every course' }
+  @{ name = 'records.test.js';  dest = 'test';      marker = 'card renewals' }
 )
 
 # Selecting several files at once makes the browser hand back a single zip,
