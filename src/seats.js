@@ -7,9 +7,9 @@ const zones = require('./zones');
 const HOLD_MINUTES = Number(process.env.HOLD_MINUTES || 20);
 const OFFER_HOURS = Number(process.env.OFFER_HOURS || 24);
 
-// Cap on a single group booking. Large enough for a daycare or dental practice,
-// small enough that a typo can't reserve a whole day.
-const MAX_GROUP_SEATS = Number(process.env.MAX_GROUP_SEATS || 12);
+// The real cap on a group is each day's "Max group size" (classes.capacity).
+// This is only a guard against a typo or a script asking for hundreds.
+const MAX_GROUP_SEATS = Number(process.env.MAX_GROUP_SEATS || 100);
 
 // How long the instructor is on site teaching.
 const SESSION_MINUTES = Number(process.env.SESSION_MINUTES || 240);
@@ -476,7 +476,7 @@ function priceFor(cls, partySize) {
 }
 
 /** The whole ladder, for showing a customer what a bigger group would cost. */
-function priceLadder(cls, maxSize = MAX_GROUP_SEATS) {
+function priceLadder(cls, maxSize = cls.capacity || MAX_GROUP_SEATS) {
   return tiersFor(cls).map((t) => {
     const size = Math.max(1, t.minSize ?? 1);
     const quote = priceFor(cls, size);
@@ -753,6 +753,10 @@ function holdSeats({ classId, attendees, email, phone = '', notes = '',
 
     if (!cls) return { ok: false, reason: 'no_such_class' };
     if (cls.status !== 'open') return { ok: false, reason: 'class_cancelled' };
+    // The day's max group size is the most one booking can bring.
+    if (args.people.length > cls.capacity) {
+      return { ok: false, reason: 'too_many_seats', max: cls.capacity };
+    }
 
     // Where they are decides whether we go at all, and what the trip costs.
     // Checked here, inside the transaction, as well as on the way in — a

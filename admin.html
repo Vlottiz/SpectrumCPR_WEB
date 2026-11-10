@@ -79,13 +79,17 @@
   .nowrap{white-space:nowrap}
 
   /* modal */
+  /* The pop-up scrolls inside itself, with its own scroll bar; the page
+     behind stays still and the × stays in view. */
   .veil{position:fixed;inset:0;background:rgba(20,24,33,.55);z-index:50;display:none;
-        align-items:flex-start;justify-content:center;padding:5vh 18px;overflow-y:auto}
+        align-items:flex-start;justify-content:center;padding:5vh 18px;overflow:hidden}
   .veil.open{display:flex}
-  .box{background:var(--paper);border:1.5px solid var(--ink);width:100%;max-width:560px}
-  .box-head{padding:16px 20px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:14px}
+  .box{background:var(--paper);border:1.5px solid var(--ink);width:100%;max-width:560px;
+       display:flex;flex-direction:column;max-height:90vh;max-height:90dvh}
+  .box-head{padding:16px 20px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:14px;
+       flex:none}
   .box-head h3{margin:0;font-family:var(--cond);font-size:21px}
-  .box-body{padding:20px}
+  .box-body{padding:20px;overflow-y:auto;overscroll-behavior:contain;min-height:0}
   .x{background:none;border:0;font-size:23px;cursor:pointer;color:var(--ink-soft);line-height:1}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
 
@@ -331,6 +335,7 @@
     .stat{padding:12px 14px}
     .stat b{font-size:26px}
     .veil{padding:12px 8px}
+    .box{max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px)}
     .box-body{padding:16px}
     .tier,.tier-head{grid-template-columns:44px 44px 56px 1fr 24px;gap:0 6px;padding-left:8px;padding-right:8px}
     /* The reason gets its own full-width line instead of a sliver. */
@@ -632,8 +637,9 @@ const Admin = (() => {
           + 'Customers never see times outside these hours.' },
     { el: '#wkPreview', title: 'Check before saving',
       text: 'This line says exactly what will be added, so you can catch a mistake first.' },
-    { el: '#capRow', title: 'How many people',
-      text: 'The most people you’ll take for each course on one day — think manikins, cards and energy.' },
+    { el: '#capRow', title: 'Max group size',
+      text: 'The most people one booking can bring. Customers can’t pick more than this, and it '
+          + 'also caps how many you’ll train in that course on one day.' },
     { el: '#tiers', title: 'Group prices',
       text: 'Smaller groups pay a bit more, bigger groups a bit less. Leave these as they are unless '
           + 'you want to change the discounts. Customers see the reason you write.' },
@@ -1079,9 +1085,14 @@ const Admin = (() => {
   const openBox = (title, html) => {
     $('boxTitle').textContent = title;
     $('boxBody').innerHTML = html;
+    $('boxBody').scrollTop = 0;
     $('veil').classList.add('open');
+    document.body.style.overflow = 'hidden';   // the page behind stays put
   };
-  const closeBox = () => $('veil').classList.remove('open');
+  const closeBox = () => {
+    $('veil').classList.remove('open');
+    document.body.style.overflow = '';
+  };
 
   // Course code, name, and the starting price for a new day.
   const COURSES = [
@@ -1356,7 +1367,7 @@ const Admin = (() => {
 
       <div class="two" id="capRow">
         <div>
-          <label for="fCap">People per course, per day</label>
+          <label for="fCap">Max group size</label>
           <input id="fCap" type="number" min="1" value="${c?.capacity ?? s?.capacity ?? 20}">
           ${c && c.taken ? `<p class="sub" style="margin-top:-8px;font-size:13px">
             ${c.taken} already booked — cannot go below this.</p>` : ''}

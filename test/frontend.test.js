@@ -426,6 +426,27 @@ async function until(fn, timeoutMs = 4000) {
 
   console.log('\ngroup limits');
 
+  // Max group size 15: customers can choose up to 15, not a fixed 12.
+  const fifteen = await (await fetch(`${BASE}/api/admin/classes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
+    body: JSON.stringify({
+      courseCode: 'CPR', title: 'Big groups',
+      startsAt: '2027-05-11T16:00:00Z', endsAt: '2027-05-12T02:00:00Z',
+      capacity: 15, priceCents: 8500,
+    }),
+  })).json();
+  window.Booking.close();
+  await window.Booking.load();
+  await sleep(200);
+  window.Booking.open(fifteen.classId);
+  await sleep(400);
+  for (let i = 0; i < 20; i++) window.Booking.setQty(1);
+  await sleep(200);
+  check('the people picker goes up to the max group size',
+    doc.getElementById('qtyVal').textContent === '15' && doc.getElementById('qtyUp').disabled,
+    `qty ${doc.getElementById('qtyVal').textContent}`);
+
   // A class with 2 seats left can't take a group of 3.
   const tight = await (await fetch(`${BASE}/api/admin/classes`, {
     method: 'POST',

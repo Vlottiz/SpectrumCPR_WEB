@@ -29,15 +29,15 @@ the other suites already cover from the inside, so skipping it on Windows
 costs little.
 
 ```bash
-npm run test:all        # everything that runs on Node — 431 checks
-npm test                # holds, payment, waitlist, groups (32)
+npm run test:all        # everything that runs on Node — 435 checks
+npm test                # holds, payment, waitlist, groups (34)
 npm run test:slots      # the slot calendar and blocking (39)
 npm run test:pricing    # group bands, rounding, fallbacks (22)
 npm run test:zones      # travel zones, charges, trips per day (29)
 npm run test:schedule   # schedules, time off, notice, trainers, prices, travel (38)
 npm run test:address    # address parsing, ZIP lookup, outages (19)
-npm run test:fe         # booking page in a headless DOM (140)
-npm run test:admin      # admin page and its API (122)
+npm run test:fe         # booking page in a headless DOM (141)
+npm run test:admin      # admin page and its API (123)
 
 npm run test:e2e        # full API flow over HTTP (37) — needs bash
 ```
@@ -264,7 +264,9 @@ signing up staff, a dental practice, a coaching team.
 - **All or nothing.** If four seats are wanted and three are free, nothing is
   held. A half-booked group leaves the organiser paying for staff who can't
   attend, and someone has to fix it by hand either way.
-- Capped at `MAX_GROUP_SEATS` (default 12), so a typo can't reserve a class.
+- Capped at the day's **Max group size** (`classes.capacity`), which also
+  caps how many people that course takes that day. `MAX_GROUP_SEATS`
+  (default 100) is only a guard against typos.
 - The seat picker won't offer more seats than the class has left.
 
 Phone fields format as you type — `5035551234` becomes `(503) 555-1234`. Values

@@ -227,6 +227,8 @@ async function until(fn, timeoutMs = 4000) {
   window.Admin.newClass();
   await sleep(150);
   check('weekly hours is the default', $('weekFields').style.display !== 'none');
+  check('the headcount is called Max group size',
+    (doc.querySelector('label[for="fCap"]')?.textContent || '') === 'Max group size');
   check('and it repeats by default', $('fWeeks').value === 'repeat');
   check('Monday to Friday start ticked',
     $('wkOn1').checked && $('wkOn5').checked && !$('wkOn6').checked && !$('wkOn0').checked);

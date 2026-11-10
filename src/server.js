@@ -328,7 +328,7 @@ app.get('/api/classes/:id/quote', (req, res) => {
   const cls = seats.getClass(Number(req.params.id));
   if (!cls) return bad(res, 404, 'no_such_class');
 
-  const partySize = Math.max(1, Math.min(seats.MAX_GROUP_SEATS,
+  const partySize = Math.max(1, Math.min(cls.capacity,
     Number(req.query.partySize) || 1));
 
   res.json({
@@ -451,6 +451,7 @@ app.post('/api/classes/:id/hold', async (req, res) => {
                        'Please pick a later time.',
         day_off: 'Sorry, that day is no longer available. Please pick another.',
         slot_not_offered: 'That time is not available on this day.',
+        too_many_seats: `The largest group we can take on this day is ${result.max}.`,
         full: 'This day is fully booked.',
         outside_service_area: `That ZIP code is outside our travel area.`,
         zip_required: 'Please enter the ZIP code so we can work out your travel zone.',
