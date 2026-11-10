@@ -1039,12 +1039,14 @@ app.get('/api/admin/classes', requireAdmin, (req, res) => {
           .prepare(`SELECT COUNT(*) AS n FROM registrations
                      WHERE class_id = ? AND status = 'confirmed'`)
           .get(c.id).n,
-        availableSlots: (seats_.daySlots(c.id) || {}).availableSlots || 0,
-        bookedSlots: (() => {
+        ...(() => {
+          // Worked out once per day: it's the costly part of this list.
           const d = seats_.daySlots(c.id);
-          if (!d) return 0;
-          // Slots lost to bookings, not to the day simply being over.
-          return d.slots.filter((s) => s.reason === 'booked').length;
+          return {
+            availableSlots: d ? d.availableSlots : 0,
+            // Slots lost to bookings, not to the day simply being over.
+            bookedSlots: d ? d.slots.filter((s) => s.reason === 'booked').length : 0,
+          };
         })(),
         groups: getDb()
           .prepare(`SELECT COUNT(DISTINCT group_ref) AS n FROM registrations

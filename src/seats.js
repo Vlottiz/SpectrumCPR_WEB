@@ -230,13 +230,25 @@ function overbooked(ymd, now = nowIso()) {
 }
 
 /** How many of these visits are in progress (session plus travel) at an instant. */
-function depthAt(visits, iso) {
-  const t = new Date(iso).getTime();
-  const block = blockMinutes() * 60_000;
-  return visits.filter((v) => {
-    const s = new Date(v.slot_start).getTime();
-    return s <= t && t < s + block;
-  }).length;
+function depthAt(visits, iso, block = blockMinutes() * 60_000) {
+  return depthAtMs(visits.map((v) => Date.parse(v.slot_start)), Date.parse(iso), block);
+}
+
+// The same checks on plain millisecond numbers. These run thousands of times
+// when a long list of days is drawn, so they avoid parsing dates in the loop.
+function depthAtMs(starts, t, block) {
+  let n = 0;
+  for (const s of starts) if (s <= t && t < s + block) n++;
+  return n;
+}
+
+function freeAtMs(starts, s, trainers, block) {
+  if (trainers <= 0) return false;
+  if (depthAtMs(starts, s, block) + 1 > trainers) return false;
+  for (const p of starts) {
+    if (p >= s && p < s + block && depthAtMs(starts, p, block) + 1 > trainers) return false;
+  }
+  return true;
 }
 
 /**
@@ -245,13 +257,8 @@ function depthAt(visits, iso) {
  * be running, fewer than `trainers` others are.
  */
 function trainerFree(visits, start, trainers) {
-  if (trainers <= 0) return false;
-  const s = new Date(start).getTime();
-  const block = blockMinutes() * 60_000;
-  const points = [start, ...visits
-    .map((v) => v.slot_start)
-    .filter((p) => { const t = new Date(p).getTime(); return t >= s && t < s + block; })];
-  return points.every((p) => depthAt(visits, p) + 1 <= trainers);
+  return freeAtMs(visits.map((v) => Date.parse(v.slot_start)), Date.parse(start),
+                  trainers, blockMinutes() * 60_000);
 }
 
 /**
@@ -262,11 +269,13 @@ function trainerFree(visits, start, trainers) {
  * still take.
  */
 function roomFor(visits, starts, trainers) {
-  const placed = [...visits];
+  const block = blockMinutes() * 60_000;
+  const placed = visits.map((v) => Date.parse(v.slot_start));
   let n = 0;
   for (const start of starts) {
-    if (trainerFree(placed, start, trainers)) {
-      placed.push({ slot_start: start });
+    const s = Date.parse(start);
+    if (freeAtMs(placed, s, trainers, block)) {
+      placed.push(s);
       n++;
     }
   }
@@ -296,10 +305,21 @@ function isTimeOff(ymd) {
 // -------------------------------------------------------------- travel zones
 
 /** "2026-11-16" — the calendar date of an instant, in the business's timezone. */
+// Built once: making a new formatter on every call was the single biggest
+// cost (time and memory) of listing a few months of days.
+const DAY_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+});
+const localDates = new Map();
+
 function localDate(iso) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date(iso));
+  let d = localDates.get(iso);
+  if (d === undefined) {
+    d = DAY_FORMAT.format(new Date(iso));
+    if (localDates.size > 20000) localDates.clear();   // keep it bounded
+    localDates.set(iso, d);
+  }
+  return d;
 }
 
 /**

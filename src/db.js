@@ -231,6 +231,10 @@ let _db = null;      // the wrapper handed to callers
 let _raw = null;     // the underlying DatabaseSync
 let _txDepth = 0;
 
+// Prepared statements, reused. Compiling the same SQL again on every call
+// was most of the cost of loading a long list of days, and churned memory.
+let _statements = new Map();
+
 /**
  * Run fn inside a write transaction.
  *
@@ -274,7 +278,11 @@ function transaction(fn, ...args) {
 
 function wrap(raw) {
   return {
-    prepare: (sql) => raw.prepare(sql),
+    prepare: (sql) => {
+      let st = _statements.get(sql);
+      if (!st) { st = raw.prepare(sql); _statements.set(sql, st); }
+      return st;
+    },
     exec: (sql) => raw.exec(sql),
     close: () => raw.close(),
     pragma: (stmt) => raw.exec(`PRAGMA ${stmt}`),
@@ -385,6 +393,7 @@ function closeDb() {
     _raw = null;
     _db = null;
     _txDepth = 0;
+    _statements = new Map();
   }
 }
 

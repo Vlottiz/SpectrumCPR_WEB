@@ -40,12 +40,20 @@ function weekday(ymd) {
 }
 
 /** Offset of a timezone from UTC at an instant, in ms (Pacific is negative). */
+const offsetFormats = new Map();
+
 function tzOffsetMs(instant, tz) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hourCycle: 'h23',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).formatToParts(instant).map((p) => [p.type, p.value]));
+  // One formatter per timezone, reused: building one per call is slow.
+  let fmt = offsetFormats.get(tz);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+    offsetFormats.set(tz, fmt);
+  }
+  const parts = Object.fromEntries(fmt.formatToParts(instant).map((p) => [p.type, p.value]));
   const asUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day,
                          +parts.hour, +parts.minute, +parts.second);
   return asUtc - Math.floor(instant.getTime() / 1000) * 1000;
