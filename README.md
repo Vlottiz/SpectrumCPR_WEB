@@ -29,7 +29,7 @@ the other suites already cover from the inside, so skipping it on Windows
 costs little.
 
 ```bash
-npm run test:all        # everything that runs on Node — 453 checks
+npm run test:all        # everything that runs on Node — 461 checks
 npm test                # holds, payment, waitlist, groups (34)
 npm run test:slots      # the slot calendar and blocking (39)
 npm run test:pricing    # group bands, rounding, fallbacks (22)
@@ -37,7 +37,7 @@ npm run test:zones      # travel zones, charges, trips per day (29)
 npm run test:schedule   # schedules, time off, notice, trainers, prices, travel (38)
 npm run test:records    # billing record, renewals, reminders, 2-year clean-up (12)
 npm run test:address    # address parsing, ZIP lookup, outages (19)
-npm run test:fe         # booking page in a headless DOM (146)
+npm run test:fe         # booking page in a headless DOM (154)
 npm run test:admin      # admin page and its API (133)
 
 npm run test:e2e        # full API flow over HTTP (38) — needs bash
@@ -483,6 +483,11 @@ POST /api/admin/classes/:id/cancel
 GET  /api/admin/outbox
 POST /api/admin/sweep
 ```
+
+## Payments
+
+**Start with [PAYMENTS.md](PAYMENTS.md)**: the five integration points, the
+adapter contract, the webhook and the settings, for any processor.
 
 ## Switching to Elavon Converge
 

@@ -3,6 +3,10 @@
 /**
  * ELAVON CONVERGE — LIGHTBOX INTEGRATION
  * ======================================
+ * A ready-made example of integration point 2 (see template.js and
+ * PAYMENTS.md). Use this if the processor is Elavon Converge; for any other
+ * processor, start from template.js instead.
+ *
  * Not active yet. Fill in credentials, flip PAYMENT_PROVIDER=converge, and the
  * rest of the app works unchanged — seats.js has no idea which provider is in
  * play.

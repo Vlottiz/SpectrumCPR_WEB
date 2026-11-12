@@ -21,6 +21,8 @@ services:
       - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-mock}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
       - ORG_NAME=${ORG_NAME:-Spectrum CPR + First Aid}
+      # The site's address, for the payment provider's return and webhook URLs.
+      - PUBLIC_URL=${PUBLIC_URL:-}
       # Filled in once Elavon issues credentials.
       - CONVERGE_MERCHANT_ID=${CONVERGE_MERCHANT_ID:-}
       - CONVERGE_USER_ID=${CONVERGE_USER_ID:-}

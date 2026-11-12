@@ -2402,7 +2402,7 @@ const Booking = (() => {
           Simulate declined card
         </button>`
       : `
-        <button class="btn" style="width:100%" onclick="Booking.payConverge()">
+        <button class="btn" style="width:100%" onclick="Booking.payOnline()">
           Pay ${money(data.totalCents ?? data.registration.amountCents)}
         </button>`}
       <p class="modal-note">If the timer runs out your seat is released and offered to the next person.</p>
@@ -2429,24 +2429,103 @@ const Booking = (() => {
     stepDone();
   }
 
+  // ==========================================================================
+  //  PAYMENT INTEGRATION POINT 5 of 5 — THE CUSTOMER PAYS
+  // ==========================================================================
   /**
-   * Converge Lightbox goes here.
+   * Hand the customer to the payment provider. `payment` is what the
+   * provider's createSession() returned (server, point 3):
    *
-   * The hold response carries payment.sessionToken and payment.scriptUrl once
-   * PAYMENT_PROVIDER=converge. Load that script, then:
+   *   mode 'redirect'  go to payment.redirectUrl — a hosted payment page.
+   *                    The provider sends them back to /?booking=<ref>, and
+   *                    the result arrives by webhook (point 4).
+   *   mode 'lightbox'  load payment.scriptUrl and open the provider's pop-up
+   *                    with payment.sessionToken. Written for Elavon
+   *                    Converge's PayWithConverge.js; another provider's
+   *                    pop-up goes in the same place.
    *
-   *   PayWithConverge.open({ ssl_txn_auth_token: token }, {
-   *     onApproval: (r) => postConfirm(r),
-   *     onDeclined: (r) => showErr(r.ssl_result_message),
-   *     onError:    (r) => showErr('Payment could not be processed.'),
-   *   });
-   *
-   * onApproval posts the response to /confirm, same as pay() does. Note the
-   * server treats a browser callback as a hint — see payments/converge.js for
-   * the server-side verification still to wire up.
+   * Card details are only ever typed into the provider's page or pop-up,
+   * never into this site.
    */
-  function payConverge() {
+  function payOnline() {
+    const payment = lastBooking && lastBooking.payment;
+    if (!payment) return;
+
+    if (payment.redirectUrl) {
+      window.location.assign(payment.redirectUrl);
+      return;
+    }
+
+    if (payment.mode === 'lightbox' && payment.sessionToken && payment.scriptUrl) {
+      loadScript(payment.scriptUrl).then(() => {
+        if (!window.PayWithConverge) throw new Error('payment window did not load');
+        window.PayWithConverge.open({ ssl_txn_auth_token: payment.sessionToken }, {
+          onApproval: (response) => confirmWith(response),
+          onDeclined: (response) => showErr(response.ssl_result_message || 'That card was declined.'),
+          onError: () => showErr('Payment could not be processed. Please try again or call us.'),
+        });
+      }).catch(() => showErr('The payment window could not open. Please try again or call us.'));
+      return;
+    }
+
     showErr('Card payments are not switched on yet. Please call us to book.');
+  }
+  // The name the Pay button used before; kept so older copies still work.
+  const payConverge = payOnline;
+
+  /** The provider's approval goes to the server, which double-checks it. */
+  async function confirmWith(response) {
+    const { data } = await api(`/api/registrations/${holdRef}/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(response),
+    });
+    if (!data.ok) { showErr(data.message || 'That payment could not be confirmed. Please call us.'); return; }
+    stepDone();
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const el = document.createElement('script');
+      el.src = src;
+      el.onload = resolve;
+      el.onerror = reject;
+      document.head.appendChild(el);
+    });
+  }
+
+  /**
+   * Back from a hosted payment page at /?booking=<ref>: show where the
+   * booking stands. The webhook may land a moment after the customer does,
+   * so it checks a few times before saying it's still confirming.
+   */
+  async function showReturn(ref) {
+    document.getElementById('bookTitle').textContent = 'Your booking';
+    document.getElementById('bookWhen').textContent = `Reference ${ref}`;
+    body('<p class="modal-note">Checking your payment…</p>');
+    document.getElementById('bookVeil').classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    for (let i = 0; i < 6; i++) {
+      const { data } = await api(`/api/registrations/${encodeURIComponent(ref)}`);
+      if (data.ok && data.registration.status === 'confirmed') {
+        body(`<p class="ok-mark">You're booked.</p>
+          <p>Payment received. A confirmation is on its way to
+             ${esc(data.registration.email)}.</p>
+          <div class="ref-chip">${esc(data.registration.groupRef || ref)}</div>
+          <p style="margin-top:20px"><button class="btn btn-ghost" style="width:100%"
+             onclick="Booking.close()">Done</button></p>`);
+        return;
+      }
+      if (!data.ok) break;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    body(`<p>We're still confirming your payment. You'll get an email as soon as it
+      goes through — there's no need to pay again. If you don't hear from us
+      within the hour, call us with reference <b>${esc(ref)}</b>.</p>
+      <p style="margin-top:20px"><button class="btn btn-ghost" style="width:100%"
+         onclick="Booking.close()">Done</button></p>`);
   }
 
   function stepDone() {
@@ -2620,13 +2699,16 @@ const Booking = (() => {
 
   checkServer();
   load();
+  // Back from a hosted payment page.
+  const returning = new URLSearchParams(location.search).get('booking');
+  if (returning) showReturn(returning);
   // Keep seat counts honest for someone who leaves the page open.
   setInterval(load, 60000);
 
-  return { open, close, hold, pay, payConverge, joinWaitlist, load, setQty, toggleContact,
+  return { open, close, hold, pay, payOnline, payConverge, joinWaitlist, load, setQty, toggleContact,
            pickSlot, switchDay, loadSlots, loadQuote, checkZone, showCourse, consentChanged,
            // exposed for tests
-           _formatPhone: formatPhone, _showSuggest: showSuggest, _hideSuggest: hideSuggest,
+           _showReturn: showReturn, _formatPhone: formatPhone, _showSuggest: showSuggest, _hideSuggest: hideSuggest,
            _composeAddress: composeAddress, _chooseAddress: chooseAddress,
            _queryAddress: queryAddress, _lookupZip: lookupZip };
 })();
