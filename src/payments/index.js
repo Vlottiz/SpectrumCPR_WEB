@@ -1,13 +1,23 @@
 'use strict';
 
 /**
- * The only place that decides which payment provider is live.
+ * ============================================================================
+ *  PAYMENT INTEGRATION POINT 1 of 5 — WHICH PROVIDER IS LIVE
+ * ============================================================================
  *
- * PAYMENT_PROVIDER=mock      (default) fake payments, nothing charged
- * PAYMENT_PROVIDER=converge  real Elavon Converge Lightbox
+ * The only place that decides which payment provider is live, chosen by the
+ * PAYMENT_PROVIDER environment variable (set on Render):
  *
- * Both expose the same two functions, so nothing outside this folder changes
- * when the switch happens.
+ *   PAYMENT_PROVIDER=mock      (default) fake payments, nothing charged
+ *   PAYMENT_PROVIDER=converge  Elavon Converge Lightbox (converge.js)
+ *
+ * To add a processor: copy template.js (integration point 2) to
+ * <provider>.js, fill it in, add it to `providers` below, and set
+ * PAYMENT_PROVIDER to its name. Every provider exposes the same functions —
+ * createSession, verify and optionally webhook — so nothing outside this
+ * folder changes when the switch happens.
+ *
+ * Full guide: PAYMENTS.md at the top of the repository.
  */
 
 const PROVIDER = (process.env.PAYMENT_PROVIDER || 'mock').toLowerCase();
@@ -15,6 +25,7 @@ const PROVIDER = (process.env.PAYMENT_PROVIDER || 'mock').toLowerCase();
 const providers = {
   mock: require('./mock'),
   converge: require('./converge'),
+  // yourprovider: require('./yourprovider'),   // ← add a new processor here
 };
 
 const active = providers[PROVIDER];
@@ -39,4 +50,6 @@ module.exports = {
   isMock,
   createSession: active.createSession,
   verify: active.verify,
+  // Server-to-server payment notice, for providers that send one.
+  webhook: typeof active.webhook === 'function' ? active.webhook : null,
 };

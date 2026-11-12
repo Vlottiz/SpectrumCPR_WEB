@@ -28,8 +28,14 @@ const ORG_NAME = process.env.ORG_NAME || 'Spectrum CPR + First Aid';
 // layout with the site and the API side by side works with no configuration.
 const SITE_DIR = process.env.SITE_DIR || path.join(__dirname, '..');
 
-app.use(express.json({ limit: '64kb' }));
-app.use(express.urlencoded({ extended: true }));
+// Keep the exact bytes received as req.rawBody: a payment provider's webhook
+// signature is checked against them (integration point 4).
+const keepRaw = (req, _res, buf) => { req.rawBody = buf; };
+app.use(express.json({ limit: '64kb', verify: keepRaw }));
+app.use(express.urlencoded({ extended: true, verify: keepRaw }));
+
+// The site's public address, for the provider's return and notify URLs.
+const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
 
 /**
  * CORS.
@@ -477,6 +483,13 @@ app.post('/api/classes/:id/hold', async (req, res) => {
 
   const cls = seats.getClass(classId);
 
+  // ==========================================================================
+  //  PAYMENT INTEGRATION POINT 3 of 5 — START A PAYMENT
+  // ==========================================================================
+  // The seat is already held. Ask the provider for a payment session for the
+  // full amount (every seat plus travel), worked out here on the server.
+  // What comes back goes to the booking page (point 5) as `payment`.
+  const site = PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
   let session;
   try {
     session = await payments.createSession({
@@ -485,6 +498,8 @@ app.post('/api/classes/:id/hold', async (req, res) => {
       // A group pays once for every seat.
       amountCents: result.totalCents,
       seatCount: result.seats,
+      returnUrl: `${site}/?booking=${encodeURIComponent(result.registration.public_ref)}`,
+      notifyUrl: `${site}/api/payments/webhook`,
     });
   } catch (err) {
     // Don't strand seats because the gateway hiccupped.
@@ -585,6 +600,47 @@ app.post('/api/registrations/:ref/confirm', async (req, res) => {
     registration: publicRegistration(result.registration),
     seatsConfirmed: result.seatsConfirmed || 1,
     groupRef: result.groupRef || null,
+  });
+});
+
+// ============================================================================
+//  PAYMENT INTEGRATION POINT 4 of 5 — PAYMENT NOTICE FROM THE PROVIDER
+// ============================================================================
+/**
+ * Server-to-server confirmation: the provider posts here when a payment
+ * settles (give them https://<site>/api/payments/webhook). The adapter's
+ * webhook() checks the signature and says which booking it was for; the seat
+ * is then confirmed exactly as a card approval would. Safe to receive twice.
+ *
+ * This, rather than the customer's browser, is the source of truth.
+ */
+app.post('/api/payments/webhook', async (req, res) => {
+  if (!payments.webhook) {
+    return bad(res, 501, 'webhook_not_supported', {
+      message: `The ${payments.name} payment provider doesn't use webhooks.`,
+    });
+  }
+
+  let notice;
+  try {
+    notice = await payments.webhook(req);
+  } catch (err) {
+    console.error('[payments] webhook failed:', err.message);
+    return bad(res, 400, 'webhook_invalid');
+  }
+  if (!notice || !notice.ok) return bad(res, 400, (notice && notice.reason) || 'rejected');
+
+  const result = seats.confirmPayment({
+    publicRef: notice.publicRef,
+    provider: payments.name,
+    paymentRef: notice.paymentRef,
+    raw: notice.raw,
+  });
+  if (!result.ok && result.needsRefund) {
+    console.error(`[REFUND REQUIRED] ${notice.publicRef} paid ${notice.paymentRef} but the class filled up.`);
+  }
+  res.status(result.ok ? 200 : 409).json({
+    ok: result.ok, reason: result.reason || null, needsRefund: Boolean(result.needsRefund),
   });
 });
 
@@ -1328,7 +1384,7 @@ async function done(outcome){
  * a server from different builds announce themselves instead of failing with
  * a confusing error halfway through a booking.
  */
-const FEATURES = ['calendar', 'admin', 'groups', 'attendee-contacts', 'slots', 'travel', 'address-lookup', 'group-pricing', 'zones', 'bulk-days', 'schedules', 'records'];
+const FEATURES = ['calendar', 'admin', 'groups', 'attendee-contacts', 'slots', 'travel', 'address-lookup', 'group-pricing', 'zones', 'bulk-days', 'schedules', 'records', 'payment-webhook'];
 
 app.get('/health', (req, res) => {
   res.json({

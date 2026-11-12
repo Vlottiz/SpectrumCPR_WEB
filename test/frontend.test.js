@@ -920,6 +920,56 @@ async function until(fn, timeoutMs = 4000) {
     && doc.querySelectorAll('.slot-btn[disabled]').length === 0,
     `${doc.querySelectorAll('.slot-btn').length} buttons for ${openCount} open times`);
 
+  console.log('\npayment notices from the provider');
+
+  const payDay = await (await fetch(`${BASE}/api/admin/classes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
+    body: JSON.stringify({
+      courseCode: 'CPR', title: 'Webhook day',
+      startsAt: '2027-05-18T16:00:00Z', endsAt: '2027-05-19T02:00:00Z',
+      capacity: 10, priceCents: 8500,
+    }),
+  })).json();
+  const paySlots = await (await fetch(`${BASE}/api/classes/${payDay.classId}/slots`)).json();
+  const payHold = await (await fetch(`${BASE}/api/classes/${payDay.classId}/hold`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ consent: true,
+      name: 'Webhook Paid', email: 'wh@example.com',
+      slotStart: paySlots.slots.find((x) => x.available).start,
+      address: '1200 SW Main St, Hillsboro, OR 97123',
+    }),
+  })).json();
+  check('a booking can be made for the payment test', payHold.ok === true, JSON.stringify(payHold).slice(0, 120));
+  const notify = (body) => fetch(`${BASE}/api/payments/webhook`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const bad = await notify({ outcome: 'approve' });
+  check('a notice that names no booking is rejected', bad.status === 400, `status ${bad.status}`);
+  const declined = await notify({ publicRef: payHold.registration.ref, outcome: 'decline' });
+  check('a declined payment confirms nothing', declined.status === 400);
+  const good = await (await notify({ publicRef: payHold.registration.ref, outcome: 'approve' })).json();
+  const after = await (await fetch(`${BASE}/api/registrations/${payHold.registration.ref}`)).json();
+  check('the provider\'s notice confirms the booking', good.ok && after.registration.status === 'confirmed',
+    JSON.stringify(good));
+  const again = await (await notify({ publicRef: payHold.registration.ref, outcome: 'approve' })).json();
+  check('receiving the same notice twice is harmless', again.ok === true, JSON.stringify(again));
+
+  const tpl = require('../src/payments/template');
+  check('the provider template has every function the app calls',
+    ['createSession', 'verify', 'webhook'].every((f) => typeof tpl[f] === 'function') && tpl.name === 'template');
+  let threw = false;
+  try { await tpl.createSession({}); } catch { threw = true; }
+  check('until it is filled in, the template refuses to take money', threw);
+
+  window.Booking.close();
+  window.history.replaceState(null, '', `/?booking=${payHold.registration.ref}`);
+  await window.Booking._showReturn(payHold.registration.ref);
+  check('returning from a hosted payment page shows the confirmation',
+    (doc.getElementById('bookBody').textContent || '').includes("You're booked"),
+    doc.getElementById('bookBody').textContent.slice(0, 120));
+  window.Booking.close();
+
   console.log('\ncourse prices');
 
   await fetch(`${BASE}/api/admin/courses/CPR/price`, {

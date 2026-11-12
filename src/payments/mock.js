@@ -62,4 +62,18 @@ async function verify(payload) {
   };
 }
 
-module.exports = { name, createSession, verify };
+/**
+ * Stands in for a provider's server-to-server notice, so POST
+ * /api/payments/webhook can be exercised in testing. Body: { publicRef,
+ * outcome: 'approve' }. Like the rest of this file, it moves no money.
+ */
+async function webhook(req) {
+  const body = req.body || {};
+  if (!body.publicRef) return { ok: false, reason: 'publicRef missing' };
+  const v = await verify({ ...body });
+  return v.ok
+    ? { ok: true, publicRef: String(body.publicRef), paymentRef: v.paymentRef, raw: v.raw }
+    : { ok: false, reason: v.reason };
+}
+
+module.exports = { name, createSession, verify, webhook };
