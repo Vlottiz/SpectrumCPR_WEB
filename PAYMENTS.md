@@ -98,11 +98,14 @@ dashboard. They're never written into the code or the repository.
 | `PAYMENT_PROVIDER` | `mock` (test), `converge`, or the new adapter's name |
 | `PAYMENT_API_KEY`, `PAYMENT_MERCHANT_ID`, `PAYMENT_WEBHOOK_SECRET`, `PAYMENT_ENV` | read by `template.js`; rename to suit the processor |
 | `CONVERGE_MERCHANT_ID`, `CONVERGE_USER_ID`, `CONVERGE_PIN`, `CONVERGE_ENV` | Elavon Converge only |
-| `PUBLIC_URL` | the site's address, e.g. `https://spectrumcpr.org`, used to build `returnUrl` and `notifyUrl` |
+| `PUBLIC_URL` | the site's address, e.g. `https://www.spectrumcpr.org`, used to build `returnUrl` and `notifyUrl` |
 
 **URLs to register with the processor**
-- Webhook / notification URL: `https://spectrumcpr.org/api/payments/webhook`
-- Return URL after payment: `https://spectrumcpr.org/?booking=<reference>`
+- Webhook / notification URL: `https://www.spectrumcpr.org/api/payments/webhook`
+- Return URL after payment: `https://www.spectrumcpr.org/?booking=<reference>`
+
+Use the `www.` address exactly. The bare domain redirects, and a webhook
+POST that gets redirected usually doesn't arrive.
   (passed per payment as `returnUrl`)
 
 **If the processor allow-lists our server's IP:** Render's outbound IP
