@@ -103,10 +103,10 @@ dashboard. They're never written into the code or the repository.
 **URLs to register with the processor**
 - Webhook / notification URL: `https://www.spectrumcpr.org/api/payments/webhook`
 - Return URL after payment: `https://www.spectrumcpr.org/?booking=<reference>`
+  (passed per payment as `returnUrl`)
 
 Use the `www.` address exactly. The bare domain redirects, and a webhook
 POST that gets redirected usually doesn't arrive.
-  (passed per payment as `returnUrl`)
 
 **If the processor allow-lists our server's IP:** Render's outbound IP
 addresses are listed in the Render dashboard under the service's
