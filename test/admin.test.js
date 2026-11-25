@@ -168,7 +168,7 @@ async function until(fn, timeoutMs = 4000) {
   check('CPR is ticked to start with', $('crsOn_CPR').checked && !$('crsOn_BABYSIT').checked);
 
   tick('CPR', false);
-  $('fDate').value = '2026-12-01';
+  $('fDate').value = '2027-12-01';
   $('fOpen').value = '10:00';
   $('fClose').value = '18:00';
   window.Admin.save(null);
@@ -202,7 +202,7 @@ async function until(fn, timeoutMs = 4000) {
     $('fErr')?.textContent);
 
   const evening = (await listAll()).find((c) =>
-    c.courseCode === 'BABYSIT' && c.startsAt.startsWith('2026-12-01'));
+    c.courseCode === 'BABYSIT' && c.startsAt.startsWith('2027-12-01'));
   check('it is stored under the ticked course', evening?.title === 'Babysitter Safety',
     JSON.stringify(evening)?.slice(0, 120));
   check('it appears in the table',
@@ -213,7 +213,7 @@ async function until(fn, timeoutMs = 4000) {
 
   // A date and time typed in local time must reach the server as UTC.
   check('local time converts to UTC on save',
-    evening?.startsAt.endsWith('Z') && evening.startsAt.includes('2026-12-0'),
+    evening?.startsAt.endsWith('Z') && evening.startsAt.includes('2027-12-0'),
     `got ${evening?.startsAt}`);
 
   check('a zone trip limit is stored', evening?.zoneLimits?.[3] === 1,
@@ -509,7 +509,7 @@ async function until(fn, timeoutMs = 4000) {
     headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
     body: JSON.stringify({
       courseCode: 'CPR', title: 'Small day',
-      startsAt: '2026-12-10T16:00:00Z', endsAt: '2026-12-11T02:00:00Z',
+      startsAt: '2027-12-10T16:00:00Z', endsAt: '2027-12-11T02:00:00Z',
       capacity: 4, priceCents: 8500,
     }),
   })).json();
@@ -559,7 +559,7 @@ async function until(fn, timeoutMs = 4000) {
     headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
     body: JSON.stringify({
       courseCode: 'BABYSIT', title: 'Tiny one',
-      startsAt: '2026-12-20T16:00:00Z', endsAt: '2026-12-20T22:00:00Z',
+      startsAt: '2027-12-20T16:00:00Z', endsAt: '2027-12-20T22:00:00Z',
       capacity: 1, priceCents: 6500,
     }),
   })).json();

@@ -379,6 +379,34 @@
   .modal-err.show{display:block;}
   .modal-note{font-size:13.5px;color:var(--ink-soft);margin:14px 0 0;}
 
+  /* Test payment window: stands in for Elavon's Lightbox pop-up while the
+     site is in test mode, so the checkout can be seen before real payments. */
+  .pay-veil{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;
+    background:rgba(8,10,14,.72);padding:16px}
+  .pay-veil.open{display:flex}
+  .pay-box{width:100%;max-width:400px;background:#fff;color:#1b1f27;border-radius:8px;
+    box-shadow:0 20px 60px rgba(0,0,0,.45);overflow:hidden;font-family:var(--sans)}
+  .pay-top{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;
+    background:#f3f5f8;border-bottom:1px solid #dde1e7}
+  .pay-top b{font-size:15px}
+  .pay-top span{font-size:12px;color:#5b6472}
+  .pay-top button{background:none;border:0;font-size:22px;line-height:1;color:#5b6472;cursor:pointer}
+  .pay-test{background:#fff6d6;color:#5c4a10;font-size:12.5px;padding:8px 18px;border-bottom:1px solid #f0dd9a}
+  .pay-in{padding:16px 18px 18px}
+  .pay-amt{font-size:13px;color:#5b6472;margin:0 0 12px}
+  .pay-amt b{display:block;font-size:26px;color:#1b1f27;font-family:var(--cond)}
+  .pay-in label{font-size:12.5px;font-weight:600;color:#3a414d;margin:0 0 4px}
+  .pay-in input{width:100%;padding:10px 11px;border:1.5px solid #cfd5dd;border-radius:5px;font-size:16px;
+    margin:0 0 11px;background:#fff;color:#1b1f27;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .pay-in input:focus{outline:2px solid #2472c8;outline-offset:0;border-color:#2472c8}
+  .pay-row{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+  .pay-go{width:100%;padding:12px;border:0;border-radius:5px;background:#1f6fd1;color:#fff;font-size:15px;
+    font-weight:700;cursor:pointer;margin-top:4px}
+  .pay-go:disabled{opacity:.6;cursor:wait}
+  .pay-alt{display:block;width:100%;background:none;border:0;margin-top:10px;font-size:12.5px;color:#5b6472;
+    text-decoration:underline;cursor:pointer}
+  .pay-lock{font-size:11.5px;color:#7a8290;text-align:center;margin-top:12px}
+
   /* agreeing to the details being kept */
   .consent{display:flex;gap:11px;align-items:flex-start;margin:4px 0 16px;padding:12px 13px;
     border:1.5px solid var(--rule);border-radius:2px;background:var(--paper-2);
@@ -1769,6 +1797,7 @@ const Booking = (() => {
   }
 
   function close() {
+    closeTestPayment();
     hideSuggest();
     hideAddr();
     document.getElementById('bookVeil').classList.remove('open');
@@ -2394,17 +2423,9 @@ const Booking = (() => {
       ${data.seats > 1 ? `<p class="group-note">
         ${data.attendees.map((a) => esc(a.name)).join(', ')}
       </p>` : ''}
-      ${mock ? `
-        <button class="btn" style="width:100%;margin-bottom:8px" onclick="Booking.pay('approve')">
-          Simulate successful payment
-        </button>
-        <button class="btn btn-ghost" style="width:100%" onclick="Booking.pay('decline')">
-          Simulate declined card
-        </button>`
-      : `
-        <button class="btn" style="width:100%" onclick="Booking.payOnline()">
-          Pay ${money(data.totalCents ?? data.registration.amountCents)}
-        </button>`}
+      <button class="btn" style="width:100%" onclick="Booking.${mock ? 'openTestPayment' : 'payOnline'}()">
+        Pay ${money(data.totalCents ?? data.registration.amountCents)}
+      </button>
       <p class="modal-note">If the timer runs out your seat is released and offered to the next person.</p>
     `);
 
@@ -2427,6 +2448,73 @@ const Booking = (() => {
       return;
     }
     stepDone();
+  }
+
+  /**
+   * Test mode's stand-in for the Lightbox pop-up.
+   *
+   * Looks and behaves like a hosted payment window — the page dims and a card
+   * form floats over it — so the checkout can be tried before Elavon's demo
+   * account exists. Nothing typed here is sent anywhere: Pay simply approves
+   * the test payment, and the card fields are filled with a test card number.
+   * With real payments switched on, payOnline() opens Elavon's own window in
+   * exactly this place instead.
+   */
+  function openTestPayment() {
+    let veil = document.getElementById('payVeil');
+    if (!veil) {
+      veil = document.createElement('div');
+      veil.id = 'payVeil';
+      veil.className = 'pay-veil';
+      veil.setAttribute('role', 'dialog');
+      veil.setAttribute('aria-modal', 'true');
+      veil.setAttribute('aria-label', 'Payment');
+      document.body.appendChild(veil);
+    }
+    const total = lastBooking ? (lastBooking.totalCents ?? lastBooking.registration.amountCents) : 0;
+    veil.innerHTML = `
+      <div class="pay-box">
+        <div class="pay-top">
+          <div><b>Secure payment</b><br><span>Spectrum CPR + First Aid</span></div>
+          <button type="button" aria-label="Cancel payment" onclick="Booking.closeTestPayment()">&times;</button>
+        </div>
+        <div class="pay-test"><b>Test mode</b> — no card is charged. When card payments are
+          switched on, Elavon's own payment window opens here instead.</div>
+        <div class="pay-in">
+          <p class="pay-amt">Amount<b>${money(total)}</b></p>
+          <label for="tpCard">Card number</label>
+          <input id="tpCard" inputmode="numeric" autocomplete="off" value="4000 0000 0000 0002">
+          <div class="pay-row">
+            <div><label for="tpExp">Expiry (MM/YY)</label>
+              <input id="tpExp" inputmode="numeric" autocomplete="off" value="12/30"></div>
+            <div><label for="tpCvv">CVV</label>
+              <input id="tpCvv" inputmode="numeric" autocomplete="off" value="123"></div>
+          </div>
+          <label for="tpZip">Billing ZIP</label>
+          <input id="tpZip" inputmode="numeric" autocomplete="off" value="97116">
+          <button type="button" class="pay-go" id="tpPay" onclick="Booking.submitTestPayment('approve')">
+            Pay ${money(total)}</button>
+          <button type="button" class="pay-alt" onclick="Booking.submitTestPayment('decline')">
+            Test a declined card</button>
+          <p class="pay-lock">🔒 Card details are entered in the payment provider's window,
+            never on our site.</p>
+        </div>
+      </div>`;
+    veil.classList.add('open');
+    setTimeout(() => document.getElementById('tpPay')?.focus(), 30);
+  }
+
+  function closeTestPayment() {
+    document.getElementById('payVeil')?.classList.remove('open');
+  }
+
+  /** Pay or decline in the test window, after a moment, like the real thing. */
+  async function submitTestPayment(outcome) {
+    const btn = document.getElementById('tpPay');
+    if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
+    await new Promise((r) => setTimeout(r, 900));
+    closeTestPayment();
+    await pay(outcome);
   }
 
   // ==========================================================================
@@ -2463,6 +2551,8 @@ const Booking = (() => {
           onApproval: (response) => confirmWith(response),
           onDeclined: (response) => showErr(response.ssl_result_message || 'That card was declined.'),
           onError: () => showErr('Payment could not be processed. Please try again or call us.'),
+          // Closed without paying: the seat stays held, so they can try again.
+          onCancelled: () => {},
         });
       }).catch(() => showErr('The payment window could not open. Please try again or call us.'));
       return;
@@ -2705,7 +2795,8 @@ const Booking = (() => {
   // Keep seat counts honest for someone who leaves the page open.
   setInterval(load, 60000);
 
-  return { open, close, hold, pay, payOnline, payConverge, joinWaitlist, load, setQty, toggleContact,
+  return { open, close, hold, pay, payOnline, payConverge, joinWaitlist,
+           openTestPayment, closeTestPayment, submitTestPayment, load, setQty, toggleContact,
            pickSlot, switchDay, loadSlots, loadQuote, checkZone, showCourse, consentChanged,
            // exposed for tests
            _showReturn: showReturn, _formatPhone: formatPhone, _showSuggest: showSuggest, _hideSuggest: hideSuggest,
