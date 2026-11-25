@@ -545,9 +545,9 @@ app.post('/api/registrations/:ref/extend', (req, res) => {
 /**
  * Step 2: the gateway says it's paid; confirm the seat.
  *
- * NOTE FOR GO-LIVE: with Converge, treat a browser-supplied payload as a hint,
- * not proof. Verify server-side (txnquery) or accept only Converge's Export
- * Script webhook before confirming. See payments/converge.js.
+ * The browser's word is only a hint: the provider's verify() re-checks the
+ * payment with the provider's own API before anything is confirmed (for
+ * Converge, a txnquery — see payments/converge.js).
  */
 app.post('/api/registrations/:ref/confirm', async (req, res) => {
   const ref = req.params.ref;

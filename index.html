@@ -2551,6 +2551,8 @@ const Booking = (() => {
           onApproval: (response) => confirmWith(response),
           onDeclined: (response) => showErr(response.ssl_result_message || 'That card was declined.'),
           onError: () => showErr('Payment could not be processed. Please try again or call us.'),
+          // Closed without paying: the seat stays held, so they can try again.
+          onCancelled: () => {},
         });
       }).catch(() => showErr('The payment window could not open. Please try again or call us.'));
       return;

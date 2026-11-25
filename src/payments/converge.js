@@ -3,102 +3,136 @@
 /**
  * ELAVON CONVERGE — LIGHTBOX INTEGRATION
  * ======================================
- * A ready-made example of integration point 2 (see template.js and
- * PAYMENTS.md). Use this if the processor is Elavon Converge; for any other
- * processor, start from template.js instead.
+ * Integration point 2 filled in for Elavon Converge Lightbox (see template.js
+ * and PAYMENTS.md). Switched on with PAYMENT_PROVIDER=converge.
  *
- * Not active yet. Fill in credentials, flip PAYMENT_PROVIDER=converge, and the
- * rest of the app works unchanged — seats.js has no idea which provider is in
- * play.
+ * Why Lightbox: the card form is Elavon's pop-up, loaded from their server,
+ * so card data never touches this site (PCI SAQ A).
  *
- * Why Lightbox and not Checkout.js: Lightbox puts the merchant at PCI SAQ A
- * (22 questions). Checkout.js is SAQ A-EP (191 questions) because card fields
- * live on our page. Unless the client specifically needs a fully custom payment
- * form, Lightbox is the far cheaper compliance path.
+ * How a payment is proven
+ * -----------------------
+ * Nothing the browser or a notice *says* is trusted on its own. Whichever
+ * arrives first — the Lightbox approval from the customer's browser
+ * (verify) or Elavon's Export Script notice (webhook) — the transaction is
+ * looked up with Elavon's own API (txnquery) and only confirmed when:
+ *   - Elavon reports it approved,
+ *   - its invoice number is this booking's reference, and
+ *   - its amount is exactly what the booking costs.
  *
- * BEFORE THIS WORKS, the client must call Elavon and request:
- *   1. Hosted Payments / Lightbox enabled on the account
- *   2. Account set to eCommerce (NOT Phone/Catalog — this is the usual blocker)
- *   3. An API user with permission to post a session token request
- *   4. Our production domain + server IP added to the allowed list
- *      (Converge Account > Settings > Fraud Prevention Rules > API IP Address
- *       Allowed List — tick the Checkout.js/Lightbox level, not XML)
+ * Settings (Render environment variables, never in the code)
+ * ---------------------------------------------------------
+ *   CONVERGE_ACCOUNT_ID   Converge Account ID (ssl_account_id, formerly
+ *                         ssl_merchant_id; CONVERGE_MERCHANT_ID still read)
+ *   CONVERGE_USER_ID      API user with hosted-payments permission
+ *   CONVERGE_PIN          that user's PIN
+ *   CONVERGE_VENDOR_ID    ssl_vendor_id, assigned by Elavon for certification
+ *   CONVERGE_ENV          'demo' (default) or 'production'
+ *   CONVERGE_WEBHOOK_KEY  optional: a random string added to the Export Script
+ *                         URL as ?key=..., so stray posts are turned away early
  *
- * Server requirements Elavon enforces: HTTPS with a valid certificate, and
- * TLS 1.2 or 1.3 with Perfect Forward Secrecy.
+ * Elavon also needs: the account set to eCommerce, Lightbox enabled, Render's
+ * outbound IPs on the API allow-list, and https://www.spectrumcpr.org as an
+ * allowed referrer.
  *
- * Endpoints:
- *   demo  https://api.demo.convergepay.com/hosted-payments/transaction_token
- *   prod  https://api.convergepay.com/hosted-payments/transaction_token
- *   JS    https://api.convergepay.com/hosted-payments/PayWithConverge.js
- *
- * Build against demo first. Elavon will assign a Solution Engineer for
- * integration testing before they let the account go live.
+ * TO CONFIRM WITH THE SOLUTION ENGINEER (marked "CONFIRM" below): the exact
+ * fields an Export Script posts, and the txnquery response fields for an
+ * approved, voided or settled sale. The checks here are deliberately strict,
+ * so a mismatch fails closed (no booking confirmed) rather than open.
  */
+
+const crypto = require('crypto');
 
 const name = 'converge';
 
-const ENDPOINTS = {
-  demo: 'https://api.demo.convergepay.com/hosted-payments/transaction_token',
-  production: 'https://api.convergepay.com/hosted-payments/transaction_token',
+const HOSTS = {
+  demo: 'https://api.demo.convergepay.com',
+  production: 'https://api.convergepay.com',
 };
+const ENDPOINTS = {
+  demo: `${HOSTS.demo}/hosted-payments/transaction_token`,
+  production: `${HOSTS.production}/hosted-payments/transaction_token`,
+};
+const XML_API = {
+  demo: `${HOSTS.demo}/VirtualMerchantDemo/processxml.do`,
+  production: `${HOSTS.production}/VirtualMerchant/processxml.do`,
+};
+
+// Swappable in tests, so the adapter can be checked without a real account.
+let doFetch = (...args) => fetch(...args);
+function _setFetch(fn) { doFetch = fn; }
 
 function config() {
   const cfg = {
-    merchantId: process.env.CONVERGE_MERCHANT_ID,
+    accountId: process.env.CONVERGE_ACCOUNT_ID || process.env.CONVERGE_MERCHANT_ID,
     userId: process.env.CONVERGE_USER_ID,
     pin: process.env.CONVERGE_PIN,
-    env: process.env.CONVERGE_ENV === 'production' ? 'production' : 'demo',
   };
-
-  const missing = Object.entries(cfg)
-    .filter(([k, v]) => k !== 'env' && !v)
-    .map(([k]) => k);
-
+  const missing = Object.entries(cfg).filter(([, v]) => !v).map(([k]) => k);
   if (missing.length) {
     throw new Error(
       `Converge is not configured. Missing: ${missing.join(', ')}. ` +
-        `Set these in .env, or run with PAYMENT_PROVIDER=mock while waiting on Elavon.`
+        'Set them on Render, or keep PAYMENT_PROVIDER=mock while waiting on Elavon.'
     );
   }
-  return cfg;
+  return {
+    ...cfg,
+    vendorId: process.env.CONVERGE_VENDOR_ID || '',
+    env: process.env.CONVERGE_ENV === 'production' ? 'production' : 'demo',
+  };
 }
 
+/** The account fields every Converge request starts with. */
+function credentials(cfg) {
+  const out = { ssl_account_id: cfg.accountId, ssl_user_id: cfg.userId, ssl_pin: cfg.pin };
+  if (cfg.vendorId) out.ssl_vendor_id = cfg.vendorId;
+  return out;
+}
+
+const toDollars = (cents) => (cents / 100).toFixed(2);
+const toCents = (dollars) => Math.round(Number(String(dollars).replace(/[^0-9.]/g, '')) * 100);
+
+/** What this booking should have been charged, worked out from our records. */
+function expectedCents(publicRef) {
+  const seats = require('../seats');   // loaded late: seats.js needs the database
+  const reg = seats.findByRef(publicRef);
+  return reg ? seats.bookingTotals(reg).totalCents : null;
+}
+
+// --------------------------------------------------------------------------
+//  Step 1: a Lightbox session token
+// --------------------------------------------------------------------------
+
 /**
- * Step 1 of Lightbox: server-to-server call for an ssl_txn_auth_token.
- * The token is single-use and short-lived. It goes to the browser, which hands
- * it to PayWithConverge.js to open the modal. Card data never touches us.
+ * Server-to-server call for an ssl_txn_auth_token (single use, valid 15
+ * minutes). The browser hands it to PayWithConverge.js to open the pop-up.
  */
 async function createSession({ registration, cls, amountCents, seatCount = 1 }) {
   const cfg = config();
-  // A group booking is one transaction covering every seat.
   const total = amountCents ?? registration.amount_cents;
+  const names = String(registration.student_name || '').trim().split(/\s+/);
 
   const body = new URLSearchParams({
-    ssl_merchant_id: cfg.merchantId,
-    ssl_user_id: cfg.userId,
-    ssl_pin: cfg.pin,
+    ...credentials(cfg),
     ssl_transaction_type: 'ccsale',
-    ssl_amount: (total / 100).toFixed(2),
-    // Our reference travels with the transaction and comes back in the
-    // response — this is how a payment maps to a seat without scraping email.
+    ssl_amount: toDollars(total),
+    // Our reference travels with the payment and comes back on the approval,
+    // the Export Script notice and txnquery: it's how money maps to a seat.
     ssl_invoice_number: registration.public_ref,
-    ssl_description: seatCount > 1 ? `${cls.title} (${seatCount} seats)` : cls.title,
-    ssl_first_name: registration.student_name.split(' ')[0] || '',
-    ssl_last_name: registration.student_name.split(' ').slice(1).join(' ') || '',
-    ssl_email: registration.student_email,
+    ssl_description: seatCount > 1 ? `${cls.title} (${seatCount} people)` : cls.title,
+    ssl_first_name: names[0] || '',
+    ssl_last_name: names.slice(1).join(' '),
+    ssl_email: registration.student_email || '',
   });
 
-  const res = await fetch(ENDPOINTS[cfg.env], {
+  const res = await doFetch(ENDPOINTS[cfg.env], {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   });
-
   const text = (await res.text()).trim();
 
-  // Converge returns a bare token string on success, or an XML error block.
-  if (!res.ok || text.startsWith('<')) {
+  // A bare token on success; an XML or HTML error otherwise.
+  if (!res.ok || !text || text.startsWith('<') || /\s/.test(text)) {
     throw new Error(`Converge token request failed (${res.status}): ${text.slice(0, 300)}`);
   }
 
@@ -106,40 +140,146 @@ async function createSession({ registration, cls, amountCents, seatCount = 1 }) 
     provider: name,
     mode: 'lightbox',
     sessionToken: text,
-    scriptUrl:
-      cfg.env === 'production'
-        ? 'https://api.convergepay.com/hosted-payments/PayWithConverge.js'
-        : 'https://api.demo.convergepay.com/hosted-payments/PayWithConverge.js',
+    scriptUrl: `${HOSTS[cfg.env]}/hosted-payments/PayWithConverge.js`,
     amountCents: total,
     seatCount,
-    description: seatCount > 1 ? `${cls.title} — ${seatCount} seats` : cls.title,
+    description: seatCount > 1 ? `${cls.title} — ${seatCount} people` : cls.title,
   };
 }
 
-/**
- * Step 2: read the approval Converge hands back.
- *
- * IMPORTANT: the browser callback is a convenience, not proof of payment — a
- * user can forge a POST to our endpoint. Before going live, either verify the
- * transaction server-side with an XML API txnquery on ssl_txn_id, or configure
- * a Converge Export Script (their webhook) and treat that as the source of
- * truth. Wire that up during integration testing with the Solution Engineer.
- */
-async function verify(payload) {
-  const result = String(payload?.ssl_result ?? '');
-  const message = String(payload?.ssl_result_message ?? '');
-  const txnId = payload?.ssl_txn_id;
+// --------------------------------------------------------------------------
+//  Looking a payment up with Elavon (txnquery)
+// --------------------------------------------------------------------------
 
-  // ssl_result === '0' means approved.
-  if (result !== '0' || !txnId) {
-    return {
-      ok: false,
-      reason: message || `declined (ssl_result=${result || 'missing'})`,
-      raw: payload,
-    };
-  }
+const xmlEscape = (s) => String(s).replace(/[<>&'"]/g, (c) =>
+  ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
+const xmlUnescape = (s) => String(s)
+  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+  .replace(/&apos;/g, "'").replace(/&amp;/g, '&');
 
-  return { ok: true, paymentRef: String(txnId), raw: payload };
+/** Converge's XML replies are flat: <txn><field>value</field>...</txn>. */
+function parseTxns(xml) {
+  const blocks = String(xml).match(/<txn>[\s\S]*?<\/txn>/g) || [];
+  return blocks.map((block) => {
+    const out = {};
+    for (const m of block.matchAll(/<([A-Za-z0-9_]+)>([^<]*)<\/\1>/g)) out[m[1]] = xmlUnescape(m[2].trim());
+    return out;
+  });
 }
 
-module.exports = { name, createSession, verify, ENDPOINTS };
+async function queryTransaction(txnId) {
+  const cfg = config();
+  const fields = { ...credentials(cfg), ssl_transaction_type: 'txnquery', ssl_txn_id: txnId };
+  const xml = `<txn>${Object.entries(fields)
+    .map(([k, v]) => `<${k}>${xmlEscape(v)}</${k}>`).join('')}</txn>`;
+
+  const res = await doFetch(XML_API[cfg.env], {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ xmldata: xml }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Converge txnquery failed (${res.status})`);
+  return parseTxns(text).find((t) => t.ssl_txn_id === String(txnId) || t.errorCode) || null;
+}
+
+// CONFIRM: statuses that mean the sale was reversed or never went through.
+const DEAD_STATUSES = new Set(['VID', 'VOID', 'VOIDED', 'DEC', 'DECLINED', 'FPR', 'PRE', 'ERR']);
+
+/**
+ * Is Elavon's own record of this transaction a good payment for this booking?
+ * Returns null when it is, or the reason it isn't.
+ */
+function problemWith(txn, publicRef) {
+  if (!txn) return 'transaction not found at Elavon';
+  if (txn.errorCode) return `Elavon error ${txn.errorCode}: ${txn.errorMessage || txn.errorName || ''}`.trim();
+
+  const approved = txn.ssl_result !== undefined
+    ? txn.ssl_result === '0'
+    : /^APPROV/i.test(txn.ssl_result_message || '');
+  if (!approved) return `not approved (${txn.ssl_result_message || 'no result'})`;
+  if (txn.ssl_trans_status && DEAD_STATUSES.has(txn.ssl_trans_status.toUpperCase())) {
+    return `transaction status ${txn.ssl_trans_status}`;
+  }
+  if (txn.ssl_transaction_type && !/sale/i.test(txn.ssl_transaction_type)) {
+    return `not a sale (${txn.ssl_transaction_type})`;
+  }
+  if (txn.ssl_invoice_number !== publicRef) {
+    return `invoice ${txn.ssl_invoice_number || '(none)'} is not booking ${publicRef}`;
+  }
+  const want = expectedCents(publicRef);
+  if (want == null) return `booking ${publicRef} not found`;
+  if (toCents(txn.ssl_amount) !== want) {
+    return `amount ${txn.ssl_amount} does not match ${toDollars(want)}`;
+  }
+  return null;
+}
+
+/** Look the payment up and decide. Never throws: a failure is a "no". */
+async function check(txnId, publicRef, raw) {
+  let txn;
+  try {
+    txn = await queryTransaction(txnId);
+  } catch (err) {
+    return { ok: false, reason: `could not check with Elavon: ${err.message}`, raw };
+  }
+  const problem = problemWith(txn, publicRef);
+  if (problem) return { ok: false, reason: problem, raw: { claimed: raw, elavon: txn } };
+  return { ok: true, paymentRef: String(txnId), raw: { claimed: raw, elavon: txn } };
+}
+
+// --------------------------------------------------------------------------
+//  Step 2a: the customer's browser says the Lightbox approved it
+// --------------------------------------------------------------------------
+
+/**
+ * `payload` is what PayWithConverge's onApproval handed back, plus our
+ * publicRef. Treated as a claim and checked with Elavon before saying yes.
+ */
+async function verify(payload) {
+  const txnId = payload?.ssl_txn_id;
+  const result = payload?.ssl_result;
+  if (result !== undefined && String(result) !== '0') {
+    return { ok: false, reason: payload?.ssl_result_message || 'declined', raw: payload };
+  }
+  if (!txnId) return { ok: false, reason: 'no transaction id', raw: payload };
+  return check(String(txnId), String(payload.publicRef), payload);
+}
+
+// --------------------------------------------------------------------------
+//  Step 2b: Elavon's Export Script notice (server to server)
+// --------------------------------------------------------------------------
+
+function sameSecret(a, b) {
+  const x = Buffer.from(String(a || ''));
+  const y = Buffer.from(String(b || ''));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+/**
+ * Elavon posts the transaction's ssl_* fields to
+ * https://www.spectrumcpr.org/api/payments/webhook (CONFIRM: exact fields and
+ * format; form-encoded and JSON are both accepted here). The notice itself
+ * isn't trusted: the transaction it names is looked up with txnquery, and its
+ * invoice number says which booking it pays for.
+ */
+async function webhook(req) {
+  const wantKey = process.env.CONVERGE_WEBHOOK_KEY;
+  if (wantKey && !sameSecret(req.query?.key, wantKey)) return { ok: false, reason: 'bad key' };
+
+  const body = req.body || {};
+  const txnId = body.ssl_txn_id;
+  const publicRef = body.ssl_invoice_number;
+  if (!txnId || !publicRef) return { ok: false, reason: 'ssl_txn_id or ssl_invoice_number missing' };
+  if (body.ssl_result !== undefined && String(body.ssl_result) !== '0') {
+    return { ok: false, reason: 'not an approval' };
+  }
+
+  const v = await check(String(txnId), String(publicRef), body);
+  return v.ok ? { ok: true, publicRef: String(publicRef), paymentRef: v.paymentRef, raw: v.raw } : v;
+}
+
+module.exports = {
+  name, createSession, verify, webhook, queryTransaction,
+  ENDPOINTS, XML_API, _setFetch, _parseTxns: parseTxns,
+};
