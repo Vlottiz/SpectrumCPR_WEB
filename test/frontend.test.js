@@ -263,7 +263,16 @@ async function until(fn, timeoutMs = 4000) {
 
   console.log('\npayment and confirmation');
 
-  window.Booking.pay('approve');
+  const payBtn = [...doc.querySelectorAll('#bookBody button')].find((b) => /^Pay \$/.test(b.textContent.trim()));
+  check('the pay step has one Pay button with the total', Boolean(payBtn), '');
+  payBtn.click();
+  const veil = doc.getElementById('payVeil');
+  check('Pay opens the test payment window over the page',
+    veil && veil.classList.contains('open') && /Test mode/.test(veil.textContent));
+  window.Booking.closeTestPayment();
+  check('the window closes without paying', !veil.classList.contains('open'));
+  payBtn.click();
+  window.Booking.submitTestPayment('approve');
   const done = await until(() =>
     (doc.getElementById('bookBody').textContent || '').includes("You're registered"));
   check('payment confirms', done);
@@ -479,7 +488,7 @@ async function until(fn, timeoutMs = 4000) {
     headers: { 'Content-Type': 'application/json', 'x-admin-token': 'fe-test' },
     body: JSON.stringify({
       courseCode: 'CPR', title: 'Nearly full',
-      startsAt: '2026-11-20T16:00:00Z', endsAt: '2026-11-21T02:00:00Z',
+      startsAt: '2027-11-20T16:00:00Z', endsAt: '2027-11-21T02:00:00Z',
       capacity: 2, priceCents: 8500,
     }),
   })).json();
