@@ -991,7 +991,10 @@ function confirmPayment({ publicRef, provider, paymentRef, raw = null }) {
 
     if (reg.status === 'confirmed') {
       // Already done. Same payment ref => success; different => flag it.
-      if (reg.payment_ref && paymentRef && reg.payment_ref !== paymentRef) {
+      // A group's seats store the payment as "<ref>#<seat>", so compare the
+      // part before the # — the same payment arriving again isn't a duplicate.
+      const storedRef = reg.group_ref ? String(reg.payment_ref || '').replace(/#\d+$/, '') : reg.payment_ref;
+      if (storedRef && paymentRef && storedRef !== paymentRef) {
         logEvent(db, {
           registrationId: reg.id,
           classId: reg.class_id,

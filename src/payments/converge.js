@@ -27,17 +27,31 @@
  *   CONVERGE_PIN          that user's PIN
  *   CONVERGE_VENDOR_ID    ssl_vendor_id, assigned by Elavon for certification
  *   CONVERGE_ENV          'demo' (default) or 'production'
- *   CONVERGE_WEBHOOK_KEY  optional: a random string added to the Export Script
- *                         URL as ?key=..., so stray posts are turned away early
+ *
+ * Export Script (Converge > Settings > System Setup Support > Export Options;
+ * set the Approval, Declined and Error URLs all to
+ * https://www.spectrumcpr.org/api/payments/webhook):
+ *   CONVERGE_EXPORT_USER      the Authentication Username entered there
+ *   CONVERGE_EXPORT_PASSWORD  the Authentication Password entered there
+ *   CONVERGE_EXPORT_CONFIRM   the Confirmation Text entered there (letters and
+ *                             digits only); it's echoed in every reply, as
+ *                             Converge checks for it
+ *   CONVERGE_WEBHOOK_KEY      optional extra: the URL can end ?key=<this>
+ * Converge counts any reply other than 200 as a failure and, with "Retry
+ * failed export scripts" ticked, retries hourly and emails an alert. So
+ * declines and other notices needing no action are answered 200; only a
+ * failed login (401) or Elavon being unreachable for the lookup (503, so it
+ * comes back later) are not.
  *
  * Elavon also needs: the account set to eCommerce, Lightbox enabled, Render's
  * outbound IPs on the API allow-list, and https://www.spectrumcpr.org as an
  * allowed referrer.
  *
- * TO CONFIRM WITH THE SOLUTION ENGINEER (marked "CONFIRM" below): the exact
- * fields an Export Script posts, and the txnquery response fields for an
- * approved, voided or settled sale. The checks here are deliberately strict,
- * so a mismatch fails closed (no booking confirmed) rather than open.
+ * TO CONFIRM WITH THE SOLUTION ENGINEER (marked "CONFIRM" below): the
+ * txnquery status codes for a voided or declined sale, and that
+ * ssl_invoice_number comes back on txnquery (Elavon's sample Export Script
+ * post doesn't show it). The checks are deliberately strict, so a mismatch
+ * fails closed (no booking confirmed) rather than open.
  */
 
 const crypto = require('crypto');
@@ -256,27 +270,57 @@ function sameSecret(a, b) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
+/** The Export Script's login, if one is set: HTTP Basic authentication. */
+function loggedIn(req) {
+  const user = process.env.CONVERGE_EXPORT_USER;
+  const pass = process.env.CONVERGE_EXPORT_PASSWORD;
+  if (!user && !pass) return true;
+  const m = /^Basic\s+(.+)$/i.exec(req.get ? req.get('authorization') || '' : req.headers?.authorization || '');
+  if (!m) return false;
+  const [u, ...rest] = Buffer.from(m[1], 'base64').toString('utf8').split(':');
+  // Compare both, always, so timing gives nothing away.
+  const okUser = sameSecret(u, user || '');
+  const okPass = sameSecret(rest.join(':'), pass || '');
+  return okUser && okPass;
+}
+
 /**
- * Elavon posts the transaction's ssl_* fields to
- * https://www.spectrumcpr.org/api/payments/webhook (CONFIRM: exact fields and
- * format; form-encoded and JSON are both accepted here). The notice itself
- * isn't trusted: the transaction it names is looked up with txnquery, and its
- * invoice number says which booking it pays for.
+ * An Export Script post: form-encoded ssl_* fields for an approval, decline
+ * or error (Elavon's sample: ssl_result, ssl_result_message, ssl_txn_id,
+ * ssl_amount, ssl_transaction_type, ... — new fields may appear and are
+ * ignored). The post itself isn't trusted: the transaction it names is looked
+ * up with txnquery, and Elavon's record says which booking it pays for.
  */
 async function webhook(req) {
+  const ack = process.env.CONVERGE_EXPORT_CONFIRM || undefined;
   const wantKey = process.env.CONVERGE_WEBHOOK_KEY;
-  if (wantKey && !sameSecret(req.query?.key, wantKey)) return { ok: false, reason: 'bad key' };
+  if (wantKey && !sameSecret(req.query?.key, wantKey)) return { ok: false, status: 401, reason: 'bad key' };
+  if (!loggedIn(req)) return { ok: false, status: 401, reason: 'login required' };
 
   const body = req.body || {};
   const txnId = body.ssl_txn_id;
-  const publicRef = body.ssl_invoice_number;
-  if (!txnId || !publicRef) return { ok: false, reason: 'ssl_txn_id or ssl_invoice_number missing' };
-  if (body.ssl_result !== undefined && String(body.ssl_result) !== '0') {
-    return { ok: false, reason: 'not an approval' };
-  }
+  const done = (reason) => ({ ok: false, ignore: true, reason, ack });
+  if (!txnId) return done('no ssl_txn_id');
+  if (String(body.ssl_result ?? '') !== '0') return done(`not an approval (${body.ssl_result_message || 'no result'})`);
 
-  const v = await check(String(txnId), String(publicRef), body);
-  return v.ok ? { ok: true, publicRef: String(publicRef), paymentRef: v.paymentRef, raw: v.raw } : v;
+  let txn;
+  try {
+    txn = await queryTransaction(String(txnId));
+  } catch (err) {
+    // Elavon will post it again within the hour.
+    return { ok: false, status: 503, reason: `could not check with Elavon: ${err.message}` };
+  }
+  const publicRef = (txn && txn.ssl_invoice_number) || body.ssl_invoice_number;
+  if (!publicRef) return done('no booking reference on the transaction');
+  const problem = problemWith(txn, String(publicRef));
+  if (problem) {
+    console.error(`[payments] Export Script for ${txnId} not accepted: ${problem}`);
+    return done(problem);
+  }
+  return {
+    ok: true, publicRef: String(publicRef), paymentRef: String(txnId),
+    raw: { claimed: body, elavon: txn }, ack, alwaysAcknowledge: true,
+  };
 }
 
 module.exports = {

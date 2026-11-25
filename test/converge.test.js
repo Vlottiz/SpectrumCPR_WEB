@@ -21,6 +21,8 @@ Object.assign(process.env, {
 });
 delete process.env.CONVERGE_ENV;
 delete process.env.CONVERGE_WEBHOOK_KEY;
+process.env.PAYMENT_PROVIDER = 'converge';
+process.env.ADMIN_TOKEN = 'cv-test';
 
 const { getDb, closeDb } = require('../src/db');
 const converge = require('../src/payments/converge');
@@ -190,34 +192,132 @@ const sale = (over = {}) => ({
       : '<txn><errorCode>5000</errorCode></txn>') };
   });
 
-  await test('a notice for a real approved payment names the booking', async () => {
+  // Shaped like Elavon's sample Export Script post: no invoice number on it.
+  const post = (over = {}) => ({ ssl_txn_id: 'TX-9', ssl_result: '0', ssl_result_message: 'APPROVAL',
+    ssl_amount: '220.00', ssl_transaction_type: 'SALE', ssl_card_number: '47**********0084', ...over });
+  const req = (body, headers = {}, query = {}) => ({
+    body, query, get: (h) => headers[h.toLowerCase()],
+  });
+
+  await test('an approval finds its booking from Elavon\'s own record', async () => {
     txns = { 'TX-9': sale({ ssl_txn_id: 'TX-9' }) };
-    const n = await converge.webhook({ query: {}, body: { ssl_txn_id: 'TX-9', ssl_invoice_number: REF, ssl_result: '0' } });
+    const n = await converge.webhook(req(post()));
     assert.ok(n.ok, n.reason);
     assert.strictEqual(n.publicRef, REF);
     assert.strictEqual(n.paymentRef, 'TX-9');
+    assert.strictEqual(n.alwaysAcknowledge, true);
   });
 
-  await test('a forged notice is refused because Elavon has no such payment', async () => {
+  await test('a forged post is not acted on (Elavon has no such payment)', async () => {
     txns = {};
-    const n = await converge.webhook({ query: {}, body: { ssl_txn_id: 'TX-X', ssl_invoice_number: REF, ssl_result: '0' } });
+    const n = await converge.webhook(req(post({ ssl_invoice_number: REF })));
     assert.ok(!n.ok);
+    assert.ok(n.ignore, 'answered 200 so Elavon doesn\'t retry, but nothing is confirmed');
   });
 
-  await test('with a webhook key set, a notice without it is turned away', async () => {
-    process.env.CONVERGE_WEBHOOK_KEY = 's3cret-key';
+  await test('a decline or error post is acknowledged and confirms nothing', async () => {
+    calls = [];
+    const n = await converge.webhook(req(post({ ssl_result: '1', ssl_result_message: 'DECLINED' })));
+    assert.ok(!n.ok && n.ignore);
+    assert.strictEqual(calls.length, 0);
+  });
+
+  await test('with a login set, a post without it gets 401 and a login prompt', async () => {
+    process.env.CONVERGE_EXPORT_USER = 'elavon';
+    process.env.CONVERGE_EXPORT_PASSWORD = 'pa:ss-123';
     txns = { 'TX-9': sale({ ssl_txn_id: 'TX-9' }) };
-    const body = { ssl_txn_id: 'TX-9', ssl_invoice_number: REF, ssl_result: '0' };
-    assert.ok(!(await converge.webhook({ query: {}, body })).ok);
-    assert.ok(!(await converge.webhook({ query: { key: 'wrong' }, body })).ok);
-    assert.ok((await converge.webhook({ query: { key: 's3cret-key' }, body })).ok);
+    const basic = (u, p) => ({ authorization: `Basic ${Buffer.from(`${u}:${p}`).toString('base64')}` });
+    assert.strictEqual((await converge.webhook(req(post()))).status, 401);
+    assert.strictEqual((await converge.webhook(req(post(), basic('elavon', 'wrong')))).status, 401);
+    assert.ok((await converge.webhook(req(post(), basic('elavon', 'pa:ss-123')))).ok);
+    delete process.env.CONVERGE_EXPORT_USER;
+    delete process.env.CONVERGE_EXPORT_PASSWORD;
+  });
+
+  await test('the Confirmation Text is handed back on every reply', async () => {
+    process.env.CONVERGE_EXPORT_CONFIRM = 'SpectrumOK';
+    txns = { 'TX-9': sale({ ssl_txn_id: 'TX-9' }) };
+    assert.strictEqual((await converge.webhook(req(post()))).ack, 'SpectrumOK');
+    assert.strictEqual((await converge.webhook(req(post({ ssl_result: '1' })))).ack, 'SpectrumOK');
+    delete process.env.CONVERGE_EXPORT_CONFIRM;
+  });
+
+  await test('with a URL key set, a post without it gets 401', async () => {
+    process.env.CONVERGE_WEBHOOK_KEY = 's3cret-key';
+    assert.strictEqual((await converge.webhook(req(post()))).status, 401);
+    assert.ok((await converge.webhook(req(post(), {}, { key: 's3cret-key' }))).ok);
     delete process.env.CONVERGE_WEBHOOK_KEY;
   });
 
-  await test('a notice about a decline confirms nothing', async () => {
-    const n = await converge.webhook({ query: {}, body: { ssl_txn_id: 'TX-9', ssl_invoice_number: REF, ssl_result: '1' } });
-    assert.ok(!n.ok);
+  await test('if Elavon can\'t be reached for the check, it answers 503 so Elavon retries', async () => {
+    converge._setFetch(async () => { throw new Error('network down'); });
+    const n = await converge.webhook(req(post()));
+    assert.strictEqual(n.status, 503);
   });
+
+  console.log('\nthe webhook address, as Elavon sees it');
+
+  const app = require('../src/server');
+  const server = await new Promise((r) => { const sv = app.listen(0, () => r(sv)); });
+  const URL = `http://localhost:${server.address().port}/api/payments/webhook`;
+  const send = (fields, headers = {}) => fetch(URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
+    body: new URLSearchParams(fields),
+  });
+  converge._setFetch(async (url, opts) => {
+    const body = Object.fromEntries(new URLSearchParams(String(opts.body)));
+    const id = (body.xmldata.match(/<ssl_txn_id>([^<]*)</) || [])[1];
+    const t = txns[id];
+    return { ok: true, status: 200, text: async () => (t
+      ? `<txn>${Object.entries(t).map(([k, v]) => `<${k}>${v}</${k}>`).join('')}</txn>`
+      : '<txn><errorCode>5000</errorCode></txn>') };
+  });
+  process.env.CONVERGE_EXPORT_USER = 'elavon';
+  process.env.CONVERGE_EXPORT_PASSWORD = 'pw-123';
+  process.env.CONVERGE_EXPORT_CONFIRM = 'SpectrumOK';
+  const login = { Authorization: `Basic ${Buffer.from('elavon:pw-123').toString('base64')}` };
+
+  await test('no login: 401 with a Basic login prompt', async () => {
+    const r = await send(post());
+    assert.strictEqual(r.status, 401);
+    assert.match(r.headers.get('www-authenticate') || '', /^Basic/);
+  });
+
+  await test('a decline: 200 with the Confirmation Text, so Elavon doesn\'t flag a failure', async () => {
+    const r = await send(post({ ssl_result: '1', ssl_result_message: 'DECLINED' }), login);
+    assert.strictEqual(r.status, 200);
+    assert.match(await r.text(), /SpectrumOK/);
+    assert.strictEqual(db.prepare('SELECT status FROM registrations WHERE public_ref = ?').get(REF).status, 'held');
+  });
+
+  await test('an approval: 200, Confirmation Text, and the booking is confirmed', async () => {
+    txns = { 'TX-9': sale({ ssl_txn_id: 'TX-9' }) };
+    const r = await send(post(), login);
+    const text = await r.text();
+    assert.strictEqual(r.status, 200, text);
+    assert.match(text, /SpectrumOK/);
+    const reg = db.prepare('SELECT status, payment_ref FROM registrations WHERE public_ref = ?').get(REF);
+    assert.strictEqual(reg.status, 'confirmed');
+    assert.strictEqual(reg.payment_ref, 'TX-9#0');   // one row per seat in a group
+  });
+
+  await test('the same approval again (Elavon\'s retry): still 200, nothing doubled', async () => {
+    const r = await send(post(), login);
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual((await r.json()).ok, true);
+    assert.strictEqual(db.prepare(`SELECT COUNT(*) n FROM events WHERE kind = 'duplicate_payment_suspected'`).get().n, 0);
+  });
+
+  await test('a different payment for an already-paid booking is still flagged', async () => {
+    txns = { 'TX-7': sale({ ssl_txn_id: 'TX-7' }) };
+    const r = await send(post({ ssl_txn_id: 'TX-7' }), login);
+    assert.strictEqual(r.status, 200);   // acknowledged, so Elavon doesn't retry hourly
+    assert.strictEqual((await r.json()).ok, false);
+    assert.strictEqual(db.prepare(`SELECT COUNT(*) n FROM events WHERE kind = 'duplicate_payment_suspected'`).get().n, 1);
+  });
+
+  server.close();
 
   console.log(`\n${passed} passed, ${failed} failed`);
   closeDb();

@@ -628,6 +628,20 @@ app.post('/api/payments/webhook', async (req, res) => {
     console.error('[payments] webhook failed:', err.message);
     return bad(res, 400, 'webhook_invalid');
   }
+  // The adapter can say how to answer, for providers that treat anything
+  // other than 200 as a failure and retry (Converge Export Scripts):
+  //   status   401 for a failed login (asks for one), 503 to be retried later
+  //   ignore   received and understood, nothing to do (e.g. a decline)
+  //   ack      text the provider expects to find in our reply
+  //   alwaysAcknowledge  answer 200 once the notice is genuine
+  const ack = notice && notice.ack ? { confirmation: notice.ack } : {};
+  if (notice && notice.status) {
+    if (notice.status === 401) res.set('WWW-Authenticate', 'Basic realm="payments"');
+    return res.status(notice.status).json({ ok: false, error: notice.reason || 'rejected' });
+  }
+  if (notice && notice.ignore) {
+    return res.json({ ok: true, ignored: notice.reason || true, ...ack });
+  }
   if (!notice || !notice.ok) return bad(res, 400, (notice && notice.reason) || 'rejected');
 
   const result = seats.confirmPayment({
@@ -639,8 +653,11 @@ app.post('/api/payments/webhook', async (req, res) => {
   if (!result.ok && result.needsRefund) {
     console.error(`[REFUND REQUIRED] ${notice.publicRef} paid ${notice.paymentRef} but the class filled up.`);
   }
-  res.status(result.ok ? 200 : 409).json({
-    ok: result.ok, reason: result.reason || null, needsRefund: Boolean(result.needsRefund),
+  if (!result.ok && !result.needsRefund) {
+    console.error(`[payments] notice for ${notice.publicRef} (${notice.paymentRef}) not applied: ${result.reason}`);
+  }
+  res.status(result.ok || notice.alwaysAcknowledge ? 200 : 409).json({
+    ok: result.ok, reason: result.reason || null, needsRefund: Boolean(result.needsRefund), ...ack,
   });
 });
 

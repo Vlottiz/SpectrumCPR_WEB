@@ -76,9 +76,35 @@ and the booking is confirmed only when Converge's own record shows:
 If Converge can't be reached, nothing is confirmed. Whichever of the two
 arrives second is a harmless repeat.
 
-**To confirm with Elavon's Solution Engineer:** the exact fields an Export
-Script posts, and the txnquery fields and status codes for an approved,
-voided or settled sale. These are marked `CONFIRM` in `converge.js`. The
+### Setting up the Converge Export Script
+
+In Converge: **Settings → System Setup Support → Export Options**.
+
+1. Tick **Enable export scripts**.
+2. Set the **Approval**, **Declined** and **Error** URLs all to
+   `https://www.spectrumcpr.org/api/payments/webhook`.
+3. Choose an **Authentication Username** and **Password**, and put the same
+   values on Render as `CONVERGE_EXPORT_USER` and `CONVERGE_EXPORT_PASSWORD`.
+4. Choose **Confirmation Text** (for example `SpectrumOK`) and put it on Render
+   as `CONVERGE_EXPORT_CONFIRM`.
+5. Tick **Retry failed export scripts**. Leave **Settlement Only** unticked.
+6. Save.
+
+Elavon has to add the URL to its proxy before posts arrive. That can take up
+to 12 business days, so ask for it early (1-800-377-3962, option 2, option 2,
+or sedevportalsupport@elavon.com).
+
+How the site replies: Converge counts any reply other than 200 as a failure,
+retries hourly and sends an alert email. So the site answers **200** to every
+genuine post, including declines and repeats. It answers **401** to a post
+without the right login, and **503** when Elavon can't be reached for the
+txnquery check, so the post comes back within the hour.
+
+Elavon's sample post doesn't include the invoice number, so the booking is
+found from the txnquery record instead.
+
+**To confirm with Elavon's Solution Engineer:** that txnquery returns
+`ssl_invoice_number`, and which status codes mean a voided or declined sale. These are marked `CONFIRM` in `converge.js`. The
 checks are strict, so a mismatch fails closed: no booking is confirmed.
 
 ## What the adapter has to do
@@ -120,7 +146,9 @@ dashboard. They're never written into the code or the repository.
 | `CONVERGE_USER_ID`, `CONVERGE_PIN` | the API user with hosted-payments permission, and its PIN |
 | `CONVERGE_VENDOR_ID` | `ssl_vendor_id`, assigned by Elavon for certification |
 | `CONVERGE_ENV` | `demo` (default) or `production` |
-| `CONVERGE_WEBHOOK_KEY` | optional: a long random string. Register the Export Script URL as `https://www.spectrumcpr.org/api/payments/webhook?key=<that string>` and other posts are turned away before any lookup |
+| `CONVERGE_EXPORT_USER`, `CONVERGE_EXPORT_PASSWORD` | the Export Script's Authentication Username and Password (see below) |
+| `CONVERGE_EXPORT_CONFIRM` | the Export Script's Confirmation Text, letters and digits only; the site puts it in every reply |
+| `CONVERGE_WEBHOOK_KEY` | optional extra: the Export Script URL can end `?key=<this>` |
 | `PUBLIC_URL` | the site's address, e.g. `https://www.spectrumcpr.org`, used to build `returnUrl` and `notifyUrl` |
 
 **URLs to register with the processor**
